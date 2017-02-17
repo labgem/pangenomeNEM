@@ -5,80 +5,65 @@ import mysql.connector as mysql
 import pandas as pd
 import numpy as np
 from collections import defaultdict
+from collections import OrderedDict
 import networkx as nx
 import subprocess
 import os
-from sklearn import manifold
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-import urllib2
-import re
-import difflib
+#from sklearn import manifold
+#import urllib2
 import logging
 
-NEM_LOCATION  = "../NEM/"#ADD NEM
+NEM_LOCATION  = "../NEM/"
 
 class pangenome:
 
+        options            = None
+        presences_absences = dict(list)
+        annotations        = dict(namedtuple)
+        nem_location       = None
+
 	def __init__(self, *args, **kwargs):
-	
 			
-		self.options                  = None
-		self.organisms                = set()
-		self.families                 = set()
-		self.cluster_core             = None
-		self.cluster_pan              = None
-		self.presence_absence_matrix  = None
-		self.cluster_occurence_matrix = None
-		self.annotations              = None
-		self.pan_genome_size	      = 0
-		self.core_genome_size         = 0
-		self.distance_matrix          = None
-		self.weights                  = None
-		self.cluster_classification   = None
-		self.nem_location             = None
-		
+		self.options                = None
+		self.organisms_set          = set()
+		self.families_set           = set()
+                self.organism_positions     = OrderedDict()
+                self.familly_positions      = OrderedDict()
+                self.familly_ratio          = dict()
+		self.core_list              = list()
+		self.pan_size	            = 0
+		self.core_size              = 0
+		self.cluster_classification = None
 
 		if(len(kwargs) > 0):
-		
-			self.options                  = kwargs["options"]
-			self.organisms                = kwargs["organisms"]
-			self.families                 = kwargs["families"]
-			self.cluster_core             = kwargs["cluster_core"] 
-			self.cluster_pan              = kwargs["cluster_pan"]
-			self.presence_absence_matrix  = kwargs["presence_absence_matrix"]
-			self.annotations              = kwargs["annotations"]
-			self.pan_genome_size	      = kwargs["pan_genome_size"]
-			self.core_genome_size         = kwargs["core_genome_size"]
-			self.distance_matrix          = kwargs["distance_matrix"]
-			self.weights                  = kwargs["weights"]
-			self.cluster_classification   = kwargs["cluster_classification"]
-			self.nem_location             = kwargs["nem_location"]
-			#TODO to_complete
+	
+                    self.organisms_set          = kwargs["organisms_set"]
+                    self.families_set           = kwargs["families_set"]
+                    self.organism_positions     = kwargs["organism_positions"]
+                    self.familly_positions      = kwargs["familly_positions"]
+                    self.familly_ratio          = kwargs["familly_ratio"]
+                    self.core_list              = kwargs["core_list"]
+                    self.core                   = kwargs["core"]
+                    self.pan_size	        = kwargs["pan_size"]
+                    self.core_size              = kwargs["core_size"]
+                    self.cluster_classification = kwargs["cluster_classification"]
 
 		else:
-			self.options = args[0]
+			pangenome.options = args[0]
 			print(self.options)	
-			if self.options.use[0] == "progenome":
+			if pangenome.options.use[0] == "progenome":
 				self.__initialize_from_progenome()
-			elif self.options.use[0] == "microscope":
+			elif pangenome.options.use[0] == "microscope":
 				self.__initialize_from_microscope()
-			elif self.options.use[0] == "prokka/roary":				
+			elif pangenome.options.use[0] == "prokka/roary":				
 				self.__initialize_from_prokka_roary()
-			elif self.options.use[0] == "prokka/MMseqs2":
+			elif pangenome.options.use[0] == "prokka/MMseqs2":
 				self.__initialize_from_prokka_mmseqs2()
 
         		nb_organisms          = len(self.organisms) 
-			self.cluster_pan      = self.presence_absence_matrix.sum(1).map(lambda x: x/float(nb_organisms))
-			print(self.cluster_pan)
 			self.cluster_core     = self.cluster_pan[self.cluster_pan == 1]
-			self.core_genome_size = self.cluster_core.shape[0]#number of rows
-			self.pan_genome_size  = self.cluster_pan.shape[0]#number of rows
-	
-			if len(args) > 1:
-				# TODO check order and name
-				self.distance_matrix = args[1]	
+			self.core_genome_size = len(self.core_list)
+			self.pan_genome_size  = len(self.families_set)
 
 	def __initialize_from_microscope(self):
 		
@@ -332,102 +317,23 @@ class pangenome:
 		del ortholog_group
 		annotations.loc[:,('GENE')] = annotations.index
 
-		self.organisms = sorted(list(set(annotations.loc[:,('ORGANISM')])))
+		self.organisms_set = set(annotations.loc[:,('ORGANISM')])
 
-		#if self.options.remove_ME:
-		#	
-		#	putative_MEs = annotations.loc[:,('CLUSTER_CODE')].value_counts(dropna=True).sort_values()
-			
-		#	true_MEs = set()
-			#ADD GENE CASETTE
-		#	words_re = re.compile("|".join(["TRANSPOSASE","RVE","PHAGE[^S]"]))#PHAGE[^S] in order to avoid to discard phageshock protein
-
-		#	for putative_ME in putative_MEs.index:
-		#		link = "http://eggnogapi.embl.de/nog_data/json/domains/"+putative_ME
-		#		content = urllib2.urlopen(link)
-		#		if content.getcode() == 200:
-		#			json = content.read().upper()
-		#			
-		#			if words_re.search(json):
-		#				print(json)	
-		#				true_MEs.add(putative_ME)
-		#
-		#		else:
-		#			print("connection impossible to: "+link)
-		#
-		#	annotations = annotations[~annotations.GROUP_CODE.isin(true_MEs)]#the tild inverse the filtering
-		#	
-		#	print("number of mobile element eggNOG removed: "+str(len(true_MEs)))
-		#	outfile = open(self.options.outputdirectory+"/mobile_elements_removed","w")
-		#	outfile.writelines("\n".join(true_MEs))
-		#	outfile.close()
-
-		annotationsCDS = annotations.loc[lambda annot: annot.TYPE == 'CDS',:]
-		if self.options.remove_singleton:
-			annotationsCDS.dropna(inplace=True)
-		else:
-			print("keep sigleton")
-			annotationsCDS['GROUP_CODE'].fillna(annotationsCDS['GENE'], inplace=True)
-
-		self.families = sorted(list(set(annotationsCDS.loc[:,('GROUP_CODE')])))
-		cluster_occurence_matrix = pd.DataFrame(0,columns = self.organisms, index = self.families, dtype = int)
-
-		#GENOMIC_CONTEXT_SIZE = 5 #like PanOCT
-
-		#splitted_families = DataFrame()
-		#to_remove_families = set()
-		print("before iter")
-		for index, row in annotationsCDS.loc[:,('GROUP_CODE','ORGANISM')].iterrows():
-			if cluster_occurence_matrix.loc[row[0],row[1]] == 0:
-				cluster_occurence_matrix.loc[row[0],row[1]]=1#+= 1
-			#else :
-			#	print('GROUP_CODE=="'+row[0]+'"')
-			#	same_cluster_annotation = annotations.query('GROUP_CODE=="'+row[0]+'"')
-			#	
-			#	#indexes = [[i for i in range(index-GENOMIC_CONTEXT_SIZE,index+GENOMIC_CONTEXT_SIZE+1)] for index in indexes]
-
-			#	genomic_context = dict()
-			#	in_organisms = defaultdict(list)
-			#	for prot, row in same_cluster_annotation.iterrows():
-			#		print('CONTIG_ID=="'+row[3]+'" & STRAND=="'+row[7]+'"')
-			#		same_strand_annotation = annotations.query('CONTIG_ID=="'+row[3]+'" & STRAND=="'+row[7]+'"')
-			#		index = same_strand_annotation.index.get_loc(prot)
-			#		limit_contig = same_strand_annotation.shape[0]
-			#		genomic_context[prot] = same_strand_annotation.iloc[[i for i in range(index-GENOMIC_CONTEXT_SIZE,index+GENOMIC_CONTEXT_SIZE+1) if i >= 0 & i < limit_contig]][["GROUP_CODE"]].to_list()
-			#	
-			#		in_organisms[row[2]].append(prot)
-			#
-			#	count_occurences_center = dict(list)
-			#
-			#	for key, value in genomic_context.iteritems()
-			#		count_occurences_center[len([for i in value if i=row[0]])].append(key)
-			#	
-			#	for key,value in count_occurences_center.iteritem():
-			#	
-			#		#build triangular distance matrix (both orientation)
-			#		#classify in n ortholog depending on the genomic context
-			#
-			#		#one error is accpeted ?
-			#
-			#	print(genomic_context)
-			#	exit()	
-						
-			#store some where when 2 clusters are merged
-
-		#TODO split duplicated ortholog:
-
-		# ortholog with genomic context different are splitted into 2 sub cluster
-		# ortholog localy duplicated are merged (information must be conserved)
-
-		# pour chauqe line
-			# set gene before
-			# set gene after
-
-			#si il existe un cas > 2 alors
-
-		annotations = pd.concat([annotationsCDS,annotations.loc[lambda annot: annot.TYPE != 'CDS',:]])
 		annotations = annotations.loc[:,('GENE','TYPE','ORGANISM','CONTIG_ID','GROUP_CODE','START','END','STRAND')]
 		annotations.sort_values(['ORGANISM', 'CONTIG_ID', 'START'], inplace = True)
+
+                annotRecord = namedtuple('annotRecord', 'GENE','TYPE','ORGANISM','CONTIG_ID','GROUP_CODE','START','END','STRAND')
+                annotations = tuple(map(annotRecord._make, annotations.as_matrix()))
+
+                #filter singleton
+                #or replace group_code
+
+		self.families = set(annotationsCDS.loc[:,('GROUP_CODE')])
+		
+                for index, row in annotationsCDS.loc[:,('GROUP_CODE','ORGANISM')].iterrows():
+			if cluster_occurence_matrix.loc[row[0],row[1]] == 0:
+				cluster_occurence_matrix.loc[row[0],row[1]]=1#+= 1
+
 
 		print(annotations)
 		print(cluster_occurence_matrix)
@@ -762,14 +668,15 @@ class pangenome:
 		with open(outputdir+"/exact.stat","w") as exact_stat_file:		
 			exact_stat_file.write(str(len(self.organisms))+"\t"+str(self.core_genome_size)+"\t"+str(self.pan_genome_size-self.core_genome_size)+"\t"+str(self.pan_genome_size)+"\n")	
 
-	# Algo voisinage taille flexible
-
-	# Principe : Tant qu'il reste des noeuds (=MICFAM) isoles dans le graphe (mais potentiellement "voisinable"), la distance de voisinage considere augmente jusqu'au max
-	# En sortie : Une matrice d'adjacence scoree avec les Oids des paires de voisins (le nombre d'Oid pour 1 paire sera utilise par la suite) 
-	# + la distance de voisinage ou la paire de voisin a ete trouvee, pour l'Oid considere (la moyenne de ces distances pour 1 paire sera utilise par la suite)
-	# En finalite : Produit un graphe connexe du voisinange des MICFAM ou chaque arete a pour score egal a : (Nb_Oid_voisins / Moyenne_Distances_voisins / Nb_Oid_total)
 	def __neighborhoodComputation(self, initNeighborDistance, maxNeighborDistance):
+                """
+                Algo voisinage taille flexible
 
+                Principe : Tant qu'il reste des noeuds (=MICFAM) isoles dans le graphe (mais potentiellement "voisinable"), la distance de voisinage considere augmente jusqu'au max
+                En sortie : Une matrice d'adjacence scoree avec les Oids des paires de voisins (le nombre d'Oid pour 1 paire sera utilise par la suite) 
+                + la distance de voisinage ou la paire de voisin a ete trouvee, pour l'Oid considere (la moyenne de ces distances pour 1 paire sera utilise par la suite)
+                En finalite : Produit un graphe connexe du voisinange des MICFAM ou chaque arete a pour score egal a : (Nb_Oid_voisins / Moyenne_Distances_voisins / Nb_Oid_total)
+                """
 		print("here")
 		neighbors_dict = defaultdict(lambda : defaultdict(dict))
 		dist = initNeighborDistance # Distance (en nb de regions, cad de lignes) de recherche des voisins
