@@ -1,0 +1,12 @@
+Beta, mixture model, E-step mode, Init mode, Order:
+
+   1.00   P_V_I   NEM   Sort_variables   Direct_order
+
+Criteria U (NEM), D (Hathaway), L (mixture likelihood)
+
+  -1872.97    -19456.8    -15440
+
+Muk (1), Pk, Vk, and Ck (1x1) of the 2 classes
+
+     -0.067     0.5         0.967            1 
+       1.06     0.5         0.967            1 
