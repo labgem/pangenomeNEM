@@ -1,17 +1,15 @@
 # !/usr/bin/python
 # -*- coding: iso-8859-1 -*-
 
-from function import *
-from classes_RNA import *
+from util import *
+from classes import *
 
 import argparse
 import pandas as pd
 import os
 import sys
 import errno
-from optparse import OptionParser
 from collections import defaultdict
-import collections
 import numpy as np
 import warnings
 import math
@@ -139,7 +137,7 @@ def calc_mash_distance(fasta, OUTPUTDIR, num_thread):
 
 if __name__=='__main__':
 
-	parser = argparse.ArgumentParser(description='Calculate and classify genes of a pangenome from annotated genome and ortholog groups')
+	parser = argparse.ArgumentParser(description='Calculate and classify genes of a pangenome from annotated genomes and ortholog groups')
 	parser.add_argument('--version', action='version', version='0.1')
 		
 	parser.add_argument("-u", "--use", nargs=1, help = "what source of data to import : 'progenome', 'microscope', 'prokka/roary' 'prokka/MMseqs2' 'MEG'", required=True)
@@ -170,9 +168,9 @@ if __name__=='__main__':
 	ponderation.add_argument("-f", "--distances_file", type=argparse.FileType('r'), nargs=1, help="fasta file containing contig required to computed distance between genome")
 
 	parser.add_argument("-s", "--remove_singleton", default=False, action="store_true", help="Remove singleton to the pan-genome")
-	parser.add_argument("-m", "--remove_ME", default=False, action="store_true", help="Remove the mobile elements (transposons, integrons, prophage gene) of the pan-genome")
+	#parser.add_argument("-m", "--remove_ME", default=False, action="store_true", help="Remove the mobile elements (transposons, integrons, prophage gene) of the pan-genome")
 	parser.add_argument('-d', '--outputdirectory', type=str, nargs=1, default="output.dir", help="The output directory", required=True)
-	parser.add_argument("-n", "--neighborcomputation", type=str, default=1, help="Consider neighboors for the analysis with the max neighbor distance (integer) (0 = infinite distance)")
+	parser.add_argument("-n", "--neighborcomputation", type=int, default=1, help="Consider neighboors for the analysis with the max neighbor distance (integer) (0 = infinite distance)")
 	parser.add_argument("-k", "--classnumber", type=int, nargs=1, default=[3], help="Number of classes to consider for other results than evolution (default = 3)")
 	parser.add_argument("-e", "--evolution", default=False, action='store_true', help="compute several sample of organism to enable to build the evolution curves.")	
 	parser.add_argument("-t", "--num_thread", default=1, nargs=1, help="The number of thread to use, 0 for autodetection")

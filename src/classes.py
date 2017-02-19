@@ -1,11 +1,12 @@
 #!/usr/bin/python
 # -*- coding: iso-8859-1 -*-
 
-import mysql.connector as mysql
+#import mysql.connector as mysql
 import pandas as pd
 import numpy as np
 from collections import defaultdict
 from collections import OrderedDict
+from collections import namedtuple
 import networkx as nx
 import subprocess
 import os
@@ -15,18 +16,16 @@ import logging
 
 NEM_LOCATION  = "../NEM/"
 
-class pangenome:
+class Pangenome:
 
-        options            = None
-        presences_absences = dict(list)
-        annotations        = dict(namedtuple)
+        presences_absences = defaultdict(list)
+        annotRecord        = namedtuple('annotRecord', ", ".join(['GENE','TYPE','ORGANISM','CONTIG_ID','GROUP_CODE','START','END','STRAND']))
+        annotations        = defaultdict(annotRecord)
         nem_location       = None
+        remove_singleton   = False
 
-	def __init__(self, *args, **kwargs):
+	def __init__(self, *args):
 			
-		self.options                = None
-		self.organisms_set          = set()
-		self.families_set           = set()
                 self.organism_positions     = OrderedDict()
                 self.familly_positions      = OrderedDict()
                 self.familly_ratio          = dict()
@@ -34,36 +33,29 @@ class pangenome:
 		self.pan_size	            = 0
 		self.core_size              = 0
 		self.cluster_classification = None
+                self.classnumber            = 3
+                self.neighbor_jumps         = 1
 
-		if(len(kwargs) > 0):
-	
-                    self.organisms_set          = kwargs["organisms_set"]
-                    self.families_set           = kwargs["families_set"]
-                    self.organism_positions     = kwargs["organism_positions"]
-                    self.familly_positions      = kwargs["familly_positions"]
-                    self.familly_ratio          = kwargs["familly_ratio"]
-                    self.core_list              = kwargs["core_list"]
-                    self.core                   = kwargs["core"]
-                    self.pan_size	        = kwargs["pan_size"]
-                    self.core_size              = kwargs["core_size"]
-                    self.cluster_classification = kwargs["cluster_classification"]
-
-		else:
-			pangenome.options = args[0]
-			print(self.options)	
-			if pangenome.options.use[0] == "progenome":
-				self.__initialize_from_progenome()
-			elif pangenome.options.use[0] == "microscope":
-				self.__initialize_from_microscope()
-			elif pangenome.options.use[0] == "prokka/roary":				
-				self.__initialize_from_prokka_roary()
-			elif pangenome.options.use[0] == "prokka/MMseqs2":
-				self.__initialize_from_prokka_mmseqs2()
-
-        		nb_organisms          = len(self.organisms) 
-			self.cluster_core     = self.cluster_pan[self.cluster_pan == 1]
-			self.core_genome_size = len(self.core_list)
-			self.pan_genome_size  = len(self.families_set)
+		init_from = args[0]
+		print(self.options)
+		if init_from == "progenome":
+                        self.__initialize_from_progenome(*args[1:])
+		elif init_from == "microscope":
+		    	self.__initialize_from_microscope(*args[1:])
+		elif init_from == "prokka/roary":				
+			self.__initialize_from_prokka_roary(*args[1:])
+		elif init_from == "prokka/MMseqs2":
+			self.__initialize_from_prokka_mmseqs2(*args[1:])
+                elif init_from == "args":
+                        (self.organism_positions,
+                         self.familly_positions,
+                         self.familly_ratio,
+                         self.core_list,
+                         self.pan_size,
+                         self.core_size,
+                         self.cluster_classification,
+                         self.classnumber,
+                         self.neighbor_jumps) = *args[1:] 
 
 	def __initialize_from_microscope(self):
 		
@@ -290,8 +282,11 @@ class pangenome:
 			conn.close()
 			exit(1)
 	
-	def __initialize_from_progenome(self):
-
+	def __initialize_from_progenome(self,
+                                        annotations_file,
+                                        eggNOG_clusters_file,
+                                        remove_singletons):
+                
 		useful_cols_annot       = ['GENE_ID', 'CONTIG_ID', 'TYPE', 'START', 'END', 'STRAND']
 		type_cols_annot         = {'GENE_ID':"str",'CONTIG_ID':"str",'TYPE':"str",'START':"int",'END':"int",'STRAND':"str"}
 		useful_cols_orthoGroups = ['PROTEIN_ID','EGGNOG_GROUP_CODE']
