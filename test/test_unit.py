@@ -5,25 +5,30 @@ sys.path.append('../src/')
 from classes import *
 import argparse
 
+logger = logging.getLogger()
+logger.level = logging.DEBUG
+logger.addHandler(logging.StreamHandler(sys.stdout))
+
 class TestPangenomeMethods(unittest.TestCase):
 
-    def test_import_progenome(self):
+    def import_files_progenome(self): 
+        annotation_file = open("../data/specI-specI_v2_Cluster335.gene_annotations.tsv","r")
+        eggNOG_clusters_file = open("../data/specI_v2_Cluster335.eggNOG_groups.tsv","r")
+
+        return(annotation_file,eggNOG_clusters_file)
+    def test_import_progenome_with_singleton(self):
+        (annotation_file,eggNOG_clusters_file) = self.import_files_progenome()
+        pan = Pangenome("progenome", annotation_file, eggNOG_clusters_file, False)
         
-        parser = argparse.ArgumentParser()
+    def test_import_progenome_without_singleton(self):
+        (annotation_file,eggNOG_clusters_file) = self.import_files_progenome()
+        pan = Pangenome("progenome", annotation_file, eggNOG_clusters_file, True)
 
-	parser.add_argument("-u", "--use", nargs=1, help = "what source of data to import : 'progenome', 'microscope', 'prokka/roary' 'prokka/MMseqs2' 'MEG'", required=True)
-	group_progenome.add_argument('-a', '--annotations', type=argparse.FileType('r'), nargs=1, help="The tsv file provided by progenome containing the gene annotations")
-	group_progenome.add_argument('-c', '--eggNOG_clusters', type=argparse.FileType('r'), nargs=1, help="The tsv file provided by progenome containing eggNOG orthologous groups related to the annotated genomes")
-	parser.add_argument('-d', '--outputdirectory', type=str, nargs=1, default="output.dir", help="The output directory", required=True)
-        
-        pan = Pangenome(options)
-
-
-        self.assertEqual('foo'.upper(), 'FOO')
-        self.assertTrue('FOO'.isupper())
-        self.assertFalse('Foo'.isupper())
-        with self.assertRaises(TypeError):
-            pass #test()
+        #self.assertEqual('foo'.upper(), 'FOO')
+        #self.assertTrue('FOO'.isupper())
+        #self.assertFalse('Foo'.isupper())
+        #with self.assertRaises(TypeError):
+        #    pass #test()
     def test_import_microscope(self):
         pass
     def test_sub_pangenome(self):
