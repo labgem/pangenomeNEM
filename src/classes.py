@@ -51,14 +51,16 @@ class Pangenome:
             (self.nb_organisms,
              self.organism_positions,
              self.familly_positions,
-             annotation_positions,
-             self.familly_ratio,
-             self.core_list,
-             self.pan_size,
-             self.core_size,
-             self.cluster_classification,
-             self.classnumber,
-             self.neighbor_jumps) = args[1:] 
+             annotation_positions) = args[1:] 
+ 
+        self.pan_size     = len(Pangenome.presences_absences.keys())
+        for fam in Pangenome.presences_absences.keys():
+            conservation = (sum([1 if p > 0 else 0 for p in Pangenome.presences_absences[fam]])/float(self.nb_organisms))
+            if conservation == 1.00:
+                self.core_size += 1
+                self.core_list.append(fam)
+            self.familly_ratio[fam] = conservation
+
 
     def __initialize_from_microscope(self):
         
@@ -329,7 +331,7 @@ class Pangenome:
         else:
             group_code = [record[GENE] if record[TYPE] == "CDS" and record[GROUP_CODE]=="None" else record[GROUP_CODE] for record in Pangenome.annotations]
 
-        nb_org = len(set([record[ORGANISM] for record in Pangenome.annotations]))
+        self.nb_organisms = len(set([record[ORGANISM] for record in Pangenome.annotations]))
 
         cpt_org = 0
         cpt_fam = 0
@@ -354,7 +356,7 @@ class Pangenome:
                 continue
             #logging.getLogger().debug(len(Pangenome.presences_absences[Pangenome.annotations[i][GROUP_CODE]]))
             if len(Pangenome.presences_absences[Pangenome.annotations[i][GROUP_CODE]]) == 0:
-                Pangenome.presences_absences[Pangenome.annotations[i][GROUP_CODE]] = [0] * nb_org
+                Pangenome.presences_absences[Pangenome.annotations[i][GROUP_CODE]] = [0] * self.nb_organisms
                 self.familly_positions[Pangenome.annotations[i][GROUP_CODE]]=cpt_fam
                 cpt_fam += 1
                 #logging.getLogger().debug(str(cpt_fam) +" " + str(self.familly_positions[Pangenome.annotations[i][GROUP_CODE]]))
@@ -370,17 +372,6 @@ class Pangenome:
         logging.getLogger().debug(self.organism_positions)
         logging.getLogger().debug(self.familly_positions) 
         logging.getLogger().debug(Pangenome.presences_absences)
-
-        self.core_list    = list()
-        self.pan_size     = len(Pangenome.presences_absences.keys())
-        self.core_size    = 0
-        self.nb_organisms = nb_org
-        for fam in Pangenome.presences_absences.keys():
-            conservation = (sum([1 if p > 0 else 0 for p in Pangenome.presences_absences[fam]])/float(nb_org))
-            if conservation == 1.00:
-                self.core_size += 1
-                self.core_list.append(fam)
-            self.familly_ratio[fam] = conservation
  
     def __initialize_from_prokka_roary(self):
         self.presence_absence_matrix = pd.read_csv(self.options.roary_csv_file[0], sep=",")
@@ -497,31 +488,22 @@ class Pangenome:
             
             sub_organisms.sort()
 
-
-            self.nb_organisms           = 0
- 30         self.organism_positions     = OrderedDict()
- 31         self.familly_positions      = OrderedDict()
- 32         self.annotation_positions   = dict()
- 33         self.familly_ratio          = dict()
- 34         self.core_list              = list()
- 35         self.pan_size               = 0
- 36         self.core_size              = 0
-
             sub_organism_positions   = orderedDict((org, self.organism_positions[org]) for org in sub_organisms) 
             sub_annotation_positions = dict((org, self.annotation_positions[org]) for org in sub_organisms)
-            sub_familly_position     = orderedDict()
 
             subset_group_code = set()
             for org in sub_organisms:
                 for pos in sub_annotation_positions[org]:
                     subset_group_code.add(Pangenome.annotation[pos][GROUP_CODE])
             subset_group_code = subset_group_code - set([None])
-            sub_pangenome = Pangenome()
-            
+
+            sub_familly_position = orderedDict((fam, self.familly_position[fam]) for fam in subset_group_code)
+
+            sub_pangenome = Pangenome(len(sub_organisms), sub_organism_positions,sub_familly_position,sub_annotation_positions)
 
             return(sub_pangenome)
         else:
-            print("not a subset")    
+            raise ValueError("Organism contained in the sub_organisms arguments are not a subset of the organisms contained in this object") 
 
     def classify(self, inc, path_prefix, max_neighbordistance = 1, plot = False):
                 
