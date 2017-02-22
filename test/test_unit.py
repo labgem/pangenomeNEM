@@ -1,6 +1,8 @@
 import unittest
 from collections import defaultdict
 import sys
+import os
+import shutil
 sys.path.append('../src/')
 from classes import *
 import argparse
@@ -10,12 +12,17 @@ logging.basicConfig(level=logging.DEBUG, format='\n%(asctime)s %(filename)s:l%(l
 class TestPangenomeMethods(unittest.TestCase):
 
     def import_files_progenome(self): 
+        annotation_file = open("../data/specI-specI_v2_Cluster34.gene_annotations.tsv","r")
+        eggNOG_clusters_file = open("../data/specI_v2_Cluster34.eggNOG_groups.tsv","r")
+        return(annotation_file,eggNOG_clusters_file)
+
+    def import_files_progenome_subset(self): 
         annotation_file = open("../data/specI-specI_v2_Cluster335.gene_annotations_subset.tsv","r")
         eggNOG_clusters_file = open("../data/specI_v2_Cluster335.eggNOG_groups_subset.tsv","r")
 
         return(annotation_file,eggNOG_clusters_file)
     def test_import_progenome_with_singleton(self):
-        (annotation_file,eggNOG_clusters_file) = self.import_files_progenome()
+        (annotation_file,eggNOG_clusters_file) = self.import_files_progenome_subset()
         pan = Pangenome("progenome", annotation_file, eggNOG_clusters_file, False)
         self.assertEqual(len(Pangenome.annotations),799)
         self.assertEqual(Pangenome.annotations[-1],tuple(['Cther_0132', 'CDS', '492476.PRJNA28257', '492476.PRJNA28257.ABVG02000008', '0EZJM', 26975, 27403, '-']))
@@ -38,7 +45,7 @@ class TestPangenomeMethods(unittest.TestCase):
         #test empty annoatation file
         #test empty eggNOGcluster file 
     def test_import_progenome_without_singleton(self):
-        (annotation_file,eggNOG_clusters_file) = self.import_files_progenome()
+        (annotation_file,eggNOG_clusters_file) = self.import_files_progenome_subset()
         pan = Pangenome("progenome", annotation_file, eggNOG_clusters_file, True)
 
         self.assertEqual(Pangenome.annotations[-1],tuple(['Cther_0132', 'CDS', '492476.PRJNA28257', '492476.PRJNA28257.ABVG02000008', '0EZJM', 26975, 27403, '-']))
@@ -62,7 +69,7 @@ class TestPangenomeMethods(unittest.TestCase):
     def test_import_microscope(self):
         pass
     def test_sub_pangenome(self):
-        (annotation_file,eggNOG_clusters_file) = self.import_files_progenome()
+        (annotation_file,eggNOG_clusters_file) = self.import_files_progenome_subset()
         pan = Pangenome("progenome", annotation_file, eggNOG_clusters_file, False) 
         sub_pan1 = pan.sub_pangenome(["492476.PRJNA28257"])
         
@@ -119,5 +126,34 @@ class TestPangenomeMethods(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             sub_bar = pan.sub_pangenome(["foo"])
+
+    def test_classify_with_singleton_and_with_neighbors_and_without_weights(self):
+        (annotation_file,eggNOG_clusters_file) = self.import_files_progenome()
+        pan = Pangenome("progenome", annotation_file, eggNOG_clusters_file, False)
+        shutil.rmtree("/tmp/test_pangenome", ignore_errors=True)
+        with self.assertRaises(ValueError):
+            pan.classify("/tmp/test_pangenome",k=1, use_neighborhood=True)
+        pan.classify("/tmp/test_pangenome",k=3)    
+
+
+    def test_classify_without_singleton_and_with_neighbors_and_without_weights(self):
+        pass
+    def test_classify_with_singleton_and_without_neighbors_and_without_weights(self):
+        (annotation_file,eggNOG_clusters_file) = self.import_files_progenome()
+        pan = Pangenome("progenome", annotation_file, eggNOG_clusters_file, False)
+        shutil.rmtree("/tmp/test_pangenome", ignore_errors=True)
+        pan.classify("/tmp/test_pangenome",k=5, use_neighborhood=False)    
+    def test_classify_without_singleton_and_without_neighbors_and_without_weights(self):
+        pass
+
+    def test_write_graph_gexf(self):
+        pass
+    def test_write_graph_gml(self):
+        pass
+    def test_write_graph_graphml(self):
+        pass
+    def test_write_graph_gpickle(self):
+        pass
+
 if __name__ == '__main__':
     unittest.main()

@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 from collections import defaultdict
 from collections import OrderedDict
+from collections import Counter
 from intspan import intspan
 import networkx as nx
 import subprocess
@@ -17,32 +18,44 @@ import logging
 NEM_LOCATION  = "../NEM/"
 (GENE, TYPE, ORGANISM, CONTIG_ID, GROUP_CODE, START, END, STRAND) = range(0, 8)
 
+
+def __dbConnect():
+    try:
+        conn = mysql.connect(host="mysqlagcdb.genoscope.cns.fr",port=3306,user="agc",passwd="admagc21",db="pkgdb_dev")
+    except:
+        print("Connexion with pkgdb_dev failed.")
+        exit(1)
+    return conn
+
 class Pangenome:
 
     presences_absences = OrderedDict()
     annotations        = tuple()
     remove_singleton   = False
-    neighbors_dict     = dict()
-
+    neighbors          = None
+    neighbor_jumps     = None
+    
     @staticmethod
     def clear_Pangenome():
         Pangenome.presences_absences = OrderedDict()
         Pangenome.annotations        = tuple()
         Pangenome.remove_singleton   = False
-        neighbors_dict               = dict()
+        neighbors                    = None
+        neighbor_jumps               = None
     
     def __init__(self, init_from = "args", *args):
-        self.nb_organisms           = 0
-        self.organism_positions     = OrderedDict()
-        self.familly_positions      = OrderedDict()
-        self.annotation_positions   = OrderedDict()
-        self.familly_ratio          = dict()
-        self.core_list              = list()
-        self.pan_size               = 0
-        self.core_size              = 0
-        self.cluster_classification = None
-        self.classnumber            = None
-        self.neighbor_jumps         = None
+        self.nb_organisms         = 0
+        self.organism_positions   = OrderedDict()
+        self.familly_positions    = OrderedDict()
+        self.annotation_positions = OrderedDict()
+        self.familly_ratio        = dict()
+        self.core_list            = list()
+        self.pan_size             = 0
+        self.core_size            = 0
+        self.classified_famillies = None
+        self.class_ratio          = None
+        self.nb_classes           = None
+        self.weights              = None
 
         if init_from == "progenome":
             logging.getLogger().info("Load progenome files...")
@@ -483,12 +496,15 @@ class Pangenome:
 
     def __str__(self):
 
-        pan_str    = ""
+        pan_str = ""
         pan_str += "----------- Statistics -----------\n"
-        pan_str += "Number of organisms: "+str(len(self.nb_organisms))+"\n"
+        pan_str += "Number of organisms: "+str(self.nb_organisms)+"\n"
         pan_str += "Pan-genome size:"+str(self.pan_size)+"\n"
         pan_str += "Exact core-genome size:"+str(self.core_size)+"\n"
         pan_str += "Exact variable-genome size:"+str(self.pan_size-self.core_size)+"\n"
+        if self.fam_classes is not None:
+            
+            pan_str += "Exact variable-genome size:"+str(self.pan_size-self.core_size)+"\n"
         pan_str += "----------------------------------\n"
 
         return(pan_str)    
@@ -516,176 +532,163 @@ class Pangenome:
 
             sub_pangenome = Pangenome("args", len(sub_organisms), sub_organism_positions,sub_familly_positions,sub_annotation_positions)
 
+            if self.weights is not None:
+                sub_pangenome.weights = dict((org, self.weight[org]) for org in sorted(sub_organisms)) 
+
             return(sub_pangenome)
         else:
             raise ValueError("Organisms contained in the sub_organisms arguments are not a subset of the organisms contained in this object") 
 
-    def classify(self, inc, path_prefix, max_neighbordistance = 1, plot = False):
-                
-        outputdir = path_prefix+"nborg"+str(len(self.organisms))+"_k"+str(self.options.classnumber[0])+"_i"+str(inc)+"/"
+    def classify(self, result_path, k = 3, use_neighborhood = True, write_graph = None, neighbor_jumps = 1):
+        """ """ 
+        if not k>1:
+            raise ValueError("k must be at leat equal to 2")
+
+        if not neighbor_jumps > 0 and not neighbor_jumps == float("Inf"):
+            raise ValueError("neighbor_jumps must be at leat equal to 1 or equal to floar('Inf')")
+
+        if write_graph is not None:
+            accessed_graph_output = ["gexf","gml","graphml","gpickle"]
+            if write_graph not in accessed_graph_output:
+                raise ValueError("write_graph must contain a format in the following list:'"+"', ".join(accessed_graph_output)+"'")
 
         #find most contigous organism
-        reference = self.annotations.loc[lambda annot: annot.ORGANISM == 'EMPTY',:].loc[:,("GROUP_CODE")]
+        #reference = self.annotations.loc[lambda annot: annot.ORGANISM == 'EMPTY',:].loc[:,("GROUP_CODE")]
     
-        self.nem_location = outputdir
-
-        if not os.path.exists(outputdir):
-            os.makedirs(outputdir)
-            ## Indexation des MICFAM
-            MICFAM_index = {}
-            i=0
-            index_file = open(outputdir+"/file.index", "w")
-            for ortholog in self.presence_absence_matrix.index:
-                    i+=1
-                    MICFAM_index[ortholog]=i
-                    index_file.write(str(i)+"\t"+str(ortholog)+"\n")
+        if not os.path.exists(result_path):
+            #NEM requires 5 files: file.index, file.str, file.dat, file.ck (optional) and file.nei
+            os.makedirs(result_path)
+            index = {} 
+            index_file = open(result_path+"/file.index", "w")
+            logging.getLogger().info("Writing file.index file")
+            
+            for i, fam in enumerate(self.familly_positions.keys()):
+                index[fam]=i
+                index_file.write(str(i)+"\t"+str(fam)+"\n")
 
             index_file.close()
-            if self.options.verbose:
-                    print("> Creation of file.index file")
 
-            neighbors_dict = {}
-            if self.options.neighborcomputation:
-                    ## Recuperation des MICFAM voisins :
-                neighbors_dict = self.__neighborhoodComputation(1,max_neighbordistance)
-            if self.options.verbose:
-                print("---- Start optimal neighborhood graph construction (neighbor distance iteration) with max distance = %s regions ----" % str(max_neighbordistance))
-
-            # Ecriture des fichiers .dat, .nei et .str
-            str_file = open(outputdir+"/file.str", "w")
-            str_file.write("S\t"+str(self.pan_genome_size)+"\t"+str(len(self.organisms))+"\n")
+            str_file = open(result_path+"/file.str", "w")
+            logging.getLogger().info("Writing file.str file")
+            str_file.write("S\t"+str(self.pan_size)+"\t"+str(self.nb_organisms)+"\n")
             str_file.close()
-            nei_file = open(outputdir+"/file.nei", "w")
-            if self.options.neighborcomputation:
-                    nei_file.write("1\n")
+
+            nei_file = open(result_path+"/file.nei", "w")
+            dat_file = open(result_path+"/file.dat", "w")
+            ck_file  = open(result_path+"/file.ck", "w")
+            logging.getLogger().info("Writing file.nei file.dat and file.ck files")
+            if use_neighborhood:
+                if Pangenome.neighbors is None: 
+                    Pangenome.neighbors      = self.__neighborhoodComputation(1,neighbor_jumps)
+                    Pangenome.neighbor_jumps = neighbor_jumps
+                    logging.getLogger().info("Start optimal neighborhood graph construction (neighbor distance iteration) with max distance = "+str(neighbor_jumps)+" jumps")
+                else:
+                    logging.getLogger().info("Use already computed neighbors with max distance ="+str(neighbor_jumps)+" jumps")
+                nei_file.write("1\n")
             else:
-                    nei_file.write("0\n")
-            dat_file = open(outputdir+"/file.dat", "w")
-        ck_file = open(outputdir+"/file.ck", "w")
+                nei_file.write("0\n")
 
-        ck_file.write(str(self.options.classnumber[0])+"\n")
-
-        threshold = round(float(1)/len(self.organisms),4) if len(self.organisms)>1 else 0
-    
-        if inc == 0:
-            graph  = nx.Graph()
-        
-        presence_absence_matrix = self.presence_absence_matrix
-
-        if self.weights is not None :
-            presence_absence_matrix = self.presence_absence_matrix.multiply(self.weights, axis=1)
-
-        for ortholog, row in presence_absence_matrix.iterrows():
-    
-            dat_file.write("\t".join([str(e) for e in row])+"\n")
-    
-            conservation = round(float(self.cluster_pan.loc[ortholog]),4)
-
-            ck_value = 0
-            if conservation == 1:
-                ck_value = 1
-            elif conservation <= threshold:
-                ck_value = self.options.classnumber[0]
-            ck_file.write(str(ck_value)+"\n")
-            
-            if inc == 0:                
-                try:
-                    order = pd.Index(reference).get_loc(ortholog)
-                    if type(order) != int:
-                        raise KeyError 
-                    graph.add_node(MICFAM_index[ortholog],label = ortholog, conservation = conservation, order = order)
-                except KeyError:
-                    graph.add_node(MICFAM_index[ortholog],label = ortholog, conservation = conservation)
-            if self.options.neighborcomputation:
-                row = []        
-                row_tmp = []
-                row_tmp2 = []
-                neighbor_number = 0
-                row.append(str(MICFAM_index[ortholog]))
-                if neighbors_dict[ortholog].keys() == [None]:
-                    if self.options.verbose:
-                            print("Warning: The MICFAM "+ortholog+" is an isolated cluster node")
-                    continue
-                for neighbor, Oids_nei in neighbors_dict[ortholog].iteritems():
-                    if neighbor in MICFAM_index.keys():
-                        distance_penality = float(sum(Oids_nei.values()))/len(Oids_nei.values())
-                        distance_score = float(len(Oids_nei)) / distance_penality / len(self.organisms)
-                        if distance_score>threshold:
-                            conservation = round(float(self.cluster_pan.loc[neighbor]),2)
-                            if inc == 0:
-                                try:
-                                    order = pd.Index(reference).get_loc(neighbor)
-                                    if type(order) != int:
-                                        raise KeyError
-                                    graph.add_node(MICFAM_index[neighbor],label = neighbor, conservation = conservation, order = order)
-                                except KeyError:
-                                    graph.add_node(MICFAM_index[neighbor],label = neighbor, conservation = conservation)
-                                graph.add_edge(MICFAM_index[ortholog],MICFAM_index[neighbor], weight = distance_score)
-
-                            row_tmp.append(str(MICFAM_index[neighbor]))
-                            row_tmp2.append(str(distance_score))
-                            neighbor_number+=1
-                    else:
-                        print(neighbor+" <= Warning : Not in index file")
-                row.append(str(neighbor_number))
-                row.extend(row_tmp)
-                row.extend(row_tmp2)
-                nei_file.write("\t".join(row)+"\n")
+            ck_file.write(str(k)+"\n")
         else:
-            nei_file.write(str(MICFAM_index[ortholog])+"\t0\n")
+            raise ValueError("result_path already exist")
+
+        threshold = round(float(1)/self.nb_organisms,4) if self.nb_organisms >1 else 0
+    
+        if write_graph is not None:
+            if use_neighborhood == False:
+                raise ValueError("use_neighborhood must be True to write graph")
+            graph  = nx.Graph()
+       
+        for fam in self.familly_positions.keys():
+            dat_file.write("\t".join(["1" if Pangenome.presences_absences[fam][p_org]>0 else "0" for p_org in self.organism_positions.values()])+"\n")
+            
+            ck_value = 0
+            if self.familly_ratio[fam] == float(1):
+                ck_value = 1
+            elif self.familly_ratio[fam] <= threshold:
+                ck_value = k
+            ck_file.write(str(ck_value)+"\n")
+
+            if use_neighborhood:
+                if write_graph:                
+                    graph.add_node(index[fam],label = fam, conservation = round(self.familly_ratio[fam],2))
+                row_fam         = []
+                row_dist_score  = []
+                neighbor_number = 0
+                row.append((index[fam]))
+                if Pangenome.neighbors[fam].keys() == [None]:
+                    logging.getLogger().warning("The familly: "+fam+" is an isolated cluster node")
+                    continue
+                for neighbor, orgs_nei in Pangenome.neighbors[fam].iteritems():
+                    logging.getLogger().debug(neighbor)
+                    logging.getLogger().debug(orgs_nei)
+                    if neighbor in index.keys():
+                        distance_penality = float(sum(orgs_nei.values()))/len(orgs_nei.values())
+                        distance_score = float(len(orgs_nei)) / distance_penality / len(self.nb_organisms)
+                        if distance_score>threshold:
+                            if write_graph is not None:
+                                graph.add_node(index[neighbor],label = neighbor, conservation = round(self.familly_ratio[fam],2))
+                                graph.add_edge(index[fam],index[neighbor], weight = distance_score)
+                            row_fam.append(str(index[neighbor]))
+                            row_dist_score.append(str(distance_score))
+                            neighbor_number += 1
+                    else:
+                        logging.getLogger().warning("familly: "+neighbor+" is not in index file")
+                nei_file.write("\t".join([item for sublist in [str(neighbor_number),row_fam,row_dist_score] for item in sublist])+"\n")
         nei_file.close()
         dat_file.close()
         ck_file.close()
-        if self.options.verbose:
-            print("> Creation of file.nei, file.dat and file.str files")
+        logging.getLogger().info("Running NEM")
 
         #bernouli -> no weight or normal -> weight
         model = "bern" if self.weights is None else "norm"
-        print_log = " -l y" if self.options.verbose else ""    
-        command = NEM_LOCATION+"nem_exe "+outputdir+"/file "+str(self.options.classnumber[0])+" -a nem -i 2000 -m "+model+" pk sk_ -s r 10 -B fix -b "+("1" if self.options.neighborcomputation else "0")+" -T -O random"+print_log
-        print(command)
+        print_log = " -l y" if logging.getLogger().getEffectiveLevel() < 20 else "" 
+        command = NEM_LOCATION+"nem_exe "+result_path+"/file "+str(k)+" -a nem -i 2000 -m "+model+" pk sk_ -s r 10 -B fix -b "+("1" if use_neighborhood else "0")+" -T -O random"+print_log
+        logging.getLogger().info(command)
         
         proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        proc.communicate()    
-    
-        with open(outputdir+"/file.cf","r") as classification_file:
+        print(proc.communicate())
+
+        if os.path.isfile(result_path+"/file.cf"):
+            logging.getLogger().info("Reading NEM results")
+        else:
+            logging.getLogger().error("No NEM output found in file.cf")
+        with open(result_path+"/file.cf","r") as classification_file:
             #TODO store classification in attribute
             classification = classification_file.readline().split()
-            self.cluster_classification = pd.Series(index = self.presence_absence_matrix.index, data = classification, name = "classification")
-            if inc == 0:
-                for i, nem_class in enumerate(classification):
-                    graph.node[int(i)+1]['nem_class'] = nem_class
+            classification = {k: v for k, v in zip(index.keys(), classification)}
+            self.nb_classes  = k
+            if write_graph is not None:
+                logging.getLogger().info("Writing graphML file")
+                for fam, nem_class in classification.items():
+                    graph.node[index[fam]]['nem_class'] = nem_class
 
-                nx.write_graphml(graph,outputdir+"/file.graphml")
+                getattr(nx,'write_'+write_graph)(graph,result_path+"/file."+write_graph)
                 mst = nx.maximum_spanning_tree(graph)
                 for u,v,d in mst.edges(data=True):
                     d["MST"]=True
-                nx.write_graphml(nx.disjoint_union(graph,mst),outputdir+"/file_mst.graphml")
+                getattr(nx,'write_'+write_graph)(nx.disjoint_union(graph,mst),result_path+"/file_mst."+write_graph)
+        self.classified_famillies = dict(zip([str(i_k) for i_k in range(1,k+1)],[[]] * k))
+        self.class_ratio          = dict(zip(self.classified_famillies.keys(),[float("0.0")] * k))
+        for i_k in self.classified_famillies.keys():
+                self.classified_famillies[i_k] = [fam for (fam, nem_class) in classification.items() if nem_class == i_k]
+                self.class_ratio[i_k] = [self.familly_ratio[fam] for fam in self.classified_famillies[i_k]]
+                self.class_ratio[i_k] = sum(self.class_ratio[str(i_k)])/len(self.class_ratio[str(i_k)]) if len(self.class_ratio[i_k]) > 0 else 0   
+        logging.getLogger().debug(sorted(self.class_ratio, key=self.class_ratio.__getitem__, reverse=True))        
+        self.classified_famillies = OrderedDict((o, self.classified_famillies[o]) for o in sorted(self.class_ratio, key=self.class_ratio.__getitem__, reverse=True))
+        logging.getLogger().debug(self.classified_famillies)
+        logging.getLogger().info("Writing stats summury")
+        with open(result_path+"/nem.stat","w") as nem_stat_file:
+            nem_stat_file.write(str(self.nb_organisms)+"\t"+"\t".join([str(len(fams)) for nem_class, fams in self.classified_famillies.items()])+"\t"+str(self.pan_size)+"\n")
+        with open(result_path+"/exact.stat","w") as exact_stat_file:        
+            exact_stat_file.write(str(self.nb_organisms)+"\t"+str(self.core_size)+"\t"+str(self.pan_size-self.core_size)+"\t"+str(self.pan_size)+"\n")    
 
-        if plot:
-            self.plot(outputdir+"/occurences.pdf")
-
-        with open(outputdir+"/nem.stat","w") as nem_stat_file:
-            conservation = dict()
-            for k in range(1,self.options.classnumber[0]+1):
-                clusters_classified_in_k = self.cluster_classification[self.cluster_classification == str(k)]
-                conservation[str(k)]=self.cluster_pan.loc[clusters_classified_in_k.index].mean()
-                conservation[str(k)] = 0 if np.isnan(conservation[str(k)]) else conservation[str(k)]                
-            order = sorted(conservation, key=conservation.__getitem__, reverse=True)    
-            stats = self.cluster_classification.value_counts().to_dict()
-            for item in order:
-                if item not in stats:
-                    stats[item]=0
-            nem_stat_file.write(str(len(self.organisms))+"\t"+"\t".join([str(stats[item]) for item in order])+"\t"+str(self.pan_genome_size)+"\n")
-        with open(outputdir+"/exact.stat","w") as exact_stat_file:        
-            exact_stat_file.write(str(len(self.organisms))+"\t"+str(self.core_genome_size)+"\t"+str(self.pan_genome_size-self.core_genome_size)+"\t"+str(self.pan_genome_size)+"\n")    
     def __neighborhoodComputation(self, initNeighborDistance, maxNeighborDistance):
         """Algo voisinage taille flexible
                 Principe : Tant qu'il reste des noeuds (=MICFAM) isoles dans le graphe (mais potentiellement "voisinable"), la distance de voisinage considere augmente jusqu'au max
                 En sortie : Une matrice d'adjacence scoree avec les Oids des paires de voisins (le nombre d'Oid pour 1 paire sera utilise par la suite) 
                 + la distance de voisinage ou la paire de voisin a ete trouvee, pour l'Oid considere (la moyenne de ces distances pour 1 paire sera utilise par la suite)
                 En finalite : Produit un graphe connexe du voisinange des MICFAM ou chaque arete a pour score egal a : (Nb_Oid_voisins / Moyenne_Distances_voisins / Nb_Oid_total) """
-        print("here")
         neighbors_dict = defaultdict(lambda : defaultdict(dict))
         dist = initNeighborDistance # Distance (en nb de regions, cad de lignes) de recherche des voisins
         neighbor_rows = [] # Garde en temp les n lignes precedentes avec n = dist, remis a zero chaque fois qu'on change de brin et de sequence
@@ -759,10 +762,3 @@ class Pangenome:
           
         return neighbors_dict
 
-def __dbConnect():
-    try:
-        conn = mysql.connect(host="mysqlagcdb.genoscope.cns.fr",port=3306,user="agc",passwd="admagc21",db="pkgdb_dev")
-    except:
-        print("Connexion with pkgdb_dev failed.")
-        exit(1)
-    return conn
