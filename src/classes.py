@@ -11,8 +11,8 @@ from intspan import intspan
 import networkx as nx
 import subprocess
 import os
-#from sklearn import manifold
-#import urllib2
+import re
+import math
 import logging
 
 NEM_LOCATION  = "../NEM/"
@@ -55,6 +55,7 @@ class Pangenome:
         self.classified_famillies = None
         self.class_ratio          = None
         self.nb_classes           = None
+        self.BIC                  = None # Bayesian Index Criterion
         self.weights              = None
 
         if init_from == "progenome":
@@ -593,7 +594,8 @@ class Pangenome:
             raise ValueError("result_path already exist")
 
         threshold = round(float(1)/self.nb_organisms,4) if self.nb_organisms >1 else 0
-    
+        
+        graph = None
         if write_graph is not None:
             if use_neighborhood == False:
                 raise ValueError("use_neighborhood must be True to write graph")
@@ -647,7 +649,13 @@ class Pangenome:
         logging.getLogger().info(command)
         
         proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        print(proc.communicate())
+        output = proc.communicate()[1]
+        M = float(re.search("\(M = (.+?)\)",output).group(1))# M=markov ps-like
+        if model == "norm":
+            self.BIC = 2 * M - (k * (self.nb_organisms + 1) + 1 + k- 1) * math.log(len(self.familly_positions)) 
+        elif model == "bern":
+            self.BIC = 2 * M - (k * self.nb_organisms + 1 + k - 1) * math.log(len(self.familly_positions))
+        logging.getLogger().info("BIC = "+self.BIC)
 
         if os.path.isfile(result_path+"/file.cf"):
             logging.getLogger().info("Reading NEM results")
@@ -682,6 +690,9 @@ class Pangenome:
             nem_stat_file.write(str(self.nb_organisms)+"\t"+"\t".join([str(len(fams)) for nem_class, fams in self.classified_famillies.items()])+"\t"+str(self.pan_size)+"\n")
         with open(result_path+"/exact.stat","w") as exact_stat_file:        
             exact_stat_file.write(str(self.nb_organisms)+"\t"+str(self.core_size)+"\t"+str(self.pan_size-self.core_size)+"\t"+str(self.pan_size)+"\n")    
+
+        return(graph)
+
 
     def __neighborhoodComputation(self, initNeighborDistance, maxNeighborDistance):
         """Algo voisinage taille flexible
