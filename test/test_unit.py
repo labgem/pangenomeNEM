@@ -5,15 +5,20 @@ import os
 import shutil
 sys.path.append('../src/')
 from classes import *
-import argparse
+from util import *
 
-logging.basicConfig(level=logging.DEBUG, format='\n%(asctime)s %(filename)s:l%(lineno)d:t%(thread)d %(levelname)s\t%(message)s', datefmt='%H:%M:%S')
+logging.basicConfig(level=logging.INFO, format='\n%(asctime)s %(filename)s:l%(lineno)d:t%(thread)d %(levelname)s\t%(message)s', datefmt='%H:%M:%S')
 
 class TestPangenomeMethods(unittest.TestCase):
 
-    def import_files_progenome(self): 
+    def import_files_progenome_c34(self): 
         annotation_file = open("../data/specI-specI_v2_Cluster34.gene_annotations.tsv","r")
         eggNOG_clusters_file = open("../data/specI_v2_Cluster34.eggNOG_groups.tsv","r")
+        return(annotation_file,eggNOG_clusters_file)
+
+    def import_files_progenome_c118(self): 
+        annotation_file = open("../data/specI-specI_v2_Cluster118.gene_annotations.tsv","r")
+        eggNOG_clusters_file = open("../data/specI_v2_Cluster118.eggNOG_groups.tsv","r")
         return(annotation_file,eggNOG_clusters_file)
 
     def import_files_progenome_subset(self): 
@@ -68,7 +73,7 @@ class TestPangenomeMethods(unittest.TestCase):
         #    pass #test()
     def test_import_microscope(self):
         pass
-    def test_sub_pangenome(self):
+    def test_sub_pangenome_subset(self):
         (annotation_file,eggNOG_clusters_file) = self.import_files_progenome_subset()
         pan = Pangenome("progenome", annotation_file, eggNOG_clusters_file, False) 
         sub_pan1 = pan.sub_pangenome(["492476.PRJNA28257"])
@@ -127,33 +132,103 @@ class TestPangenomeMethods(unittest.TestCase):
         with self.assertRaises(ValueError):
             sub_bar = pan.sub_pangenome(["foo"])
 
+    def test_sub_pangenome(self):
+        (annotation_file,eggNOG_clusters_file) = self.import_files_progenome_c34()
+        pan = Pangenome("progenome", annotation_file, eggNOG_clusters_file, False)
+        sub_pan = pan.sub_pangenome(["502347.PRJNA28851","502347.PRJNA28851"])#duplicated organisms
+
+        self.assertEqual(["502347.PRJNA28851"],sub_pan.annotation_positions.keys())
+
+
+        for org in sub_pan.organism_positions.keys():
+            for i in sub_pan.annotation_positions[org]:
+                self.assertTrue(Pangenome.annotations[i][2] == org)
+                #add a coverage test
+
+        self.assertEqual(len(sub_pan.familly_positions),3875)
+        self.assertEqual(len(sub_pan.organism_positions),1)   
+        self.assertEqual(sub_pan.nb_organisms,1)
+        self.assertEqual(sub_pan.pan_size,3875)
+        self.assertEqual(sub_pan.core_size,3875)
+        self.assertEqual(len(sub_pan.familly_ratio),len(sub_pan.familly_positions))
+        self.assertEqual(len(sub_pan.core_list),3875)
+
     def test_classify_with_singleton_and_with_neighbors_and_without_weights(self):
-        (annotation_file,eggNOG_clusters_file) = self.import_files_progenome()
+        (annotation_file,eggNOG_clusters_file) = self.import_files_progenome_c34()
         pan = Pangenome("progenome", annotation_file, eggNOG_clusters_file, False)
         shutil.rmtree("/tmp/test_pangenome", ignore_errors=True)
         with self.assertRaises(ValueError):
-            pan.classify("/tmp/test_pangenome",k=1, use_neighborhood=True)
-        pan.classify("/tmp/test_pangenome",k=3)    
+            pan.classify("/tmp/test_pangenome",k=1, use_neighborhood=True)  
 
+        shutil.rmtree("/tmp/test_pangenome", ignore_errors=True)
+        pan.classify("/tmp/test_pangenome",k=2, use_neighborhood=True, write_graph = "gexf") 
+        self.assertTrue(os.path.isfile("/tmp/test_pangenome/file.gexf"))
+
+        for i in range(2,6):
+            shutil.rmtree("/tmp/test_pangenome", ignore_errors=True)
+            pan.classify("/tmp/test_pangenome",k=i, use_neighborhood=True) 
+
+
+        pan = pan.sub_pangenome(["502347.PRJNA28851","502347.PRJNA28851"])
+        for i in range(2,6):
+            shutil.rmtree("/tmp/test_pangenome", ignore_errors=True)
+            pan.classify("/tmp/test_pangenome",k=i, use_neighborhood=True)   
 
     def test_classify_without_singleton_and_with_neighbors_and_without_weights(self):
         pass
     def test_classify_with_singleton_and_without_neighbors_and_without_weights(self):
-        (annotation_file,eggNOG_clusters_file) = self.import_files_progenome()
+        (annotation_file,eggNOG_clusters_file) = self.import_files_progenome_c34()
         pan = Pangenome("progenome", annotation_file, eggNOG_clusters_file, False)
-        shutil.rmtree("/tmp/test_pangenome", ignore_errors=True)
-        pan.classify("/tmp/test_pangenome",k=5, use_neighborhood=False)    
+        
+        for i in range(2,6):
+            shutil.rmtree("/tmp/test_pangenome", ignore_errors=True)
+            pan.classify("/tmp/test_pangenome",k=i, use_neighborhood=False)      
     def test_classify_without_singleton_and_without_neighbors_and_without_weights(self):
         pass
 
     def test_write_graph_gexf(self):
-        pass
+        (annotation_file,eggNOG_clusters_file) = self.import_files_progenome_c34()
+        pan = Pangenome("progenome", annotation_file, eggNOG_clusters_file, False)
+        shutil.rmtree("/tmp/test_pangenome", ignore_errors=True)
+        pan.classify("/tmp/test_pangenome",k=2, use_neighborhood=True, write_graph = "gexf") 
+        self.assertTrue(os.path.isfile("/tmp/test_pangenome/file.gexf"))
     def test_write_graph_gml(self):
-        pass
+        (annotation_file,eggNOG_clusters_file) = self.import_files_progenome_c34()
+        pan = Pangenome("progenome", annotation_file, eggNOG_clusters_file, False)
+        shutil.rmtree("/tmp/test_pangenome", ignore_errors=True)
+        pan.classify("/tmp/test_pangenome",k=2, use_neighborhood=True, write_graph = "gml") 
+        self.assertTrue(os.path.isfile("/tmp/test_pangenome/file.gml"))
     def test_write_graph_graphml(self):
-        pass
+        (annotation_file,eggNOG_clusters_file) = self.import_files_progenome_c34()
+        pan = Pangenome("progenome", annotation_file, eggNOG_clusters_file, False)
+        shutil.rmtree("/tmp/test_pangenome", ignore_errors=True)
+        pan.classify("/tmp/test_pangenome",k=2, use_neighborhood=True, write_graph = "graphml") 
+        self.assertTrue(os.path.isfile("/tmp/test_pangenome/file.graphml"))
     def test_write_graph_gpickle(self):
-        pass
+        (annotation_file,eggNOG_clusters_file) = self.import_files_progenome_c34()
+        pan = Pangenome("progenome", annotation_file, eggNOG_clusters_file, False)
+        shutil.rmtree("/tmp/test_pangenome", ignore_errors=True)
+        pan.classify("/tmp/test_pangenome",k=2, use_neighborhood=True, write_graph = "gpickle") 
+        self.assertTrue(os.path.isfile("/tmp/test_pangenome/file.gpickle"))
 
+    def test_resample_and_classify_c118(self):
+        (annotation_file,eggNOG_clusters_file) = self.import_files_progenome_c118()
+        pan = Pangenome("progenome", annotation_file, eggNOG_clusters_file, False)
+        organisms = pan.organism_positions.keys()
+        i = 0
+        total_combinations = oidsCombinations(range(0,pan.nb_organisms),10,1000,10)
+        del total_combinations[pan.nb_organisms]
+
+        nb_total_combinations = 0   
+
+        for c in total_combinations:
+            nb_total_combinations += len(total_combinations[c])
+        print "..... Preparing to classify 1 pangenome + "+str(nb_total_combinations)+" subsampled pangenomes ....."
+        for comb_size in total_combinations:
+            for combination in total_combinations[comb_size]:
+                subpan = pan.sub_pangenome([organisms[i] for i in combination])
+                subpan.classify("/tmp/test_pangenome"+"_k3"+"_nb"+str(comb_size)+"_i"+str(i),k=3, use_neighborhood=True, write_graph = "gexf")
+                print(subpan)
+                i+=1
 if __name__ == '__main__':
     unittest.main()

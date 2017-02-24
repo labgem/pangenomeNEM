@@ -16,7 +16,7 @@ import math
 import logging
 
 NEM_LOCATION  = "../NEM/"
-(GENE, TYPE, ORGANISM, CONTIG_ID, GROUP_CODE, START, END, STRAND) = range(0, 8)
+(GENE, TYPE, ORGANISM, CONTIG_ID, FAMILLY_CODE, START, END, STRAND) = range(0, 8)
 
 
 def __dbConnect():
@@ -301,7 +301,7 @@ class Pangenome:
             AND cluster_id IS NOT NULL
             ORDER BY O_id, S_id, GO_begin;""" % ArtefactOpt, conn) 
 
-            self.annotations.columns = ['GENE','TYPE','ORGANISM','CONTIG_ID','GROUP_CODE','START','END','STRAND']
+            self.annotations.columns = ['GENE','TYPE','ORGANISM','CONTIG_ID','FAMILLY_CODE','START','END','STRAND']
             self.annotations.set_index(keys = 'GENE', drop = False, inplace = True)
             
             
@@ -321,9 +321,9 @@ class Pangenome:
         type_cols_orthoGroups   = {'PROTEIN_ID':"str",'EGGNOG_GROUP_CODE':"str"}
 
         annotations    = pd.read_csv(annotations_file, sep="\t", usecols=useful_cols_annot, dtype=type_cols_annot)
-        ortholog_group = pd.read_csv(eggNOG_clusters_file, sep="\t", usecols=useful_cols_orthoGroups, dtype=type_cols_orthoGroups)
+        familly_groups = pd.read_csv(eggNOG_clusters_file, sep="\t", usecols=useful_cols_orthoGroups, dtype=type_cols_orthoGroups)
 
-        ortholog_group.rename(columns={'PROTEIN_ID':'PROTEIN_ID','EGGNOG_GROUP_CODE':'GROUP_CODE'}, inplace=True)
+        familly_groups.rename(columns={'PROTEIN_ID':'PROTEIN_ID','EGGNOG_GROUP_CODE':'FAMILLY_CODE'}, inplace=True)
 
         #split a column with 3 fields separated by a point in 3 other columns
         #expand = True make pandas to return a DataFrame with the 3 columns comming from the splitted GENE_ID column
@@ -333,24 +333,24 @@ class Pangenome:
 
         annotations    = annotations.loc[:,('GENE','TYPE','ORGANISM','CONTIG_ID','START','END','STRAND')]
         
-        ortholog_group = pd.concat([ortholog_group,ortholog_group.loc[:,('PROTEIN_ID')].str.split('.', expand = True).rename(columns={0:'TAX_ID',1:'PROJET',2:'GENE'})],axis=1)
-        ortholog_group = ortholog_group.loc[:,('GENE','GROUP_CODE')]
-        annotations    = annotations.set_index('GENE').join(ortholog_group.loc[:,('GENE','GROUP_CODE')].set_index("GENE"))
+        familly_groups = pd.concat([familly_groups,familly_groups.loc[:,('PROTEIN_ID')].str.split('.', expand = True).rename(columns={0:'TAX_ID',1:'PROJET',2:'GENE'})],axis=1)
+        familly_groups = familly_groups.loc[:,('GENE','FAMILLY_CODE')]
+        annotations    = annotations.set_index('GENE').join(familly_groups.loc[:,('GENE','FAMILLY_CODE')].set_index("GENE"))
 
-        del ortholog_group
+        del familly_groups
         annotations.loc[:,('GENE')] = annotations.index
 
         self.organisms_set = set(annotations.loc[:,('ORGANISM')])
 
-        annotations = annotations.loc[:,('GENE','TYPE','ORGANISM','CONTIG_ID','GROUP_CODE','START','END','STRAND')]
+        annotations = annotations.loc[:,('GENE','TYPE','ORGANISM','CONTIG_ID','FAMILLY_CODE','START','END','STRAND')]
         annotations.sort_values(['ORGANISM', 'CONTIG_ID', 'START'], inplace = True)
         annotations.fillna(value="None", inplace=True)
 
         Pangenome.annotations = list(map(list, annotations.as_matrix()))
 
-        group_code = None
+        familly_code = None
         if not remove_singletons:
-            group_code = [record[GENE] if record[TYPE] == "CDS" and record[GROUP_CODE]=="None" else record[GROUP_CODE] for record in Pangenome.annotations]
+            familly_code = [record[GENE] if record[TYPE] == "CDS" and record[FAMILLY_CODE]=="None" else record[FAMILLY_CODE] for record in Pangenome.annotations]
 
         Pangenome.remove_singleton=remove_singletons
 
@@ -363,10 +363,10 @@ class Pangenome:
         self.annotation_positions[cur_org]="0-"
         for i in range(0, len(Pangenome.annotations)):
             #logging.getLogger().debug(cur_org)
-            if group_code != None:
-                Pangenome.annotations[i][GROUP_CODE] = group_code[i] if group_code[i]!="None" else None
+            if familly_code != None:
+                Pangenome.annotations[i][FAMILLY_CODE] = familly_code[i] if familly_code[i]!="None" else None
             else:
-                Pangenome.annotations[i][GROUP_CODE] = Pangenome.annotations[i][GROUP_CODE] if Pangenome.annotations[i][GROUP_CODE]!="None" else None
+                Pangenome.annotations[i][FAMILLY_CODE] = Pangenome.annotations[i][FAMILLY_CODE] if Pangenome.annotations[i][FAMILLY_CODE]!="None" else None
             Pangenome.annotations[i] = tuple(Pangenome.annotations[i])
             if Pangenome.annotations[i][ORGANISM] != cur_org:
                 self.annotation_positions[cur_org] = intspan(self.annotation_positions[cur_org]+str(i-1))
@@ -374,18 +374,18 @@ class Pangenome:
                 self.annotation_positions[cur_org] = str(i)+"-"
                 cpt_org += 1
                 self.organism_positions[cur_org]=cpt_org 
-            #logging.getLogger().debug(str(Pangenome.annotations[i][GROUP_CODE] is None))
-            if Pangenome.annotations[i][GROUP_CODE] is None:#case of singleton or non CDS genes
+            #logging.getLogger().debug(str(Pangenome.annotations[i][FAMILLY_CODE] is None))
+            if Pangenome.annotations[i][FAMILLY_CODE] is None:#case of singleton or non CDS genes
                 continue
-            #logging.getLogger().debug(len(Pangenome.presences_absences[Pangenome.annotations[i][GROUP_CODE]]))
-            if Pangenome.annotations[i][GROUP_CODE] not in Pangenome.presences_absences:
-                Pangenome.presences_absences[Pangenome.annotations[i][GROUP_CODE]] = [0] * self.nb_organisms
-                self.familly_positions[Pangenome.annotations[i][GROUP_CODE]]=cpt_fam
+            #logging.getLogger().debug(len(Pangenome.presences_absences[Pangenome.annotations[i][FAMILLY_CODE]]))
+            if Pangenome.annotations[i][FAMILLY_CODE] not in Pangenome.presences_absences:
+                Pangenome.presences_absences[Pangenome.annotations[i][FAMILLY_CODE]] = [0] * self.nb_organisms
+                self.familly_positions[Pangenome.annotations[i][FAMILLY_CODE]]=cpt_fam
                 cpt_fam += 1
-                logging.getLogger().debug(str(cpt_fam) +" " + str(self.familly_positions[Pangenome.annotations[i][GROUP_CODE]]))
-            #logging.getLogger().debug(Pangenome.annotations[i][GROUP_CODE])
+                logging.getLogger().debug(str(cpt_fam) +" " + str(self.familly_positions[Pangenome.annotations[i][FAMILLY_CODE]]))
+            #logging.getLogger().debug(Pangenome.annotations[i][FAMILLY_CODE])
             #logging.getLogger().debug(self.organism_positions[cur_org])
-            Pangenome.presences_absences[Pangenome.annotations[i][GROUP_CODE]][self.organism_positions[cur_org]]=1
+            Pangenome.presences_absences[Pangenome.annotations[i][FAMILLY_CODE]][self.organism_positions[cur_org]]=1
         
         Pangenome.annotations = tuple(Pangenome.annotations)
         self.annotation_positions[cur_org] = intspan(self.annotation_positions[cur_org]+str(i))
@@ -404,7 +404,7 @@ class Pangenome:
         self.presence_absence_matrix.drop(["Non-unique Gene name","Annotation","No. isolates","No. sequences","Avg sequences per isolate","Genome Fragment","Order within Fragment","Accessory Fragment","Accessory Order with Fragment","QC","Min group size nuc","Max group size nuc","Avg group size nuc"], axis=1, inplace=True)
         melted_presence_absence_matrix = pd.melt(self.presence_absence_matrix, id_vars = "Gene").dropna()
         melted_presence_absence_matrix.set_index("value",inplace=True)
-        melted_presence_absence_matrix = melted_presence_absence_matrix.loc[:,"GROUP_CODE"]
+        melted_presence_absence_matrix = melted_presence_absence_matrix.loc[:,"FAMILLY_CODE"]
         melted_presence_absence_matrix = melted_presence_absence_matrix.as_dict()
         
         self.presence_absence_matrix.set_index("Gene",inplace=True)
@@ -413,7 +413,7 @@ class Pangenome:
         print(melted_presence_absence_matrix)
         print(self.presence_absence_matrix)
 
-        self.annotations = pd.DataFrame(self.__load_prokka_gff(melted_presence_absence_matrix), columns = ['GENE','TYPE','ORGANISM','CONTIG_ID','GROUP_CODE','START','END','STRAND'])
+        self.annotations = pd.DataFrame(self.__load_prokka_gff(melted_presence_absence_matrix), columns = ['GENE','TYPE','ORGANISM','CONTIG_ID','FAMILLY_CODE','START','END','STRAND'])
         self.annotations.sort_values(['ORGANISM', 'CONTIG_ID', 'STRAND', 'START'], inplace = True)
         print(self.annotations)
         exit()    
@@ -439,16 +439,16 @@ class Pangenome:
                 groups[elements[1]]=str(nb_groups)
         
         self.annotations = pd.DataFrame.from_dict(self.__load_prokka_gff(groups), orient = "index")
-        self.annotations.columns = ['GENE','TYPE','ORGANISM','CONTIG_ID','GROUP_CODE','START','END','STRAND']
+        self.annotations.columns = ['GENE','TYPE','ORGANISM','CONTIG_ID','FAMILLY_CODE','START','END','STRAND']
         self.annotations.sort_values(['ORGANISM', 'CONTIG_ID', 'START'], inplace = True)
 
         print(self.annotations)
 
         self.organisms = list(self.annotations.loc[:,"ORGANISM"].unique()).sort()
-        self.families = list(self.annotations.loc[:,"GROUP_CODE"].unique()).sort()
+        self.families = list(self.annotations.loc[:,"FAMILLY_CODE"].unique()).sort()
         cluster_occurence_matrix = pd.DataFrame(0,columns = self.organisms, index = self.families, dtype = int)
         
-        for index, row in self.annotations.loc[:,('GROUP_CODE','ORGANISM')].iterrows():
+        for index, row in self.annotations.loc[:,('FAMILLY_CODE','ORGANISM')].iterrows():
             if cluster_occurence_matrix.loc[row[0],row[1]] == 0:
                 cluster_occurence_matrix.loc[row[0],row[1]]=1#+= 1
         
@@ -482,14 +482,14 @@ class Pangenome:
                 protein = elements[8][index_protein_start+3:index_protein_end]
                 if elements[2] == "CDS":
                     try:
-                        group_code = groups[protein]
+                        familly_code = groups[protein]
                     except:
                         if self.options.remove_singleton:
                             continue
                         else:
-                            group_code = protein
+                            familly_code = protein
                     
-                    annot_dict[protein] = [protein,"CDS",organism,elements[0],group_code,elements[3],elements[4],elements[6]]
+                    annot_dict[protein] = [protein,"CDS",organism,elements[0],familly_code,elements[3],elements[4],elements[6]]
             print(organism)
 
         print(annot_dict)
@@ -503,7 +503,7 @@ class Pangenome:
         pan_str += "Pan-genome size:"+str(self.pan_size)+"\n"
         pan_str += "Exact core-genome size:"+str(self.core_size)+"\n"
         pan_str += "Exact variable-genome size:"+str(self.pan_size-self.core_size)+"\n"
-        if self.fam_classes is not None:
+        if self.classified_famillies is not None:
             
             pan_str += "Exact variable-genome size:"+str(self.pan_size-self.core_size)+"\n"
         pan_str += "----------------------------------\n"
@@ -514,20 +514,24 @@ class Pangenome:
        
         if set(sub_organisms).issubset(set(self.organism_positions.keys())):
             
+            if(len(set(sub_organisms)) != len(sub_organisms)):
+                logging.getLogger().warning("sub_organisms contain duplicated organism names. Only unique organism names will be used")
+                sub_organisms = set(sub_organisms)
+
             sub_organism_positions   = OrderedDict((org, self.organism_positions[org]) for org in sorted(sub_organisms))
             logging.getLogger().debug(sub_organism_positions) 
             sub_annotation_positions = OrderedDict((org, self.annotation_positions[org]) for org in sorted(sub_organisms))
             logging.getLogger().debug(sub_annotation_positions) 
             
-            subset_group_code = set()
+            subset_familly_code = set()
             for org in sub_organisms:
                 for pos in sub_annotation_positions[org]:
-                    subset_group_code.add(Pangenome.annotations[pos][GROUP_CODE])
-            logging.getLogger().debug(subset_group_code)
-            subset_group_code = subset_group_code - set([None])
-            logging.getLogger().debug(subset_group_code)
+                    subset_familly_code.add(Pangenome.annotations[pos][FAMILLY_CODE])
+            logging.getLogger().debug(subset_familly_code)
+            subset_familly_code = subset_familly_code - set([None])
+            logging.getLogger().debug(subset_familly_code)
 
-            sub_familly_positions = OrderedDict((fam, self.familly_positions[fam]) for fam in sorted(subset_group_code))
+            sub_familly_positions = OrderedDict((fam, self.familly_positions[fam]) for fam in sorted(subset_familly_code))
 
             #logging.getLogger().debug(len(sub_organisms))
 
@@ -554,7 +558,7 @@ class Pangenome:
                 raise ValueError("write_graph must contain a format in the following list:'"+"', ".join(accessed_graph_output)+"'")
 
         #find most contigous organism
-        #reference = self.annotations.loc[lambda annot: annot.ORGANISM == 'EMPTY',:].loc[:,("GROUP_CODE")]
+        #reference = self.annotations.loc[lambda annot: annot.ORGANISM == 'EMPTY',:].loc[:,("FAMILLY_CODE")]
     
         if not os.path.exists(result_path):
             #NEM requires 5 files: file.index, file.str, file.dat, file.ck (optional) and file.nei
@@ -563,7 +567,7 @@ class Pangenome:
             index_file = open(result_path+"/file.index", "w")
             logging.getLogger().info("Writing file.index file")
             
-            for i, fam in enumerate(self.familly_positions.keys()):
+            for i, fam in enumerate(self.familly_positions.keys(),1):
                 index[fam]=i
                 index_file.write(str(i)+"\t"+str(fam)+"\n")
 
@@ -602,6 +606,7 @@ class Pangenome:
             graph  = nx.Graph()
        
         for fam in self.familly_positions.keys():
+            logging.getLogger().debug(self.organism_positions.values())
             dat_file.write("\t".join(["1" if Pangenome.presences_absences[fam][p_org]>0 else "0" for p_org in self.organism_positions.values()])+"\n")
             
             ck_value = 0
@@ -610,44 +615,46 @@ class Pangenome:
             elif self.familly_ratio[fam] <= threshold:
                 ck_value = k
             ck_file.write(str(ck_value)+"\n")
-
             if use_neighborhood:
                 if write_graph:                
-                    graph.add_node(index[fam],label = fam, conservation = round(self.familly_ratio[fam],2))
+                    graph.add_node(index[fam], label = fam, conservation = round(self.familly_ratio[fam],2))
                 row_fam         = []
                 row_dist_score  = []
                 neighbor_number = 0
-                row.append((index[fam]))
-                if Pangenome.neighbors[fam].keys() == [None]:
+                logging.getLogger().debug(Pangenome.neighbors[fam])
+                fam_neighbors = {nei:{org:dis for org,dis in orgs_nei.iteritems() if org in self.organism_positions.keys()} for nei, orgs_nei in Pangenome.neighbors[fam].iteritems() if nei != None}
+                fam_neighbors = {nei: orgs_nei for nei, orgs_nei in fam_neighbors.iteritems() if len(orgs_nei)>0}
+                if len(fam_neighbors.keys()) == 0:
                     logging.getLogger().warning("The familly: "+fam+" is an isolated cluster node")
+                    nei_file.write(str(index[fam])+"\t0\n")
                     continue
                 for neighbor, orgs_nei in Pangenome.neighbors[fam].iteritems():
                     logging.getLogger().debug(neighbor)
                     logging.getLogger().debug(orgs_nei)
                     if neighbor in index.keys():
-                        distance_penality = float(sum(orgs_nei.values()))/len(orgs_nei.values())
-                        distance_score = float(len(orgs_nei)) / distance_penality / len(self.nb_organisms)
+                        distance_penality = float(sum(orgs_nei.values()))/len(orgs_nei)
+                        distance_score = float(len(orgs_nei)) / distance_penality / self.nb_organisms
                         if distance_score>threshold:
                             if write_graph is not None:
-                                graph.add_node(index[neighbor],label = neighbor, conservation = round(self.familly_ratio[fam],2))
+                                graph.add_node(index[neighbor], label = neighbor, conservation = round(self.familly_ratio[fam],2))
                                 graph.add_edge(index[fam],index[neighbor], weight = distance_score)
                             row_fam.append(str(index[neighbor]))
-                            row_dist_score.append(str(distance_score))
+                            row_dist_score.append(str(round(distance_score,4)))
                             neighbor_number += 1
                     else:
-                        logging.getLogger().warning("familly: "+neighbor+" is not in index file")
-                nei_file.write("\t".join([item for sublist in [str(neighbor_number),row_fam,row_dist_score] for item in sublist])+"\n")
+                        logging.getLogger().debug("familly: "+neighbor+" is not in index file")
+                nei_file.write("\t".join([str(item) for sublist in [[index[fam]],[neighbor_number],row_fam,row_dist_score] for item in sublist])+"\n")
+                logging.getLogger().debug("\t".join([str(item) for sublist in [[index[fam]],[neighbor_number],row_fam,row_dist_score] for item in sublist])+"\n")
         nei_file.close()
         dat_file.close()
         ck_file.close()
-        logging.getLogger().info("Running NEM")
+        logging.getLogger().info("Running NEM...")
 
         #bernouli -> no weight or normal -> weight
         model = "bern" if self.weights is None else "norm"
         print_log = " -l y" if logging.getLogger().getEffectiveLevel() < 20 else "" 
         command = NEM_LOCATION+"nem_exe "+result_path+"/file "+str(k)+" -a nem -i 2000 -m "+model+" pk sk_ -s r 10 -B fix -b "+("1" if use_neighborhood else "0")+" -T -O random"+print_log
         logging.getLogger().info(command)
-        
         proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         output = proc.communicate()[1]
         M = float(re.search("\(M = (.+?)\)",output).group(1))# M=markov ps-like
@@ -655,22 +662,19 @@ class Pangenome:
             self.BIC = 2 * M - (k * (self.nb_organisms + 1) + 1 + k- 1) * math.log(len(self.familly_positions)) 
         elif model == "bern":
             self.BIC = 2 * M - (k * self.nb_organisms + 1 + k - 1) * math.log(len(self.familly_positions))
-        logging.getLogger().info("BIC = "+self.BIC)
-
+        logging.getLogger().info("Based on "+str(k)+" classes, BIC = "+str(round(self.BIC,4)))
         if os.path.isfile(result_path+"/file.cf"):
             logging.getLogger().info("Reading NEM results")
         else:
             logging.getLogger().error("No NEM output found in file.cf")
         with open(result_path+"/file.cf","r") as classification_file:
-            #TODO store classification in attribute
             classification = classification_file.readline().split()
             classification = {k: v for k, v in zip(index.keys(), classification)}
-            self.nb_classes  = k
+            self.nb_classes = k
             if write_graph is not None:
                 logging.getLogger().info("Writing graphML file")
                 for fam, nem_class in classification.items():
                     graph.node[index[fam]]['nem_class'] = nem_class
-
                 getattr(nx,'write_'+write_graph)(graph,result_path+"/file."+write_graph)
                 mst = nx.maximum_spanning_tree(graph)
                 for u,v,d in mst.edges(data=True):
@@ -682,9 +686,9 @@ class Pangenome:
                 self.classified_famillies[i_k] = [fam for (fam, nem_class) in classification.items() if nem_class == i_k]
                 self.class_ratio[i_k] = [self.familly_ratio[fam] for fam in self.classified_famillies[i_k]]
                 self.class_ratio[i_k] = sum(self.class_ratio[str(i_k)])/len(self.class_ratio[str(i_k)]) if len(self.class_ratio[i_k]) > 0 else 0   
-        logging.getLogger().debug(sorted(self.class_ratio, key=self.class_ratio.__getitem__, reverse=True))        
+        #logging.getLogger().debug(sorted(self.class_ratio, key=self.class_ratio.__getitem__, reverse=True))        
         self.classified_famillies = OrderedDict((o, self.classified_famillies[o]) for o in sorted(self.class_ratio, key=self.class_ratio.__getitem__, reverse=True))
-        logging.getLogger().debug(self.classified_famillies)
+        #logging.getLogger().debug(self.classified_famillies)
         logging.getLogger().info("Writing stats summury")
         with open(result_path+"/nem.stat","w") as nem_stat_file:
             nem_stat_file.write(str(self.nb_organisms)+"\t"+"\t".join([str(len(fams)) for nem_class, fams in self.classified_famillies.items()])+"\t"+str(self.pan_size)+"\n")
@@ -696,80 +700,74 @@ class Pangenome:
 
     def __neighborhoodComputation(self, initNeighborDistance, maxNeighborDistance):
         """Algo voisinage taille flexible
-                Principe : Tant qu'il reste des noeuds (=MICFAM) isoles dans le graphe (mais potentiellement "voisinable"), la distance de voisinage considere augmente jusqu'au max
-                En sortie : Une matrice d'adjacence scoree avec les Oids des paires de voisins (le nombre d'Oid pour 1 paire sera utilise par la suite) 
-                + la distance de voisinage ou la paire de voisin a ete trouvee, pour l'Oid considere (la moyenne de ces distances pour 1 paire sera utilise par la suite)
-                En finalite : Produit un graphe connexe du voisinange des MICFAM ou chaque arete a pour score egal a : (Nb_Oid_voisins / Moyenne_Distances_voisins / Nb_Oid_total) """
+            Principe : Tant qu'il reste des noeuds (=MICFAM) isoles dans le graphe (mais potentiellement "voisinable"), la distance de voisinage considere augmente jusqu'au max
+            En sortie : Une matrice d'adjacence scoree avec les Oids des paires de voisins (le nombre d'Oid pour 1 paire sera utilise par la suite) 
+            + la distance de voisinage ou la paire de voisin a ete trouvee, pour l'Oid considere (la moyenne de ces distances pour 1 paire sera utilise par la suite)
+            En finalite : Produit un graphe connexe du voisinange des MICFAM ou chaque arete a pour score egal a : (Nb_Oid_voisins / Moyenne_Distances_voisins / Nb_Oid_total) """
         neighbors_dict = defaultdict(lambda : defaultdict(dict))
         dist = initNeighborDistance # Distance (en nb de regions, cad de lignes) de recherche des voisins
         neighbor_rows = [] # Garde en temp les n lignes precedentes avec n = dist, remis a zero chaque fois qu'on change de brin et de sequence
-        i = 0 # = compteur de lignes, remis a zero chaque fois qu'on change de brin et de sequence
-        list_isolated_cluster = [] # = clusters isoles mais possible de leur trouver un voisinage : tant qu'il en reste => recursion (jusqu'a maxNeighborDistance)
-        list_allowed_isolated_cluster = [] # = clusters vraiment isoles, impossible de leur trouver un voisin (ils sont autorises a passer la recursion)
-        nb_allowed_isolated_cluster = 0
-        first_row = tuple(self.annotations.iloc[0].values)
-        
-        GO_id_prev, GO_type_prev, O_id_prev, S_id_prev, cluster_id_prev, GO_begin_prev, GO_end_prev, GO_strand_prev = first_row
-        valid_cluster_id_prev = cluster_id_prev    
+        i = 0 # = compteur remis a zero chaque fois qu'on change de brin et de sequence
+        list_isolated_famillies = [] # = clusters isoles mais possible de leur trouver un voisinage : tant qu'il en reste => recursion (jusqu'a maxNeighborDistance)
+        list_allowed_isolated_famillies = [] # = clusters vraiment isoles, impossible de leur trouver un voisin (ils sont autorises a passer la recursion)
+        nb_allowed_isolated_famillies = 0
+        first_row = self.annotations[0]
+        GO_id_prev, GO_type_prev, O_id_prev, S_id_prev, familly_id_prev, GO_begin_prev, GO_end_prev, GO_strand_prev = first_row
+        valid_familly_id_prev = familly_id_prev    
         neighbor_rows.append(first_row)    
-
-        last_index = self.annotations.tail(1).index
+        last_index = len(self.annotations)-2
         
-
-        for key,row in self.annotations.iloc[1:].iterrows():
+        for index, row in enumerate(self.annotations[1:]):
      
-            GO_id, GO_type, O_id, S_id, cluster_id, GO_begin, GO_end, GO_strand = row
+            GO_id, GO_type, O_id, S_id, familly_id, GO_begin, GO_end, GO_strand = row
 
             if (S_id != S_id_prev):
                 if (i == 0):# Cas particulier ou 1 seul CDS dans 1 sequence + 1 strand : Forcement aucun voisins #
-                       list_allowed_isolated_cluster.append(str(cluster_id_prev))
+                       list_allowed_isolated_famillies.append(str(familly_id_prev))
                 elif ((dist-j) >= i):   # Cas ou vraiment aucun voisins qqsoit la distance consideree #
-                    list_allowed_isolated_cluster.append(str(valid_cluster_id_prev))
-                elif key == last_index: # Cas ou il ne peux pas y avoir de suivant car on a atteint la fin#
-                    list_allowed_isolated_cluster.append(str(cluster_id))
+                    list_allowed_isolated_famillies.append(str(valid_familly_id_prev))
+                elif index == last_index: # Cas ou il ne peux pas y avoir de suivant car on a atteint la fin#
+                    list_allowed_isolated_famillies.append(str(familly_id))
                 i=0
                 neighbor_rows = []
             else:
                 i+=1
-                tmp_list_isolated_cluster = []
+                tmp_list_isolated_famillies = []
                 for j in range((i if i<dist else dist),0,-1):
-                    GO_id_nei, GO_type_nei, O_id_nei, S_id_nei, cluster_id_nei, GO_begin_nei, GO_end_nei, GO_strand_nei = neighbor_rows[j-1]
-                    if ((not pd.isnull(cluster_id_nei)) and GO_type_nei in ("CDS","fCDS")):
-                        if ((not pd.isnull(cluster_id)) and GO_type in ("CDS","fCDS") and cluster_id != cluster_id_nei):
-                            neighbors_dict[str(cluster_id)][str(cluster_id_nei)][O_id]=dist-j+1
-                            neighbors_dict[str(cluster_id_nei)][str(cluster_id)][O_id]=dist-j+1
-                            tmp_list_isolated_cluster = []
+                    GO_id_nei, GO_type_nei, O_id_nei, S_id_nei, familly_id_nei, GO_begin_nei, GO_end_nei, GO_strand_nei = neighbor_rows[j-1]
+                    if ((not pd.isnull(familly_id_nei)) and GO_type_nei in ("CDS","fCDS")):
+                        if ((familly_id is not None) and GO_type in ("CDS","fCDS") and familly_id != familly_id_nei):
+                            neighbors_dict[str(familly_id)][str(familly_id_nei)][O_id]=dist-j+1
+                            neighbors_dict[str(familly_id_nei)][str(familly_id)][O_id]=dist-j+1
+                            tmp_list_isolated_famillies = []
                             break
                         else:
-                            tmp_list_isolated_cluster.append(str(cluster_id_nei))
+                            tmp_list_isolated_famillies.append(str(familly_id_nei))
                     else:
-                        if ((not pd.isnull(cluster_id)) and GO_type in ("CDS","fCDS") and cluster_id != cluster_id_nei):
-                            tmp_list_isolated_cluster.append(str(cluster_id))
-                list_isolated_cluster.extend(tmp_list_isolated_cluster)
+                        if ((familly_id is not None) and GO_type in ("CDS","fCDS") and familly_id != familly_id_nei):
+                            tmp_list_isolated_famillies.append(str(familly_id))
+                list_isolated_famillies.extend(tmp_list_isolated_famillies)
 
             if i<dist:
                 neighbor_rows.append(row)
             else:
                 neighbor_rows.pop(0)
                 neighbor_rows.append(row)
-            GO_id_prev, GO_type_prev, O_id_prev, S_id_prev, cluster_id_prev, GO_begin_prev, GO_end_prev, GO_strand_prev = row
-            valid_cluster_id_prev = cluster_id if ((not pd.isnull(cluster_id)) and GO_type in ("CDS","fCDS")) else valid_cluster_id_prev
+            GO_id_prev, GO_type_prev, O_id_prev, S_id_prev, familly_id_prev, GO_begin_prev, GO_end_prev, GO_strand_prev = row
+            valid_familly_id_prev = familly_id if ((familly_id is not None) and GO_type in ("CDS","fCDS")) else valid_familly_id_prev
 
         # Cas des clusters reelement isoles dans le graphe sans aucun voisinage, meme a rayon tres eleve
-        for clust in (set(list_allowed_isolated_cluster) - set(neighbors_dict.keys())):
-            print(clust)
+        for clust in (set(list_allowed_isolated_famillies) - set(neighbors_dict.keys())):
             neighbors_dict[str(clust)][None] = 1
-            nb_allowed_isolated_cluster+=1
+            nb_allowed_isolated_famillies+=1
         
-        if self.options.verbose:
-            print("Neighbor maximum distance: "+str(dist)+" -> Isolated cluster counting: "+str(len(set(list_isolated_cluster) - set(list(neighbors_dict.keys())))+nb_allowed_isolated_cluster))
-        if len(set(list_isolated_cluster) - set(neighbors_dict.keys())) != 0:
+        logging.getLogger().debug("Neighbor maximum distance: "+str(dist)+" -> Isolated cluster counting: "+str(len(set(list_isolated_famillies) - set(list(neighbors_dict.keys())))+nb_allowed_isolated_famillies))
+        if len(set(list_isolated_famillies) - set(neighbors_dict.keys())) != 0:
             if dist < maxNeighborDistance:
                 return self.neighborhoodComputation(dist+1, maxNeighborDistance)
             else:
                 # Cas des clusters isoles avec potentiellement un voisinage a rayon superieur a maxNeighborDistance
-                for clust in (set(list_isolated_cluster) - set(neighbors_dict.keys())):    
+                for clust in (set(list_isolated_famillies) - set(neighbors_dict.keys())):    
                     neighbors_dict[str(clust)][None] = 1
           
         return neighbors_dict
-
