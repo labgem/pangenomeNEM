@@ -2,12 +2,14 @@ import unittest
 from collections import defaultdict
 import sys
 import os
+from joblib import Parallel, delayed
 import shutil
 sys.path.append('../src/')
 from classes import *
 from util import *
+import logging
 
-logging.basicConfig(level=logging.INFO, format='\n%(asctime)s %(filename)s:l%(lineno)d:t%(thread)d %(levelname)s\t%(message)s', datefmt='%H:%M:%S')
+logging.basicConfig(level = logging.INFO, format = '\n%(asctime)s %(filename)s:l%(lineno)d %(levelname)s\t%(message)s', datefmt='%H:%M:%S')
 
 class TestPangenomeMethods(unittest.TestCase):
 
@@ -214,21 +216,26 @@ class TestPangenomeMethods(unittest.TestCase):
     def test_resample_and_classify_c118(self):
         (annotation_file,eggNOG_clusters_file) = self.import_files_progenome_c118()
         pan = Pangenome("progenome", annotation_file, eggNOG_clusters_file, False)
+        pan.classify("/tmp/test_pangenome2"+"_k3"+"_nb"+str(pan.nb_organisms)+"_i0",k=3, use_neighborhood=True, write_graph = "gexf")
         organisms = pan.organism_positions.keys()
-        i = 0
+        cpt = 1
         total_combinations = oidsCombinations(range(0,pan.nb_organisms),10,1000,10)
         del total_combinations[pan.nb_organisms]
-
         nb_total_combinations = 0   
+
+        arguments = list() 
 
         for c in total_combinations:
             nb_total_combinations += len(total_combinations[c])
-        print "..... Preparing to classify 1 pangenome + "+str(nb_total_combinations)+" subsampled pangenomes ....."
+        print("..... Preparing to classify 1 pangenome + "+str(nb_total_combinations)+" subsampled pangenomes .....")
+
         for comb_size in total_combinations:
             for combination in total_combinations[comb_size]:
-                subpan = pan.sub_pangenome([organisms[i] for i in combination])
-                subpan.classify("/tmp/test_pangenome"+"_k3"+"_nb"+str(comb_size)+"_i"+str(i),k=3, use_neighborhood=True, write_graph = "gexf")
-                print(subpan)
-                i+=1
+                arguments.append([pan, 3, [organisms[i] for i in combination]])
+                cpt+=1
+
+        random.shuffle(arguments)
+        Parallel(n_jobs=2, backend="threading")(delayed(run)(i,*arguments[i]) for i in range(len(arguments)))
+
 if __name__ == '__main__':
     unittest.main()

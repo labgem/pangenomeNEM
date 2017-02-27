@@ -220,7 +220,7 @@ if __name__=='__main__':
 	outfile.close()
 
 	core_cluster_file = open(EXACT_CORE_FILE,"w")
-	core_cluster_file.write("\n".join(pan.cluster_core.index))
+	core_cluster_file.write("\n".join(pan.core_list))
 	core_cluster_file.write("\n")
 	core_cluster_file.close()
 	print "> Creation of a exact_core_cluster.txt file with all core clusters"

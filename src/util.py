@@ -101,3 +101,7 @@ def oidsCombinations(Oids, nbOrgThr, sample_thr, sample_min,sample_max=None):
                 comb_list = samplingCombinations(Oids, sample_thr, sample_min, sample_max)
         return comb_list
 
+def run(cpt, pan, k, organisms):
+        subpan = pan.sub_pangenome(organisms)
+        subpan.classify("/tmp/test_pangenome2"+"_k3"+"_nb"+str(len(organisms))+"_i"+str(cpt),k=3, use_neighborhood=True, write_graph = "gexf")
+        print(subpan)

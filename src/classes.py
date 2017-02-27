@@ -18,6 +18,11 @@ import logging
 NEM_LOCATION  = "../NEM/"
 (GENE, TYPE, ORGANISM, CONTIG_ID, FAMILLY_CODE, START, END, STRAND) = range(0, 8)
 
+#out_formatter = logging.Formatter('\n%(asctime)s %(filename)s:l%(lineno)d %(levelname)s\t%(message)s', datefmt='%H:%M:%S')
+#steam_handler = logging.StreamHandler()
+#steam_handler.setLevel(logging.DEBUG)
+#steam_handler.setFormatter(out_formatter)
+#multiprocessing.get_logger().addHandler(steam_handler)
 
 def __dbConnect():
     try:
@@ -54,7 +59,7 @@ class Pangenome:
         self.core_size            = 0
         self.classified_famillies = None
         self.class_ratio          = None
-        self.nb_classes           = None
+        self.k                    = None
         self.BIC                  = None # Bayesian Index Criterion
         self.weights              = None
 
@@ -504,8 +509,11 @@ class Pangenome:
         pan_str += "Exact core-genome size:"+str(self.core_size)+"\n"
         pan_str += "Exact variable-genome size:"+str(self.pan_size-self.core_size)+"\n"
         if self.classified_famillies is not None:
-            
-            pan_str += "Exact variable-genome size:"+str(self.pan_size-self.core_size)+"\n"
+            pan_str += "Classification in "+str(self.k)+" classes: \n"
+            for class_i in self.classified_famillies.keys():
+                pan_str += "\t> # of families in class "+class_i+": "+str(len(self.classified_famillies[class_i]))+"\n"
+        else:
+            pan_str += "No classification have been performed on this Pangenome instance\n"
         pan_str += "----------------------------------\n"
 
         return(pan_str)    
@@ -513,7 +521,6 @@ class Pangenome:
     def sub_pangenome(self, sub_organisms):
        
         if set(sub_organisms).issubset(set(self.organism_positions.keys())):
-            
             if(len(set(sub_organisms)) != len(sub_organisms)):
                 logging.getLogger().warning("sub_organisms contain duplicated organism names. Only unique organism names will be used")
                 sub_organisms = set(sub_organisms)
@@ -522,7 +529,6 @@ class Pangenome:
             logging.getLogger().debug(sub_organism_positions) 
             sub_annotation_positions = OrderedDict((org, self.annotation_positions[org]) for org in sorted(sub_organisms))
             logging.getLogger().debug(sub_annotation_positions) 
-            
             subset_familly_code = set()
             for org in sub_organisms:
                 for pos in sub_annotation_positions[org]:
@@ -530,13 +536,8 @@ class Pangenome:
             logging.getLogger().debug(subset_familly_code)
             subset_familly_code = subset_familly_code - set([None])
             logging.getLogger().debug(subset_familly_code)
-
             sub_familly_positions = OrderedDict((fam, self.familly_positions[fam]) for fam in sorted(subset_familly_code))
-
-            #logging.getLogger().debug(len(sub_organisms))
-
             sub_pangenome = Pangenome("args", len(sub_organisms), sub_organism_positions,sub_familly_positions,sub_annotation_positions)
-
             if self.weights is not None:
                 sub_pangenome.weights = dict((org, self.weight[org]) for org in sorted(sub_organisms)) 
 
@@ -557,9 +558,6 @@ class Pangenome:
             if write_graph not in accessed_graph_output:
                 raise ValueError("write_graph must contain a format in the following list:'"+"', ".join(accessed_graph_output)+"'")
 
-        #find most contigous organism
-        #reference = self.annotations.loc[lambda annot: annot.ORGANISM == 'EMPTY',:].loc[:,("FAMILLY_CODE")]
-    
         if not os.path.exists(result_path):
             #NEM requires 5 files: file.index, file.str, file.dat, file.ck (optional) and file.nei
             os.makedirs(result_path)
@@ -625,7 +623,7 @@ class Pangenome:
                 fam_neighbors = {nei:{org:dis for org,dis in orgs_nei.iteritems() if org in self.organism_positions.keys()} for nei, orgs_nei in Pangenome.neighbors[fam].iteritems() if nei != None}
                 fam_neighbors = {nei: orgs_nei for nei, orgs_nei in fam_neighbors.iteritems() if len(orgs_nei)>0}
                 if len(fam_neighbors.keys()) == 0:
-                    logging.getLogger().warning("The familly: "+fam+" is an isolated cluster node")
+                    logging.getLogger().warning("The familly: "+fam+" is an isolated familly")
                     nei_file.write(str(index[fam])+"\t0\n")
                     continue
                 for neighbor, orgs_nei in Pangenome.neighbors[fam].iteritems():
@@ -670,7 +668,7 @@ class Pangenome:
         with open(result_path+"/file.cf","r") as classification_file:
             classification = classification_file.readline().split()
             classification = {k: v for k, v in zip(index.keys(), classification)}
-            self.nb_classes = k
+            self.k = k
             if write_graph is not None:
                 logging.getLogger().info("Writing graphML file")
                 for fam, nem_class in classification.items():
@@ -695,7 +693,7 @@ class Pangenome:
         with open(result_path+"/exact.stat","w") as exact_stat_file:        
             exact_stat_file.write(str(self.nb_organisms)+"\t"+str(self.core_size)+"\t"+str(self.pan_size-self.core_size)+"\t"+str(self.pan_size)+"\n")    
 
-        return(graph)
+        #return(graph)
 
 
     def __neighborhoodComputation(self, initNeighborDistance, maxNeighborDistance):
@@ -735,7 +733,7 @@ class Pangenome:
                 tmp_list_isolated_famillies = []
                 for j in range((i if i<dist else dist),0,-1):
                     GO_id_nei, GO_type_nei, O_id_nei, S_id_nei, familly_id_nei, GO_begin_nei, GO_end_nei, GO_strand_nei = neighbor_rows[j-1]
-                    if ((not pd.isnull(familly_id_nei)) and GO_type_nei in ("CDS","fCDS")):
+                    if (familly_id_nei is not None) and GO_type_nei in ("CDS","fCDS"):
                         if ((familly_id is not None) and GO_type in ("CDS","fCDS") and familly_id != familly_id_nei):
                             neighbors_dict[str(familly_id)][str(familly_id_nei)][O_id]=dist-j+1
                             neighbors_dict[str(familly_id_nei)][str(familly_id)][O_id]=dist-j+1
