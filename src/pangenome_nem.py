@@ -21,19 +21,31 @@ import string
 from joblib import Parallel, delayed
 import multiprocessing
 import subprocess
-from Bio import SeqIO
+
 import json
 import urllib2 
-from goatools.obo_parser import GODag
-from goatools.base import download_go_basic_obo
-from goatools import obo_parser
-from goatools import semantic
+# from goatools.obo_parser import GODag
+# from goatools.base import download_go_basic_obo
+# from goatools import obo_parser
+# from goatools import semantic
 import requests
 import re
+from scipy.cluster.hierarchy import linkage
+from scipy.cluster.hierarchy import to_tree
+from sklearn import manifold
+from scipy.spatial import Voronoi, voronoi_plot_2d
+import matplotlib.pyplot as plt
+from shapely.ops import polygonize
+from shapely.geometry import LineString, MultiPolygon, MultiPoint, Point
+from scipy.spatial import Voronoi
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 
-warnings.filterwarnings("ignore", "Unknown table.*")
 
-MASH_LOCATION = "/env/cns/proj/agc/home/ggautrea/ponderation/mash-Linux64-v1.1/"#ADD MASH
+logging.basicConfig(level = logging.DEBUG, format = '\n%(asctime)s %(filename)s:l%(lineno)d %(levelname)s\t%(message)s', datefmt='%H:%M:%S')
+
+
+MASH_LOCATION = ""#ADD MASH
 SUBPATH = "/NEMOUT"
 
 OUTPUTDIR = ""
@@ -46,94 +58,35 @@ def run(i,prefix, pan, sub_organisms = None):
 		
 	pan.classify(i,prefix)
 	print(pan)
-def findCOG(pangenome):
 
-	print("HERE")	
-	headers = {
-	    'Origin': 'http://eggnogdb.embl.de',
-	    'Accept-Encoding': 'gzip, deflate',
-	    'Accept-Language': 'en-US,en;q=0.8,fr;q=0.6',
-	    'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2785.143 Safari/537.36',
-	    'Content-Type': 'application/json;charset=UTF-8',
-	    'Accept': 'application/json, text/plain, */*',
-	    'Referer': 'http://eggnogdb.embl.de/',
-	    'Connection': 'keep-alive',
-	    'DNT': '1',
-	}
-		
-	ortho_2_COG_funcat = pd.DataFrame("S", index = pangenome.families, columns = ["funcat"])
-	for ortho in sorted(pangenome.families):
-		if len(ortho) == 5:
-			try:
-				data = '{"desc":"","seqid":"","target_species":"","level":"","nognames":"'+ortho+'","page":0}'
-				content = requests.post('http://eggnogapi.embl.de/meta_search', headers=headers, data=data)
-			except :
-				continue
-			if content.status_code == 200:
-				funcat = json.loads(content.text)["matches"][0]["funcat"]
-				ortho_2_COG_funcat.loc[ortho,"funcat"] = funcat
-			print(ortho+"  "+str(ortho_2_COG_funcat.loc[ortho,:]))
-	return(ortho_2_COG_funcat)
+# def findGO(pangenome):
 
-def findGO(pangenome):
+# 	obo_fname = download_go_basic_obo()
+# 	go_parser = obo_parser.GODag("go-basic.obo")
 
-	obo_fname = download_go_basic_obo()
-	go_parser = obo_parser.GODag("go-basic.obo")
-
-	API= "http://eggnogapi.embl.de/nog_data/json/go_terms/"
+# 	API= "http://eggnogapi.embl.de/nog_data/json/go_terms/"
 	
-	GO_roots = { "Biological Process": set(['GO:0008150']), "Cellular Component" : set(['GO:0005575']), "Molecular Function" : set(['GO:0003674'])}
+# 	GO_roots = { "Biological Process": set(['GO:0008150']), "Cellular Component" : set(['GO:0005575']), "Molecular Function" : set(['GO:0003674'])}
 
-	ortho_2_GO = pd.DataFrame("S", index = sorted(pangenome.families), columns = GO_roots.keys())
-	for ortho in sorted(pangenome.families):
-		link = API+ortho
-		try:
-			content = urllib2.urlopen(link)
-		except urllib2.URLError:
-			continue
-		if content.getcode() == 200:
-			go_terms = json.loads(content.read())["go_terms"]
-			for namespace in GO_roots.keys():
-				if namespace in go_terms.keys():
+# 	ortho_2_GO = pd.DataFrame("S", index = sorted(pangenome.families), columns = GO_roots.keys())
+# 	for ortho in sorted(pangenome.families):
+# 		link = API+ortho
+# 		try:
+# 			content = urllib2.urlopen(link)
+# 		except urllib2.URLError:
+# 			continue
+# 		if content.getcode() == 200:
+# 			go_terms = json.loads(content.read())["go_terms"]
+# 			for namespace in GO_roots.keys():
+# 				if namespace in go_terms.keys():
 
-					go_terms_name_space = go_terms[namespace]
-					result=semantic.common_parent_go_ids([go_id[0] for go_id in go_terms_name_space],go_parser)
-					result -= GO_roots[namespace]
-					ortho_2_GO.loc[ortho,namespace]=go_parser[result.pop()].name if len(result) > 0 else "Unknown"
-		print(ortho+"  "+str(ortho_2_GO.loc[ortho,:]))
-	return(ortho_2_GO)
+# 					go_terms_name_space = go_terms[namespace]
+# 					result=semantic.common_parent_go_ids([go_id[0] for go_id in go_terms_name_space],go_parser)
+# 					result -= GO_roots[namespace]
+# 					ortho_2_GO.loc[ortho,namespace]=go_parser[result.pop()].name if len(result) > 0 else "Unknown"
+# 		print(ortho+"  "+str(ortho_2_GO.loc[ortho,:]))
+# 	return(ortho_2_GO)
 
-
-def calc_mash_distance(fasta, OUTPUTDIR, num_thread):
-
-	MASH_DIRECTORY = OUTPUTDIR+"/"+"mash/"
-	if not os.path.exists(MASH_DIRECTORY):
-		os.makedirs(MASH_DIRECTORY)
-	
-	mash_parameters = set()
-	fasta_sequences = SeqIO.parse(fasta,'fasta')
-	for fasta in fasta_sequences:
-		elements = fasta.id.split(".")
-		out_file_name = MASH_DIRECTORY+elements[0]+"."+elements[1]
-		mash_parameters.add(out_file_name)
-
-		with open(out_file_name+".fasta","a") as out_file:
-			SeqIO.write(fasta,out_file,"fasta")
-
-	command = MASH_LOCATION+'mash sketch -n -p ' + str(num_thread) + " -o "+MASH_DIRECTORY+"all_sketch.msh "+MASH_DIRECTORY+"*.fasta"
-	print(command)
-	proc = subprocess.Popen(command, shell=True)
-	proc.communicate()
-
-	command = MASH_LOCATION+'mash dist -t '+(MASH_DIRECTORY+'all_sketch.msh ') * 2 + " > "+OUTPUTDIR+"/mash_distance.csv"
-	print(command)
-	proc = subprocess.Popen(command, shell=True,stdout=subprocess.PIPE)
-	proc.communicate()
-	
-	distances = pd.read_csv(OUTPUTDIR+"/mash_distance.csv", sep="\t", index_col =0)
-	organisms_names = {i : os.path.splitext(os.path.basename(i))[0] for i in distances.index}
-	distances.rename(index=organisms_names,columns=organisms_names, inplace=True)
-	return(distances)
 
 if __name__=='__main__':
 
@@ -164,8 +117,8 @@ if __name__=='__main__':
 
 	parser.add_argument("-p", "--ponderation", default=False, action="store_true", help="use mash to calculate distance between genomes and based on these distances ponderate underepresented genomes via a MDS approach")
 	ponderation = parser.add_mutually_exclusive_group()
-	ponderation.add_argument("-x", "--mash_fasta",type =argparse.FileType('r'),nargs=1, help="a csv file containing a matrix of distances between organisms")
-	ponderation.add_argument("-f", "--distances_file", type=argparse.FileType('r'), nargs=1, help="fasta file containing contig required to computed distance between genome")
+	ponderation.add_argument("-x", "--mash_fasta",type =argparse.FileType('r'),nargs=1, help="fasta file containing contig required to computed distance between genome")
+	ponderation.add_argument("-f", "--distances_file", type=argparse.FileType('r'), nargs=1, help="a csv file containing a matrix of distances between organisms")
 
 	parser.add_argument("-s", "--remove_singleton", default=False, action="store_true", help="Remove singleton to the pan-genome")
 	#parser.add_argument("-m", "--remove_ME", default=False, action="store_true", help="Remove the mobile elements (transposons, integrons, prophage gene) of the pan-genome")
@@ -202,21 +155,15 @@ if __name__=='__main__':
 	
 	distances = None
 	
-	if options.ponderation:
-		if options.mash_fasta[0]:
-			distances = calc_mash_distance(options.mash_fasta[0],OUTPUTDIR,num_thread)
-		#elif options.perdersen_distance:
-		# inspired by Hierarchical Sets proposed by perdersen 2017
-				
-		else:
-			distances = pd.read_csv(options.distancesfile, sep="\t", index_col = 0)
-			
-	
-	pan = pangenome(options, distances)
-	print(pan.organisms)
+	if options.use[0] == "progenome":
+		pan = Pangenome(options.use[0], options.annotations[0],  options.eggNOG_clusters[0], options.remove_singleton)
+	else:
+		exit(1)
+
+	print(pan)
 	
 	outfile = open(ORGANISMS_FILE,"w")
-	outfile.writelines(["%s\n" % item  for item in sorted(pan.organisms)])
+	outfile.writelines(["%s\n" % item  for item in (pan.organism_positions.keys())])
 	outfile.close()
 
 	core_cluster_file = open(EXACT_CORE_FILE,"w")
@@ -226,10 +173,146 @@ if __name__=='__main__':
 	print "> Creation of a exact_core_cluster.txt file with all core clusters"
 
 	print(pan)
-	
-	if options.ponderation:	
-		pan.ponderate()
-	
+
+	if options.ponderation:
+		if options.mash_fasta[0]:
+			distances = calc_mash_distance(options.mash_fasta[0],OUTPUTDIR,num_thread)
+		elif options.jacquard_distance:
+			pass
+			#to continue
+			#for i in range(0,pan.nb_organisms):
+			#	for j in range(0,i):
+			#			[ for pan.organism_positions]
+
+
+			# based on HierarchicalSets proposed by Perdersen 2017
+			#from rpy2.robjects import r
+			#from rpy2.robjects.packages import importr
+			#hs = importr('hierarchicalSets')
+			#dt = robjects.r.DataFrame({fam:robjects.IntVector(vector) for fam, vector in Pangenome.gene_presence_absence.iteritems()})
+			#dt = dt.transpose()
+
+		else:
+			distances = pd.read_csv(options.distancesfile, sep="\t", index_col = 0)
+
+		# cutoff = 0.025
+
+		# adj_graph = nx.from_pandas_dataframe(distance_melted, "source", "target", 'weight')
+		# logging.getLogger().debug(adj_graph)
+		# adj_subgraph = nx.Graph( [(u,v,d) for u,v,d in adj_graph.edges(data=True) if d['weight']>cutoff])
+		# logging.getLogger().debug(adj_subgraph)
+
+		#same = dict()
+
+		identitical = dict()
+
+		distance_melted = pd.DataFrame.stack(distances, level=0).reset_index()
+		distance_melted.columns = ["x","y","distance"]
+		logging.getLogger().debug(len(distance_melted.index))
+
+		same = defaultdict(set)
+		distance_melted.sort_values(["x","y","distance"], inplace=True)
+		distance_melted_filtered = pd.DataFrame(columns=["x","y","distance"])
+		for i, row in distance_melted.iterrows():
+			if row['distance'] == 0:
+				same[row['y']].add(row['x'])
+			if (row['y'] not in same) and (row['x'] not in same):
+				distance_melted_filtered.append(row)
+				
+		#distance_melted = distance_melted.loc[lambda row: row.distance > 0.1]
+		logging.getLogger().debug(len(distance_melted_filtered.index))
+		#TODO  add identical organism
+
+		size = len(distance_melted_filtered["x"])
+		
+		logging.getLogger().debug(len(set(distance_melted_filtered["x"])))
+		logging.getLogger().debug(len(set(distance_melted_filtered["y"])))
+		condensed_distances = pd.DataFrame(0, index=set(distance_melted_filtered["x"]),columns=set(distance_melted_filtered["x"]))
+		logging.getLogger().debug(condensed_distances)
+		for i, row in distance_melted.iterrows():
+			logging.getLogger().debug(row['x'])
+			logging.getLogger().debug(row['y'])
+			logging.getLogger().debug(row['distance'])
+			condensed_distances.loc[row['x'],row['y']] = row['distance']
+			condensed_distances.loc[row['y'],row['x']] = row['distance']
+
+		logging.getLogger().debug(condensed_distances)
+		#while distances.values
+		# case of 0 distance
+
+		mds     = manifold.MDS(n_components=2, dissimilarity="precomputed", random_state=10)
+		results = mds.fit(condensed_distances.values)
+		coords  = results.embedding_ #already centered around the centroid which is the origin of the space
+		#weights = dict(zip(pan.organism_positions.keys(), [0] * len(pan.organism_positions)))
+		weights = [0] * size
+		step    = np.amin(condensed_distances.values[np.triu_indices_from(condensed_distances.values, k = 1)])
+		logging.getLogger().debug(condensed_distances.values[np.triu_indices_from(condensed_distances.values, k = 1)])
+		logging.getLogger().debug(step)
+		exit()
+		fixed = set()
+		
+		cpt=0
+		cmap = cm.get_cmap(name='rainbow')
+		random = np.random.rand(len(weights),1)
+		# while centroid not in all bubble
+		while len(fixed)!=len(weights): 
+			fig, ax = plt.subplots()
+			cpt+=1
+			for i in range(0,len(weights)):
+				if i not in fixed:
+					intersection = False
+					for j in range(0,len(weights)):
+						if j not in fixed:
+							if circle_intersection((coords[i,0],coords[i,1],weights[i]),(coords[j,0],coords[j,1],weights[j])) != None:
+								print("Here "+i+" "+j)
+								intersection = True
+								fixed.add(i,j)
+								break
+							#
+					if not intersection:
+						logging.getLogger().debug("++")
+						weights[i] += step
+				logging.getLogger().debug(weights)
+				ax.add_artist(plt.Circle((coords[i,0],coords[i,1]), radius=weights[i], color=cmap(random[cpt%len(weights)][0]), fill=True, alpha = 0.3))
+				ax.text(coords[i,0],coords[i,1], s = str(cpt))
+			fig.savefig('circles_step'+str(cpt)+".png")
+		exit()
+		# vor         = Voronoi(coords)
+		# lines       = [LineString(vor.vertices[line]) for line in vor.ridge_vertices if -1 not in line]
+		# convex_hull = MultiPoint([Point(i) for i in coords]).convex_hull.buffer(2)
+		# pts         = MultiPoint([Point(i) for i in coords])
+		# mask        = pts.convex_hull.union(pts.buffer(0.001, resolution=50, cap_style=1))
+		# polys       = MultiPolygon([poly.intersection(mask) for poly in polygonize(lines)])
+		# for poly in polys:
+		# 	plt.fill(*zip(*np.array(list(zip(poly.boundary.coords.xy[0][:-1], poly.boundary.coords.xy[1][:-1])))), alpha=0.4, color = colors.rgb2hex(np.random.rand(3)))
+		# plt.plot(coords[:,0], coords[:,1], 'ko')
+		# plt.show()
+		# logging.getLogger().debug(polys)
+		# regions, vertices = voronoi_finite_polygons_2d(vor_result)
+		# pts = MultiPoint([Point(i) for i in coords])
+		# mask = pts.convex_hull.union(pts.buffer(10, resolution=5, cap_style=3))
+		# new_vertices = []
+		# for region in regions:
+		# 	polygon = vertices[region]
+		# 	shape = list(polygon.shape)
+		# 	shape[0] += 1
+		# 	p = MultiPolygon([poly.intersection(mask) for poly in polygonize(lines)])
+		# 	#p = Polygon(np.append(polygon, polygon[0]).reshape(*shape)).intersection(mask)
+		# 	poly = np.array(list(zip(p.boundary.coords.xy[0][:-1], p.boundary.coords.xy[1][:-1])))
+		# 	new_vertices.append(poly)
+		# 	plt.fill(*zip(*poly), alpha=0.4)
+		# plt.plot(coords[:,0], coords[:,1], 'ko')
+		# plt.title("Clipped Voronois")
+		# plt.show()
+
+  #       plt.show()
+		#adj_graph = nx.relabel_nodes(adj_graph, distances.columns.str)
+		
+
+		#hclust = scipy.cluster.hierarchy.linkage(distances.values, method='single', metric='euclidean')
+		#tree   = scipy.cluster.hierarchy.to_tree(hclust, rd=True)
+		#dendro = scipy.cluster.hierarchy.dendrogram(hclust)
+
 	if options.evolution:
 		arguments = list()       
 		organisms = list(pan.organisms)	

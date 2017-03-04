@@ -14,15 +14,10 @@ import os
 import re
 import math
 import logging
+import shlex
 
 NEM_LOCATION  = "../NEM/"
 (GENE, TYPE, ORGANISM, CONTIG_ID, FAMILLY_CODE, START, END, STRAND) = range(0, 8)
-
-#out_formatter = logging.Formatter('\n%(asctime)s %(filename)s:l%(lineno)d %(levelname)s\t%(message)s', datefmt='%H:%M:%S')
-#steam_handler = logging.StreamHandler()
-#steam_handler.setLevel(logging.DEBUG)
-#steam_handler.setFormatter(out_formatter)
-#multiprocessing.get_logger().addHandler(steam_handler)
 
 def __dbConnect():
     try:
@@ -325,8 +320,14 @@ class Pangenome:
         useful_cols_orthoGroups = ['PROTEIN_ID','EGGNOG_GROUP_CODE']
         type_cols_orthoGroups   = {'PROTEIN_ID':"str",'EGGNOG_GROUP_CODE':"str"}
 
-        annotations    = pd.read_csv(annotations_file, sep="\t", usecols=useful_cols_annot, dtype=type_cols_annot)
-        familly_groups = pd.read_csv(eggNOG_clusters_file, sep="\t", usecols=useful_cols_orthoGroups, dtype=type_cols_orthoGroups)
+        try:
+            annotations    = pd.read_csv(annotations_file, sep="\t", usecols=useful_cols_annot, dtype=type_cols_annot)
+            familly_groups = pd.read_csv(eggNOG_clusters_file, sep="\t", usecols=useful_cols_orthoGroups, dtype=type_cols_orthoGroups)
+        except ValueError as verr:
+            if str(verr) == "Usecols do not match names.":
+                raise ValueError("Column names do not match expected progenome names. Did you swapped annatotation file with eggNOGclusters file ?")
+            else:
+                raise verr
 
         familly_groups.rename(columns={'PROTEIN_ID':'PROTEIN_ID','EGGNOG_GROUP_CODE':'FAMILLY_CODE'}, inplace=True)
 
@@ -518,6 +519,19 @@ class Pangenome:
 
         return(pan_str)    
 
+    def assign_weights(self, weights):
+        """ weights must be a dictionary having organism names as key and weights > to 0.0 and <= to 1.0"""
+        if(len(weights) != len(organism_positions)):
+            if(weights.keys() in organism_positions.keys()):
+                if all([True if value <=1.0 and value >0 else False for value in weights.values()]):
+                    self.weights = weights
+                else: 
+                    raise ValueError("weights must be include in ]0.0;1.0]")
+            else:
+                raise ValueError("Organism keys in the weights arguments contained in this object")
+        else:
+            raise ValueError("weights argument must have the same length than the number of organisms in this object")
+
     def sub_pangenome(self, sub_organisms):
        
         if set(sub_organisms).issubset(set(self.organism_positions.keys())):
@@ -539,7 +553,7 @@ class Pangenome:
             sub_familly_positions = OrderedDict((fam, self.familly_positions[fam]) for fam in sorted(subset_familly_code))
             sub_pangenome = Pangenome("args", len(sub_organisms), sub_organism_positions,sub_familly_positions,sub_annotation_positions)
             if self.weights is not None:
-                sub_pangenome.weights = dict((org, self.weight[org]) for org in sorted(sub_organisms)) 
+                sub_pangenome.weights = dict((org, self.weights[org]) for org in sorted(sub_organisms)) 
 
             return(sub_pangenome)
         else:
@@ -605,8 +619,10 @@ class Pangenome:
        
         for fam in self.familly_positions.keys():
             logging.getLogger().debug(self.organism_positions.values())
-            dat_file.write("\t".join(["1" if Pangenome.presences_absences[fam][p_org]>0 else "0" for p_org in self.organism_positions.values()])+"\n")
-            
+            if self.weights is None:
+                dat_file.write("\t".join(["1" if Pangenome.presences_absences[fam][p_org]>0 else "0" for p_org in self.organism_positions.values()])+"\n")
+            else:
+                dat_file.write("\t".join([str(round(self.weights[p_org],3)) if Pangenome.presences_absences[fam][p_org]>0 else "0.0" for p_org in self.organism_positions.values()])+"\n")
             ck_value = 0
             if self.familly_ratio[fam] == float(1):
                 ck_value = 1
@@ -653,7 +669,7 @@ class Pangenome:
         print_log = " -l y" if logging.getLogger().getEffectiveLevel() < 20 else "" 
         command = NEM_LOCATION+"nem_exe "+result_path+"/file "+str(k)+" -a nem -i 2000 -m "+model+" pk sk_ -s r 10 -B fix -b "+("1" if use_neighborhood else "0")+" -T -O random"+print_log
         logging.getLogger().info(command)
-        proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        proc = subprocess.Popen(shlex.split(command), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         output = proc.communicate()[1]
         M = float(re.search("\(M = (.+?)\)",output).group(1))# M=markov ps-like
         if model == "norm":
