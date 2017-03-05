@@ -130,7 +130,7 @@ def circle_intersection(circle1, circle2):
             return None # no solutions because one circle is contained within the other
         if d == 0 and r1 == r2:
             print "#3"
-            return None # circles are coincident and there are an infinite number of solutions
+            return float("Inf") # circles are coincident and there are an infinite number of solutions
 
         a = (r1*r1-r2*r2+d*d)/(2*d)
         h = sqrt(r1*r1-a*a)

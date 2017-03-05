@@ -175,10 +175,10 @@ if __name__=='__main__':
 	print(pan)
 
 	if options.ponderation:
-		if options.mash_fasta[0]:
+		if options.mash_fasta:
 			distances = calc_mash_distance(options.mash_fasta[0],OUTPUTDIR,num_thread)
-		elif options.jacquard_distance:
-			pass
+		#elif options.jacquard_distance:
+		#	pass
 			#to continue
 			#for i in range(0,pan.nb_organisms):
 			#	for j in range(0,i):
@@ -192,8 +192,8 @@ if __name__=='__main__':
 			#dt = robjects.r.DataFrame({fam:robjects.IntVector(vector) for fam, vector in Pangenome.gene_presence_absence.iteritems()})
 			#dt = dt.transpose()
 
-		else:
-			distances = pd.read_csv(options.distancesfile, sep="\t", index_col = 0)
+		elif options.distances_file:
+			distances = pd.read_csv(options.distances_file[0], sep="\t", index_col = 0)
 
 		# cutoff = 0.025
 
@@ -204,51 +204,63 @@ if __name__=='__main__':
 
 		#same = dict()
 
-		identitical = dict()
+		# identitical = dict()
 
-		distance_melted = pd.DataFrame.stack(distances, level=0).reset_index()
-		distance_melted.columns = ["x","y","distance"]
-		logging.getLogger().debug(len(distance_melted.index))
+		# distance_melted = pd.DataFrame.stack(distances, level=0).reset_index()
+		# distance_melted.columns = ["x","y","distance"]
+		# logging.getLogger().debug(len(distance_melted.index))
 
-		same = defaultdict(set)
-		distance_melted.sort_values(["x","y","distance"], inplace=True)
-		distance_melted_filtered = pd.DataFrame(columns=["x","y","distance"])
-		for i, row in distance_melted.iterrows():
-			if row['distance'] == 0:
-				same[row['y']].add(row['x'])
-			if (row['y'] not in same) and (row['x'] not in same):
-				distance_melted_filtered.append(row)
-				
-		#distance_melted = distance_melted.loc[lambda row: row.distance > 0.1]
-		logging.getLogger().debug(len(distance_melted_filtered.index))
-		#TODO  add identical organism
+		# same = defaultdict(set)
+		# insame = []
+		# distance_melted.sort_values(["x","y","distance"], inplace=True)
+		# drop = []
+		# for i, row in distance_melted.iterrows():
+		# 	if row['y'] != row['x'] and row['distance'] == 0:
+		# 		same[row['y']].add(row['x'])
+		# 		insame.append(row['x'])
+		# 	if (row['y'] in same) or (row['x'] in same):
+		# 		drop.append(i)
+		# print(same)
+		# exit()
+		# distance_melted.drop(distance_melted.index[drop],inplace=True)
+		# logging.getLogger().debug(len(distance_melted.index))
+		# #distance_melted = distance_melted.loc[lambda row: row.distance > 0.1]
+		# logging.getLogger().debug(len(distance_melted.index))
+		# #TODO  add identical organism
 
-		size = len(distance_melted_filtered["x"])
+		# size = len(distance_melted["x"])
 		
-		logging.getLogger().debug(len(set(distance_melted_filtered["x"])))
-		logging.getLogger().debug(len(set(distance_melted_filtered["y"])))
-		condensed_distances = pd.DataFrame(0, index=set(distance_melted_filtered["x"]),columns=set(distance_melted_filtered["x"]))
-		logging.getLogger().debug(condensed_distances)
-		for i, row in distance_melted.iterrows():
-			logging.getLogger().debug(row['x'])
-			logging.getLogger().debug(row['y'])
-			logging.getLogger().debug(row['distance'])
-			condensed_distances.loc[row['x'],row['y']] = row['distance']
-			condensed_distances.loc[row['y'],row['x']] = row['distance']
+		# logging.getLogger().debug(len(set(distance_melted["x"])))
+		# logging.getLogger().debug(len(set(distance_melted["y"])))
+		# condensed_distances = pd.DataFrame(0, index=set(distance_melted["x"]),columns=set(distance_melted["x"]))
+		# logging.getLogger().debug(condensed_distances)
+		# for i, row in distance_melted.iterrows():
+		# 	logging.getLogger().debug(row['x'])
+		# 	logging.getLogger().debug(row['y'])
+		# 	logging.getLogger().debug(row['distance'])
+		# 	condensed_distances.loc[row['x'],row['y']] = row['distance']
+		# 	condensed_distances.loc[row['y'],row['x']] = row['distance']
 
-		logging.getLogger().debug(condensed_distances)
-		#while distances.values
-		# case of 0 distance
+		# logging.getLogger().debug(condensed_distances)
+		# #while distances.values
+		# # case of 0 distance
 
+		distances = distances.round(decimals=3)
 		mds     = manifold.MDS(n_components=2, dissimilarity="precomputed", random_state=10)
-		results = mds.fit(condensed_distances.values)
+		results = mds.fit(distances.values)
 		coords  = results.embedding_ #already centered around the centroid which is the origin of the space
 		#weights = dict(zip(pan.organism_positions.keys(), [0] * len(pan.organism_positions)))
-		weights = [0] * size
-		step    = np.amin(condensed_distances.values[np.triu_indices_from(condensed_distances.values, k = 1)])
-		logging.getLogger().debug(condensed_distances.values[np.triu_indices_from(condensed_distances.values, k = 1)])
+
+		xmin=np.min(coords[:,0])*1.5
+		xmax=np.max(coords[:,0])*1.5
+		ymin=np.min(coords[:,1])*1.5
+		ymax=np.max(coords[:,1])*1.5
+
+		weights = [0] * pan.nb_organisms
+
+		step    = np.min(distances.values[np.nonzero(distances.values)])
 		logging.getLogger().debug(step)
-		exit()
+		logging.getLogger().debug(coords)
 		fixed = set()
 		
 		cpt=0
@@ -257,26 +269,33 @@ if __name__=='__main__':
 		# while centroid not in all bubble
 		while len(fixed)!=len(weights): 
 			fig, ax = plt.subplots()
+			ax.axis((xmin,xmax,ymin,ymax))
 			cpt+=1
 			for i in range(0,len(weights)):
 				if i not in fixed:
 					intersection = False
 					for j in range(0,len(weights)):
-						if j not in fixed:
+						if j != i:# and j not in fixed
+
 							if circle_intersection((coords[i,0],coords[i,1],weights[i]),(coords[j,0],coords[j,1],weights[j])) != None:
-								print("Here "+i+" "+j)
 								intersection = True
-								fixed.add(i,j)
+								fixed.add(i)
+								fixed.add(j)
 								break
-							#
 					if not intersection:
-						logging.getLogger().debug("++")
 						weights[i] += step
-				logging.getLogger().debug(weights)
-				ax.add_artist(plt.Circle((coords[i,0],coords[i,1]), radius=weights[i], color=cmap(random[cpt%len(weights)][0]), fill=True, alpha = 0.3))
-				ax.text(coords[i,0],coords[i,1], s = str(cpt))
+
+				ax.add_artist(plt.Circle((coords[i,0],coords[i,1]), radius=weights[i], color=cmap(i), fill=True, alpha = 0.3))
+				ax.text(coords[i,0],coords[i,1], s = str(i))
+				if cpt == 29:
+					res = circle_intersection((coords[59,0],coords[59,1],weights[59]),(coords[41,0],coords[41,1],weights[41]))
+					logging.getLogger().debug(res)
+					res = circle_intersection((coords[41,0],coords[41,1],weights[41]),(coords[59,0],coords[59,1],weights[59]))
+					logging.getLogger().debug(res)
+					logging.getLogger().debug(fixed)
+					#exit()
 			fig.savefig('circles_step'+str(cpt)+".png")
-		exit()
+
 		# vor         = Voronoi(coords)
 		# lines       = [LineString(vor.vertices[line]) for line in vor.ridge_vertices if -1 not in line]
 		# convex_hull = MultiPoint([Point(i) for i in coords]).convex_hull.buffer(2)

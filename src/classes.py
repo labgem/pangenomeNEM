@@ -76,6 +76,8 @@ class Pangenome:
              self.organism_positions,
              self.familly_positions,
              self.annotation_positions) = args 
+        else:
+            raise ValueError("init_from parameter is required")
  
         self.pan_size    = len(self.familly_positions)
         for fam in self.familly_positions.keys():
