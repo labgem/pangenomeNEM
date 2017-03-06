@@ -140,7 +140,7 @@ if __name__=='__main__':
 	        if not os.path.exists(directory):
  		        os.makedirs(directory)
 		else:
-			print(directory+" already exist")
+			logging.getLogger().error(directory+" already exist")
 			exit()
         EXACT_CORE_FILE = OUTPUTDIR+"/"+"exact_core_cluster.txt"
 	EVOLUTION_STATS_NEM_FILE = OUTPUTDIR+"/"+"evolution_stats_nem_"+str(options.classnumber[0])+".txt" 
@@ -246,56 +246,90 @@ if __name__=='__main__':
 		# # case of 0 distance
 
 		distances = distances.round(decimals=3)
+		triangle = np.triu(distances.values)
+		step = np.min(triangle[np.nonzero(triangle)])
+
 		mds     = manifold.MDS(n_components=2, dissimilarity="precomputed", random_state=10)
 		results = mds.fit(distances.values)
-		coords  = results.embedding_ #already centered around the centroid which is the origin of the space
+		xmin=np.min(results.embedding_[:,0])*1.5
+		xmax=np.max(results.embedding_[:,0])*1.5
+		ymin=np.min(results.embedding_[:,1])*1.5
+		ymax=np.max(results.embedding_[:,1])*1.5
+		coords  = [(coord[0],coord[1]) for coord in results.embedding_] #already centered around the centroid which is the origin of the space
 		#weights = dict(zip(pan.organism_positions.keys(), [0] * len(pan.organism_positions)))
-
-		xmin=np.min(coords[:,0])*1.5
-		xmax=np.max(coords[:,0])*1.5
-		ymin=np.min(coords[:,1])*1.5
-		ymax=np.max(coords[:,1])*1.5
-
-		weights = [0] * pan.nb_organisms
-
-		step    = np.min(distances.values[np.nonzero(distances.values)])
 		logging.getLogger().debug(step)
 		logging.getLogger().debug(coords)
-		fixed = set()
 		
 		cpt=0
 		cmap = cm.get_cmap(name='rainbow')
-		random = np.random.rand(len(weights),1)
-		# while centroid not in all bubble
-		while len(fixed)!=len(weights): 
-			fig, ax = plt.subplots()
-			ax.axis((xmin,xmax,ymin,ymax))
-			cpt+=1
-			for i in range(0,len(weights)):
-				if i not in fixed:
-					intersection = False
-					for j in range(0,len(weights)):
-						if j != i:# and j not in fixed
+		centroid_x = sum([coord[0] for coord in coords])/len(coords)
+		centroid_y = sum([coord[1] for coord in coords])/len(coords)
+		centroid = (centroid_x,centroid_y,0) # 0 is the radius of a point
 
-							if circle_intersection((coords[i,0],coords[i,1],weights[i]),(coords[j,0],coords[j,1],weights[j])) != None:
-								intersection = True
-								fixed.add(i)
-								fixed.add(j)
-								break
-					if not intersection:
-						weights[i] += step
+		adresses = dict((i,set([i])) for i in range(0,len(coords)))
+		weights = [0] * len(coords)
+		while len(coords) > 1:
+			new_coords = []
+			fixed = set()
+			
+			new_adresses = defaultdict(set)
+			new_weights = defaultdict(float)
+			while len(fixed)!=len(coords): 
+				fig, ax = plt.subplots()
+				ax.plot(centroid[0],centroid[1], 'ro')
+				ax.text(centroid[0],centroid[1], s = "c")
+				ax.axis((xmin,xmax,ymin,ymax))
+				for i in range(0,len(coords)):
+					if i not in fixed:
+						intersection = False
+						for j in range(0,len(coords)):
+							if j != i:
+								new_coord = circle_intersection((coords[i][0],coords[i][1],new_weights[i]),(coords[j][0],coords[j][1],new_weights[j]))
+								if type(new_coord) == tuple:
+									intersection = True
+									fixed.add(i)
+									fixed.add(j)
+									new_adresses[len(new_coords)].update(adresses[i],adresses[j])
+									if i == 52:
+										print(new_weights[i])
+										print(new_adresses[len(new_coords)])
+										print(len(new_coords))
+									new_coords.append(new_coord)
+									break
 
-				ax.add_artist(plt.Circle((coords[i,0],coords[i,1]), radius=weights[i], color=cmap(i), fill=True, alpha = 0.3))
-				ax.text(coords[i,0],coords[i,1], s = str(i))
-				if cpt == 29:
-					res = circle_intersection((coords[59,0],coords[59,1],weights[59]),(coords[41,0],coords[41,1],weights[41]))
-					logging.getLogger().debug(res)
-					res = circle_intersection((coords[41,0],coords[41,1],weights[41]),(coords[59,0],coords[59,1],weights[59]))
-					logging.getLogger().debug(res)
-					logging.getLogger().debug(fixed)
-					#exit()
-			fig.savefig('circles_step'+str(cpt)+".png")
+						if not intersection:
+							if i == 52:
+								print(new_weights[i])
+							new_weights[i] += step
 
+					ax.add_artist(plt.Circle((coords[i][0],coords[i][1]), radius=new_weights[i], color=cmap(i), fill=True, alpha = 0.3))
+					ax.text(coords[i][0],coords[i][1], s = "\n".join([str(distances.index[adress]) for adress in adresses[i]]))
+
+				fig.savefig('circles_step'+str(cpt)+".png")
+				cpt+=1
+			#weights are propagated to the root
+
+			print(len(adresses))
+			print(len(coords))
+			print(len(new_weights))
+			for i, adress in adresses.iteritems():
+				for elem in adress:
+					if new_weights[i]>0.28:
+						logging.getLogger().debug(i)
+						logging.getLogger().debug(len(coords))
+						logging.getLogger().debug(new_weights[i])
+						logging.getLogger().debug(adress)
+
+					weights[elem] += len(coords)*new_weights[i]
+			logging.getLogger().debug(dict(zip(distances.index, weights)))
+			coords   = new_coords  
+			adresses = new_adresses
+		weights = dict(zip(distances.index, weights))
+		with open("weights.txt","w") as weight_file:
+			for org, wei in weights.iteritems():
+				weight_file.write(org+"\t"+str(wei)+"\n")
+
+		logging.getLogger().debug(weights)
 		# vor         = Voronoi(coords)
 		# lines       = [LineString(vor.vertices[line]) for line in vor.ridge_vertices if -1 not in line]
 		# convex_hull = MultiPoint([Point(i) for i in coords]).convex_hull.buffer(2)

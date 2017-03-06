@@ -114,35 +114,37 @@ def circle_intersection(circle1, circle2):
         @summary: calculates intersection points of two circles
         @param circle1: tuple(x,y,radius)
         @param circle2: tuple(x,y,radius)
-        @result: tuple of intersection points (which are (x,y) tuple)
+        @result: string if no intersection and mean point (which is (x,y) tuple) between the center of the 2 circles
         '''
-        # return self.circle_intersection_sympy(circle1,circle2)
         x1,y1,r1 = circle1
         x2,y2,r2 = circle2
         # http://stackoverflow.com/a/3349134/798588
         dx,dy = x2-x1,y2-y1
         d = sqrt(dx*dx+dy*dy)
         if d > r1+r2:
-            print "#1"
-            return None # no solutions, the circles are separate
+            return "separated"
         if d < abs(r1-r2):
-            print "#2"
-            return None # no solutions because one circle is contained within the other
+            return "contained"
         if d == 0 and r1 == r2:
-            print "#3"
-            return float("Inf") # circles are coincident and there are an infinite number of solutions
+            return (x1,y1)
 
         a = (r1*r1-r2*r2+d*d)/(2*d)
-        h = sqrt(r1*r1-a*a)
+        #h = sqrt(r1*r1-a*a)
         xm = x1 + a*dx/d
         ym = y1 + a*dy/d
-        xs1 = xm + h*dy/d
-        xs2 = xm - h*dy/d
-        ys1 = ym - h*dx/d
-        ys2 = ym + h*dx/d
+        #xs1 = xm + h*dy/d
+        #xs2 = xm - h*dy/d
+        #ys1 = ym - h*dx/d
+        #ys2 = ym + h*dx/d
 
-        return (xs1,ys1),(xs2,ys2)
+        return (xm,ym)
 
+def included_in_circle(point, circle1):
+        res = circle_intersection(point, circle1)
+        if res == "contained" or res == point:
+                return True
+        else:
+                return False
 
 def calc_mash_distance(fasta, OUTPUTDIR, num_thread):
 
