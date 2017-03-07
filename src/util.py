@@ -76,16 +76,14 @@ def samplingCombinations(items, sample_thr, sample_min, sample_max=None):
         for k in range(1,item_size+1):
                 tmp_comb = []
                 combNb = Decimal(scipy.misc.comb(item_size,k))#combinationNb(k,item_size)
-		
-		combNb = sys.float_info.max if combNb>sys.float_info.max else combNb # to avoid to reach infinit values
-			
+                combNb = sys.float_info.max if combNb>sys.float_info.max else combNb# to avoid to reach infinit values
                 combNb_sample = math.ceil(Decimal(combNb)/sample_coeff)
                 # Plus petit echantillonage possible pour un k donn<C3><A9> = sample_min
                 if ((combNb_sample < sample_min) and k != item_size):
                         combNb_sample = sample_min
-		# Plus grand echantillonage possible
-		if (sample_max != None and (combNb_sample > sample_max)):
-			combNb_sample = sample_max
+                # Plus grand echantillonage possible
+                if (sample_max is not None and combNb_sample > sample_max):
+                        combNb_sample = sample_max
                 i = 0;
                 while (i < combNb_sample):
                         comb = randomSublist(items,k)
@@ -99,8 +97,8 @@ def samplingCombinations(items, sample_thr, sample_min, sample_max=None):
 # Generation des combinaisons d'une liste d'Oids (toutes les combinaisons ou bien un echantillon selon les seuils fixes)
 def oidsCombinations(Oids, nbOrgThr, sample_thr, sample_min,sample_max=None):
         if (len(Oids) <= nbOrgThr):
-                comb_list = exactCombinations(Oids)
-	else:
+                        comb_list = exactCombinations(Oids)
+        else:
                 comb_list = samplingCombinations(Oids, sample_thr, sample_min, sample_max)
         return comb_list
 

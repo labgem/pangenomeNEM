@@ -23,7 +23,6 @@ import multiprocessing
 import subprocess
 
 import json
-import urllib2 
 # from goatools.obo_parser import GODag
 # from goatools.base import download_go_basic_obo
 # from goatools import obo_parser
@@ -35,9 +34,7 @@ from scipy.cluster.hierarchy import to_tree
 from sklearn import manifold
 from scipy.spatial import Voronoi, voronoi_plot_2d
 import matplotlib.pyplot as plt
-from shapely.ops import polygonize
-from shapely.geometry import LineString, MultiPolygon, MultiPoint, Point
-from scipy.spatial import Voronoi
+from scipy.spatial.distance import jaccard
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
@@ -119,6 +116,8 @@ if __name__=='__main__':
 	ponderation = parser.add_mutually_exclusive_group()
 	ponderation.add_argument("-x", "--mash_fasta",type =argparse.FileType('r'),nargs=1, help="fasta file containing contig required to computed distance between genome")
 	ponderation.add_argument("-f", "--distances_file", type=argparse.FileType('r'), nargs=1, help="a csv file containing a matrix of distances between organisms")
+	ponderation.add_argument("-j", "--jacquard_distance", action="store_true", help="compute jacquard distances between organisms based on presence/absences of famillies among organisms")
+
 
 	parser.add_argument("-s", "--remove_singleton", default=False, action="store_true", help="Remove singleton to the pan-genome")
 	#parser.add_argument("-m", "--remove_ME", default=False, action="store_true", help="Remove the mobile elements (transposons, integrons, prophage gene) of the pan-genome")
@@ -134,15 +133,15 @@ if __name__=='__main__':
 	options = parser.parse_args()
 
 	OUTPUTDIR       = options.outputdirectory[0]
-	NEMOUTPUTDIR    = OUTPUTDIR+"/NEM_results/"		
-        FIGUREOUTPUTDIR = OUTPUTDIR+"/"+"figures/"
-        for directory in [OUTPUTDIR, NEMOUTPUTDIR, FIGUREOUTPUTDIR]:
-	        if not os.path.exists(directory):
- 		        os.makedirs(directory)
+	NEMOUTPUTDIR    = OUTPUTDIR+"/NEM_results/"
+	FIGUREOUTPUTDIR = OUTPUTDIR+"/"+"figures/"
+	for directory in [OUTPUTDIR, NEMOUTPUTDIR, FIGUREOUTPUTDIR]:
+		if not os.path.exists(directory):
+			os.makedirs(directory)
 		else:
 			logging.getLogger().error(directory+" already exist")
 			exit()
-        EXACT_CORE_FILE = OUTPUTDIR+"/"+"exact_core_cluster.txt"
+	EXACT_CORE_FILE = OUTPUTDIR+"/"+"exact_core_cluster.txt"
 	EVOLUTION_STATS_NEM_FILE = OUTPUTDIR+"/"+"evolution_stats_nem_"+str(options.classnumber[0])+".txt" 
 	EVOLUTION_STATS_EXACT_FILE = OUTPUTDIR+"/"+"evolution_stats_exact.txt"
 	ORGANISMS_FILE       = OUTPUTDIR+"/"+"organisms.txt"	
@@ -170,31 +169,25 @@ if __name__=='__main__':
 	core_cluster_file.write("\n".join(pan.core_list))
 	core_cluster_file.write("\n")
 	core_cluster_file.close()
-	print "> Creation of a exact_core_cluster.txt file with all core clusters"
-
-	print(pan)
+	print("> Creation of a exact_core_cluster.txt file with all core clusters")
 
 	if options.ponderation:
 		if options.mash_fasta:
 			distances = calc_mash_distance(options.mash_fasta[0],OUTPUTDIR,num_thread)
-		#elif options.jacquard_distance:
-		#	pass
-			#to continue
-			#for i in range(0,pan.nb_organisms):
-			#	for j in range(0,i):
-			#			[ for pan.organism_positions]
-
-
-			# based on HierarchicalSets proposed by Perdersen 2017
-			#from rpy2.robjects import r
-			#from rpy2.robjects.packages import importr
-			#hs = importr('hierarchicalSets')
-			#dt = robjects.r.DataFrame({fam:robjects.IntVector(vector) for fam, vector in Pangenome.gene_presence_absence.iteritems()})
-			#dt = dt.transpose()
-
+		elif options.jacquard_distance:
+			distances = pd.DataFrame(0.0, index = pan.organism_positions.keys(), columns = pan.organism_positions.keys())		
+			for i in range(0,pan.nb_organisms):
+				i_vector = [1 if fam_vector[i] > 0 else 0 for fam_vector in Pangenome.presences_absences.values()]
+				for j in range(0,i):
+					j_vector = [1 if fam_vector[j] > 0 else 0 for fam_vector in Pangenome.presences_absences.values()]
+					dis = jaccard(i_vector, j_vector)
+					distances.iloc[i,j] = dis
+					distances.iloc[j,i] = dis
+			distances.to_csv(OUTPUTDIR+"/jacquard_distance.csv")
 		elif options.distances_file:
 			distances = pd.read_csv(options.distances_file[0], sep="\t", index_col = 0)
 
+		print(distances)
 		# cutoff = 0.025
 
 		# adj_graph = nx.from_pandas_dataframe(distance_melted, "source", "target", 'weight')
@@ -248,6 +241,7 @@ if __name__=='__main__':
 		distances = distances.round(decimals=3)
 		triangle = np.triu(distances.values)
 		step = np.min(triangle[np.nonzero(triangle)])
+		step = 0.001 if step > 0.001 else step
 
 		mds     = manifold.MDS(n_components=2, dissimilarity="precomputed", random_state=10)
 		results = mds.fit(distances.values)
@@ -290,10 +284,6 @@ if __name__=='__main__':
 									fixed.add(i)
 									fixed.add(j)
 									new_adresses[len(new_coords)].update(adresses[i],adresses[j])
-									if i == 52:
-										print(new_weights[i])
-										print(new_adresses[len(new_coords)])
-										print(len(new_coords))
 									new_coords.append(new_coord)
 									break
 
@@ -308,28 +298,18 @@ if __name__=='__main__':
 				fig.savefig('circles_step'+str(cpt)+".png")
 				cpt+=1
 			#weights are propagated to the root
-
-			print(len(adresses))
-			print(len(coords))
-			print(len(new_weights))
-			for i, adress in adresses.iteritems():
+			for i, adress in adresses.items():
 				for elem in adress:
-					if new_weights[i]>0.28:
-						logging.getLogger().debug(i)
-						logging.getLogger().debug(len(coords))
-						logging.getLogger().debug(new_weights[i])
-						logging.getLogger().debug(adress)
-
 					weights[elem] += len(coords)*new_weights[i]
 			logging.getLogger().debug(dict(zip(distances.index, weights)))
 			coords   = new_coords  
 			adresses = new_adresses
 		weights = dict(zip(distances.index, weights))
-		with open("weights.txt","w") as weight_file:
-			for org, wei in weights.iteritems():
+		with open(OUTPUTDIR+"/weights.txt","w") as weight_file:
+			for org, wei in weights.items():
 				weight_file.write(org+"\t"+str(wei)+"\n")
 
-		logging.getLogger().debug(weights)
+		logging.getLogger().debug(weights)	
 		# vor         = Voronoi(coords)
 		# lines       = [LineString(vor.vertices[line]) for line in vor.ridge_vertices if -1 not in line]
 		# convex_hull = MultiPoint([Point(i) for i in coords]).convex_hull.buffer(2)
@@ -376,7 +356,7 @@ if __name__=='__main__':
 
 		for c in total_combinations:
 			nb_total_combinations += len(total_combinations[c])
-		print "..... Preparing to classify 1 pangenome + "+str(nb_total_combinations)+" subsampled pangenomes ....."
+		print("..... Preparing to classify 1 pangenome + "+str(nb_total_combinations)+" subsampled pangenomes .....")
 		for comb_size in total_combinations:
 			for combination in total_combinations[comb_size]:
 				arguments.append([NEMOUTPUTDIR, pan, [organisms[i] for i in combination]])
