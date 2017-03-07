@@ -123,12 +123,12 @@ if __name__=='__main__':
 	#parser.add_argument("-m", "--remove_ME", default=False, action="store_true", help="Remove the mobile elements (transposons, integrons, prophage gene) of the pan-genome")
 	parser.add_argument('-d', '--outputdirectory', type=str, nargs=1, default="output.dir", help="The output directory", required=True)
 	parser.add_argument("-n", "--neighborcomputation", type=int, default=1, help="Consider neighboors for the analysis with the max neighbor distance (integer) (0 = infinite distance)")
-	parser.add_argument("-k", "--classnumber", type=int, nargs=1, default=[3], help="Number of classes to consider for other results than evolution (default = 3)")
+	parser.add_argument("-k", "--classnumber", type=int, nargs=1, default=3, help="Number of classes to consider for other results than evolution (default = 3)")
 	parser.add_argument("-e", "--evolution", default=False, action='store_true', help="compute several sample of organism to enable to build the evolution curves.")	
 	parser.add_argument("-t", "--num_thread", default=1, nargs=1, help="The number of thread to use, 0 for autodetection")
 	parser.add_argument("-w", "--verbose", default=False, action="store_true", help="verbose")
-	parser.add_argument("-]", "--max.resampling", default = 30, nargs=1, help="Number max of subsamples in each combinaison of organisms")
-	parser.add_argument("-[", "--min.resampling", default = 10, nargs=1, help="Number max of subsamples in each combinaison of organisms")
+	parser.add_argument("-]", "--max_resampling", default = 30, nargs=1, help="Number max of subsamples in each combinaison of organisms")
+	parser.add_argument("-[", "--min_resampling", default = 10, nargs=1, help="Number max of subsamples in each combinaison of organisms")
 	
 	options = parser.parse_args()
 
@@ -188,62 +188,13 @@ if __name__=='__main__':
 			distances = pd.read_csv(options.distances_file[0], sep="\t", index_col = 0)
 
 		print(distances)
-		# cutoff = 0.025
-
-		# adj_graph = nx.from_pandas_dataframe(distance_melted, "source", "target", 'weight')
-		# logging.getLogger().debug(adj_graph)
-		# adj_subgraph = nx.Graph( [(u,v,d) for u,v,d in adj_graph.edges(data=True) if d['weight']>cutoff])
-		# logging.getLogger().debug(adj_subgraph)
-
-		#same = dict()
-
-		# identitical = dict()
-
-		# distance_melted = pd.DataFrame.stack(distances, level=0).reset_index()
-		# distance_melted.columns = ["x","y","distance"]
-		# logging.getLogger().debug(len(distance_melted.index))
-
-		# same = defaultdict(set)
-		# insame = []
-		# distance_melted.sort_values(["x","y","distance"], inplace=True)
-		# drop = []
-		# for i, row in distance_melted.iterrows():
-		# 	if row['y'] != row['x'] and row['distance'] == 0:
-		# 		same[row['y']].add(row['x'])
-		# 		insame.append(row['x'])
-		# 	if (row['y'] in same) or (row['x'] in same):
-		# 		drop.append(i)
-		# print(same)
-		# exit()
-		# distance_melted.drop(distance_melted.index[drop],inplace=True)
-		# logging.getLogger().debug(len(distance_melted.index))
-		# #distance_melted = distance_melted.loc[lambda row: row.distance > 0.1]
-		# logging.getLogger().debug(len(distance_melted.index))
-		# #TODO  add identical organism
-
-		# size = len(distance_melted["x"])
-		
-		# logging.getLogger().debug(len(set(distance_melted["x"])))
-		# logging.getLogger().debug(len(set(distance_melted["y"])))
-		# condensed_distances = pd.DataFrame(0, index=set(distance_melted["x"]),columns=set(distance_melted["x"]))
-		# logging.getLogger().debug(condensed_distances)
-		# for i, row in distance_melted.iterrows():
-		# 	logging.getLogger().debug(row['x'])
-		# 	logging.getLogger().debug(row['y'])
-		# 	logging.getLogger().debug(row['distance'])
-		# 	condensed_distances.loc[row['x'],row['y']] = row['distance']
-		# 	condensed_distances.loc[row['y'],row['x']] = row['distance']
-
-		# logging.getLogger().debug(condensed_distances)
-		# #while distances.values
-		# # case of 0 distance
 
 		distances = distances.round(decimals=3)
 		triangle = np.triu(distances.values)
 		step = np.min(triangle[np.nonzero(triangle)])/10
 		step = 0.001 if step > 0.001 else step
 
-		mds     = manifold.MDS(n_components=pan.nb_organisms-1, dissimilarity="precomputed", random_state=10)
+		mds     = manifold.MDS(n_components=pan.nb_organisms-1, dissimilarity="precomputed", random_state=10, n_jobs = num_thread)
 		results = mds.fit(distances.values)
 		# xmin=np.min(results.embedding_[:,0])*1.5
 		# xmax=np.max(results.embedding_[:,0])*1.5
@@ -310,46 +261,11 @@ if __name__=='__main__':
 				weight_file.write(org+"\t"+str(wei)+"\n")
 
 		logging.getLogger().debug(weights)	
-		# vor         = Voronoi(coords)
-		# lines       = [LineString(vor.vertices[line]) for line in vor.ridge_vertices if -1 not in line]
-		# convex_hull = MultiPoint([Point(i) for i in coords]).convex_hull.buffer(2)
-		# pts         = MultiPoint([Point(i) for i in coords])
-		# mask        = pts.convex_hull.union(pts.buffer(0.001, resolution=50, cap_style=1))
-		# polys       = MultiPolygon([poly.intersection(mask) for poly in polygonize(lines)])
-		# for poly in polys:
-		# 	plt.fill(*zip(*np.array(list(zip(poly.boundary.coords.xy[0][:-1], poly.boundary.coords.xy[1][:-1])))), alpha=0.4, color = colors.rgb2hex(np.random.rand(3)))
-		# plt.plot(coords[:,0], coords[:,1], 'ko')
-		# plt.show()
-		# logging.getLogger().debug(polys)
-		# regions, vertices = voronoi_finite_polygons_2d(vor_result)
-		# pts = MultiPoint([Point(i) for i in coords])
-		# mask = pts.convex_hull.union(pts.buffer(10, resolution=5, cap_style=3))
-		# new_vertices = []
-		# for region in regions:
-		# 	polygon = vertices[region]
-		# 	shape = list(polygon.shape)
-		# 	shape[0] += 1
-		# 	p = MultiPolygon([poly.intersection(mask) for poly in polygonize(lines)])
-		# 	#p = Polygon(np.append(polygon, polygon[0]).reshape(*shape)).intersection(mask)
-		# 	poly = np.array(list(zip(p.boundary.coords.xy[0][:-1], p.boundary.coords.xy[1][:-1])))
-		# 	new_vertices.append(poly)
-		# 	plt.fill(*zip(*poly), alpha=0.4)
-		# plt.plot(coords[:,0], coords[:,1], 'ko')
-		# plt.title("Clipped Voronois")
-		# plt.show()
-
-  #       plt.show()
-		#adj_graph = nx.relabel_nodes(adj_graph, distances.columns.str)
-		
-
-		#hclust = scipy.cluster.hierarchy.linkage(distances.values, method='single', metric='euclidean')
-		#tree   = scipy.cluster.hierarchy.to_tree(hclust, rd=True)
-		#dendro = scipy.cluster.hierarchy.dendrogram(hclust)
 
 	if options.evolution:
 		arguments = list()       
 		organisms = list(pan.organisms)	
-		total_combinations = oidsCombinations(range(0,len(organisms)),10,1000,10)
+		total_combinations = oidsCombinations(range(0,len(organisms)),options.min_resampling,options.max_resampling,options.min_resampling)
 		del total_combinations[len(organisms)]
 
 		nb_total_combinations = 0	
@@ -366,7 +282,7 @@ if __name__=='__main__':
 		Parallel(n_jobs=num_thread)(delayed(run)(i,*arguments[i]) for i in range(len(arguments)))
 
 	else:
-		pan.classify(0,NEMOUTPUTDIR)
+		pan.classify(options.classnumber[0],NEMOUTPUTDIR)
 
 	command = 'cat '+NEMOUTPUTDIR+"/*/nem.stat | sort -k1n > "+EVOLUTION_STATS_NEM_FILE
 	print(command)
@@ -377,22 +293,5 @@ if __name__=='__main__':
 	proc = subprocess.Popen(command, shell=True)
 	proc.communicate()
 
-	#ortho_2_GO = findGO(pan)
-	#ortho_2_GO.to_csv(ONTOLOGY_FILE)
 	ortho_2_COG_funcat = findCOG(pan)
 	ortho_2_COG_funcat.to_csv(COG_FILE)
-
-	with open(NEMOUTPUTDIR+"/nborg"+str(len(pan.organisms))+"_k"+str(options.classnumber[0])+"_i0/file.mf","r") as mf_file:
-		for i,line in enumerate(mf_file):
-			print(str(i)+line)
-			if i==6:
-				elements = line.split()
-				print(line)
-				print(elements)
-				if options.ponderation:#meaning Normal model
-					BIC = 2 * float(elements[3]) - (options.classnumber[0] * (len(pan.organisms) + 1) + 1 + options.classnumber[0] - 1) * math.log(len(pan.families)) 
-				else:# meaning Bernoulli model
-					BIC = 2 * float(elements[3]) - (options.classnumber[0] * len(pan.organisms) + 1 + options.classnumber[0] - 1) * math.log(len(pan.families))
-	print(BIC)
-
-

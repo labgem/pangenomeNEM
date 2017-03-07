@@ -3,7 +3,6 @@
 
 
 from optparse import OptionParser # deprecie mais + compatible avec les install python des etnas
-#import pandas as pd
 import os
 import sys
 import errno
@@ -20,14 +19,11 @@ import random
 import string
 from decimal import Decimal
 import scipy.misc
-import networkx as nx
 from math import cos, sin, pi, sqrt, atan2
 from Bio import SeqIO
 import subprocess
 import pandas as pd
 import logging
-warnings.filterwarnings("ignore", "Unknown table.*")
-
 
 ####################################################################################
 #                                                                       Fonctions                                                                          #
