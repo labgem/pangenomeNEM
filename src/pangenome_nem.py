@@ -240,17 +240,16 @@ if __name__=='__main__':
 
 		distances = distances.round(decimals=3)
 		triangle = np.triu(distances.values)
-		step = np.min(triangle[np.nonzero(triangle)])
+		step = np.min(triangle[np.nonzero(triangle)])/10
 		step = 0.001 if step > 0.001 else step
 
-		mds     = manifold.MDS(n_components=2, dissimilarity="precomputed", random_state=10)
+		mds     = manifold.MDS(n_components=pan.nb_organisms-1, dissimilarity="precomputed", random_state=10)
 		results = mds.fit(distances.values)
-		xmin=np.min(results.embedding_[:,0])*1.5
-		xmax=np.max(results.embedding_[:,0])*1.5
-		ymin=np.min(results.embedding_[:,1])*1.5
-		ymax=np.max(results.embedding_[:,1])*1.5
-		coords  = [(coord[0],coord[1]) for coord in results.embedding_] #already centered around the centroid which is the origin of the space
-		#weights = dict(zip(pan.organism_positions.keys(), [0] * len(pan.organism_positions)))
+		# xmin=np.min(results.embedding_[:,0])*1.5
+		# xmax=np.max(results.embedding_[:,0])*1.5
+		# ymin=np.min(results.embedding_[:,1])*1.5
+		# ymax=np.max(results.embedding_[:,1])*1.5
+		coords  = [tuple(coord) for coord in results.embedding_] #already centered around the centroid which is the origin of the space
 		logging.getLogger().debug(step)
 		logging.getLogger().debug(coords)
 		
@@ -265,20 +264,19 @@ if __name__=='__main__':
 		while len(coords) > 1:
 			new_coords = []
 			fixed = set()
-			
 			new_adresses = defaultdict(set)
 			new_weights = defaultdict(float)
 			while len(fixed)!=len(coords): 
-				fig, ax = plt.subplots()
-				ax.plot(centroid[0],centroid[1], 'ro')
-				ax.text(centroid[0],centroid[1], s = "c")
-				ax.axis((xmin,xmax,ymin,ymax))
+				# fig, ax = plt.subplots()
+				# ax.plot(centroid[0],centroid[1], 'ro')
+				# ax.text(centroid[0],centroid[1], s = "c")
+				# ax.axis((xmin,xmax,ymin,ymax))
 				for i in range(0,len(coords)):
 					if i not in fixed:
 						intersection = False
 						for j in range(0,len(coords)):
 							if j != i:
-								new_coord = circle_intersection((coords[i][0],coords[i][1],new_weights[i]),(coords[j][0],coords[j][1],new_weights[j]))
+								new_coord = hypersphere_intersection(coords[i],new_weights[i],coords[j],new_weights[j])
 								if type(new_coord) == tuple:
 									intersection = True
 									fixed.add(i)
@@ -288,15 +286,13 @@ if __name__=='__main__':
 									break
 
 						if not intersection:
-							if i == 52:
-								print(new_weights[i])
 							new_weights[i] += step
 
-					ax.add_artist(plt.Circle((coords[i][0],coords[i][1]), radius=new_weights[i], color=cmap(i), fill=True, alpha = 0.3))
-					ax.text(coords[i][0],coords[i][1], s = "\n".join([str(distances.index[adress]) for adress in adresses[i]]))
+				# 	ax.add_artist(plt.Circle((coords[i][0],coords[i][1]), radius=new_weights[i], color=cmap(i), fill=True, alpha = 0.3))
+				# 	ax.text(coords[i][0],coords[i][1], s = "\n".join([str(distances.index[adress]) for adress in adresses[i]]))
 
-				fig.savefig('circles_step'+str(cpt)+".png")
-				cpt+=1
+				# fig.savefig('circles_step'+str(cpt)+".png")
+				# cpt+=1
 			#weights are propagated to the root
 			for i, adress in adresses.items():
 				for elem in adress:
@@ -304,9 +300,13 @@ if __name__=='__main__':
 			logging.getLogger().debug(dict(zip(distances.index, weights)))
 			coords   = new_coords  
 			adresses = new_adresses
+
+		sum_weigths = sum(weights)
+		weights = [round(wei/sum_weigths,3) for wei in weights]
 		weights = dict(zip(distances.index, weights))
+
 		with open(OUTPUTDIR+"/weights.txt","w") as weight_file:
-			for org, wei in weights.items():
+			for org, wei in sorted(weights.items()):
 				weight_file.write(org+"\t"+str(wei)+"\n")
 
 		logging.getLogger().debug(weights)	

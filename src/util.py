@@ -107,42 +107,31 @@ def run(cpt, pan, k, organisms):
         subpan.classify("/tmp/test_pangenome2"+"_k3"+"_nb"+str(len(organisms))+"_i"+str(cpt),k=3, use_neighborhood=True, write_graph = "gexf")
         print(subpan)
 
-def circle_intersection(circle1, circle2):
+def hypersphere_intersection(coord_hs1,radius_hs1, coord_hs2,radius_hs2):
         '''
-        @summary: calculates intersection points of two circles
-        @param circle1: tuple(x,y,radius)
-        @param circle2: tuple(x,y,radius)
-        @result: string if no intersection and mean point (which is (x,y) tuple) between the center of the 2 circles
+        @result: string if no intersection and mean point (which is coord tuple) between the center of the 2 hypersphere
         '''
-        x1,y1,r1 = circle1
-        x2,y2,r2 = circle2
-        # http://stackoverflow.com/a/3349134/798588
-        dx,dy = x2-x1,y2-y1
-        d = sqrt(dx*dx+dy*dy)
-        if d > r1+r2:
+        sum_di_square = 0
+        di = []
+        for i in range(0,len(coord_hs1)):
+                delta_i = coord_hs2[i]-coord_hs1[i]
+                di.append(delta_i)
+                sum_di_square += delta_i*delta_i
+        d = sqrt(sum_di_square)
+        if d > radius_hs1+radius_hs2:
             return "separated"
-        if d < abs(r1-r2):
+        if d < abs(radius_hs1-radius_hs2):
             return "contained"
-        if d == 0 and r1 == r2:
-            return (x1,y1)
+        if d == 0 and radius_hs1 == radius_hs2:
+            return coord_hs1
 
-        a = (r1*r1-r2*r2+d*d)/(2*d)
+        a = ((radius_hs1*radius_hs1)-(radius_hs2*radius_hs2)+(d*d))/(2*d)
         #h = sqrt(r1*r1-a*a)
-        xm = x1 + a*dx/d
-        ym = y1 + a*dy/d
-        #xs1 = xm + h*dy/d
-        #xs2 = xm - h*dy/d
-        #ys1 = ym - h*dx/d
-        #ys2 = ym + h*dx/d
+        im = []
+        for i in range(0,len(coord_hs1)):
+                im.append(coord_hs1[i]+a*di[i]/d)
 
-        return (xm,ym)
-
-def included_in_circle(point, circle1):
-        res = circle_intersection(point, circle1)
-        if res == "contained" or res == point:
-                return True
-        else:
-                return False
+        return (tuple(im))
 
 def calc_mash_distance(fasta, OUTPUTDIR, num_thread):
 
