@@ -226,9 +226,9 @@ class Pangenome:
                 if Pangenome.neighbors_graph is None: 
                     Pangenome.neighbors_graph = self.__neighborhoodComputation(15)
                     
-                    for edge in Pangenome.neighbors_graph.edges_iter():
-                        data = Pangenome.neighbors_graph.get_edge_data(*edge)
-                        Pangenome.neighbors_graph[edge[0]][edge[1]]["weight"] = len(data)/self.nb_organisms
+                    # for edge in Pangenome.neighbors_graph.edges_iter():
+                    #     data = Pangenome.neighbors_graph.get_edge_data(*edge)
+                    #     Pangenome.neighbors_graph[edge[0]][edge[1]]["weight"] = len(data)/self.nb_organisms
                     getattr(nx,'write_'+write_graph)(Pangenome.neighbors_graph,"test.gexf")
                     exit()
                     logging.getLogger().info("Start neighborhood graph construction")
@@ -355,16 +355,16 @@ class Pangenome:
         prec           = None
         circularize    = True if S_id_prev in self.circular_contig else False
 
-        all_paths = defaultdict(lambda : defaultdict(int))
-
-        def add_neighbors(familly_id, familly_id_nei, O_id,prec):
-            neighbors_graph.add_node(familly_id)
-            neighbors_graph.add_node(familly_id_nei)
+        def add_neighbors(fam_id, fam_nei, org,prec):
+            neighbors_graph.add_node(fam_id)
+            neighbors_graph.add_node(fam_nei)
 
             if prec is not None:
-                all_paths[familly_id_nei][frozenset([prec,familly_id])] += 1
-
-            neighbors_graph.add_edge(familly_id, familly_id_nei, {O_id_nei:1})
+                try:
+                    neighbors_graph[fam_nei][frozenset([prec,fam_id])] += 1
+                except KeyError:
+                    neighbors_graph[fam_nei][frozenset([prec,fam_id])] = 1
+            neighbors_graph.add_edge(fam_id, fam_nei, {org:1})
 
         for index, row in enumerate(Pangenome.annotations[1:]):
             familly_id = row[FAMILLY_CODE]
@@ -372,10 +372,10 @@ class Pangenome:
             S_id       = row[CONTIG_ID]
             logging.getLogger().debug(row)
        
-            if familly_id in high_degree_node or familly_id_nei in high_degree_node:
-                logging.getLogger().debug(familly_id)
-                i+=1
-                continue
+            # if familly_id in high_degree_node or familly_id_nei in high_degree_node:
+            #     logging.getLogger().debug(familly_id)
+            #     i+=1
+            #     continue
             if (S_id != S_id_prev):
                 if circularize:
                     familly_id = Pangenome.annotations[index-i+1][FAMILLY_CODE]
@@ -395,9 +395,6 @@ class Pangenome:
 
         if circularize:
             add_neighbors(familly_id, familly_id_nei, O_id_nei, prec)
-
-        #for
-        #.edges_iter(data=True)
 
         #from http://stackoverflow.com/a/9114443/7500030
         def merge(data):
@@ -420,24 +417,42 @@ class Pangenome:
             return results
 
         #untangling stage:
-        new_names =dict(zip(neighbors_graph.node.keys(),neighbors_graph.node.keys()))
-        for node, paths in all_paths.items():
-            node = new_names[node]
-            new_paths = merge(paths)
-            if len(new_paths)>2:# can be splited
-                for suffix, new_path in emunerate(new_paths):
-                    new_node = node+"_"+str(suffix)
-                    neighbors_graph.add_node(new_node)
-                    for neibors in new_path:
-                        neibors=new_names[neibors]
+        # for node in list(neighbors_graph.node):
+        #     paths = [path for path in neighbors_graph[node].keys() if isinstance(path,frozenset)]
+        #     logging.getLogger().debug(node)
+        #     logging.getLogger().debug(paths)
+        #     path_groups = merge(paths)
+        #     logging.getLogger().debug(path_groups)
+        #     if len(path_groups)>2:
+        #         logging.getLogger().debug("split"+len(path_groups))
+        #         for suffix, path_group in enumerate(path_groups):
+        #             new_node = node+"_"+str(suffix)
+        #             logging.getLogger().debug("split"+new_node)
+        #             #all_paths[new_node][frozenset(path_group)]+=1#change number
+        #             neibors_new_node = [neighbor for neighbor in nx.all_neighbors(neighbors_graph, node) if neighbor in path_group]
+        #             logging.getLogger().debug(neibors_new_node)
+        #             for new_neibor in neibors_new_node:
+        #                 renamed_paths = dict()
+        #                 while len(neighbors_graph[new_neibor])>0:
+        #                     to_rename = neighbors_graph[new_neibor].popitem()
+        #                     set_to_rename = set(to_rename[0])
+        #                     if new_node in set_to_rename:
+        #                         set_to_rename.remove(new_node)
+        #                         set_to_rename.add(new_node)
+        #                     renamed_paths[frozenset(set_to_rename)]=to_rename[1]
+        #                 neighbors_graph[new_neibor].update(renamed_paths)
+        #             neighbors_graph.add_node(new_node)
+        #             #neighbors_graph[frozenset(path_group)]
+        #             for neighbor in path_group:
+        #                 neighbors_graph.add_edge(new_node,neighbor)
+        #         print(node)
+        #         neighbors_graph[node].clear()
+        #         neighbors_graph.remove_node(node)
 
-                logging.getLogger().debug(node)
-                logging.getLogger().debug(path)
-                logging.getLogger().debug(new_path)
-
-                neighbors_graph.remove_node(node)
-                exit()
-
+        for node in list(neighbors_graph.node):
+            edges = {k:v for k,v in neighbors_graph[node] if not isinstance(k,frozenset)}
+            neighbors_graph[node].clear()
+            neighbors_graph[node].update(edges)
 
         #new_high_degree_node = set([node for node, degree in neighbors_graph.degree_iter() if degree>max_degree])
         # if len(new_high_degree_node)>max_degree:
