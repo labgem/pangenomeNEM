@@ -203,7 +203,7 @@ class Pangenome:
         if not os.path.exists(result_path):
             #NEM requires 5 files: file.index, file.str, file.dat, file.ck (optional) and file.nei
             os.makedirs(result_path)
-            index = {} 
+            index = OrderedDict()
             index_file = open(result_path+"/file.index", "w")
             logging.getLogger().info("Writing file.index file")
             
@@ -224,14 +224,8 @@ class Pangenome:
             logging.getLogger().info("Writing file.nei file.dat and file.ck files")
             if use_neighborhood:
                 if Pangenome.neighbors_graph is None: 
-                    Pangenome.neighbors_graph = self.__neighborhoodComputation(15)
-                    
-                    # for edge in Pangenome.neighbors_graph.edges_iter():
-                    #     data = Pangenome.neighbors_graph.get_edge_data(*edge)
-                    #     Pangenome.neighbors_graph[edge[0]][edge[1]]["weight"] = len(data)/self.nb_organisms
-                    getattr(nx,'write_'+write_graph)(Pangenome.neighbors_graph,"test.gexf")
-                    exit()
                     logging.getLogger().info("Start neighborhood graph construction")
+                    untangeled_neighbors_graph = self.__neighborhoodComputation(15)
                 else:
                     logging.getLogger().info("Use already computed neighbors")
                 nei_file.write("1\n")
@@ -244,11 +238,9 @@ class Pangenome:
 
         threshold = round(float(1)/self.nb_organisms,4) if self.nb_organisms >1 else 0
         
-        graph = None
         if write_graph is not None:
             if use_neighborhood == False:
                 raise ValueError("use_neighborhood must be True to write graph")
-            graph  = nx.Graph()
         
         for fam, fam_id in self.familly_positions.items():
             #logging.getLogger().debug(self.organism_positions.values())
@@ -266,20 +258,9 @@ class Pangenome:
                 row_fam         = []
                 row_dist_score  = []
                 neighbor_number = 0
-
-                if write_graph is not None:
-                    graph.add_node(fam, label = fam, conservation = float(round(self.familly_ratio[fam],2)))
-
                 try:
                     for neighbor in nx.all_neighbors(Pangenome.neighbors_graph, fam):
-                        org_nei = Pangenome.neighbors_graph.get_edge_data(fam,neighbor, default = dict())
-                        org_nei = {org:distance for org, distance in org_nei.items() if org in self.organism_positions.keys()}
-                        if len(org_nei) == 0:
-                            continue
-                        distance_score = float(len(org_nei)) / self.nb_organisms
-                        if write_graph is not None:
-                            graph.add_node(neighbor, label = neighbor, conservation = float(round(self.familly_ratio[fam],2)))
-                            graph.add_edge(fam,neighbor, weight = float(distance_score))
+                        distance_score = Pangenome.neighbors_graph[fam][neighbor]["weight"]/self.nb_organisms
                         row_fam.append(str(index[neighbor]))
                         row_dist_score.append(str(round(distance_score,4)))
                         neighbor_number += 1
@@ -291,7 +272,7 @@ class Pangenome:
                 except nx.exception.NetworkXError as nxe:
                     logging.getLogger().warning("The familly: "+fam+" is an isolated familly")
                     nei_file.write(str(index[fam])+"\t0\n")
-                
+
         nei_file.close()
         dat_file.close()
         ck_file.close()
@@ -316,13 +297,21 @@ class Pangenome:
             logging.getLogger().error("No NEM output found in file.cf")
         with open(result_path+"/file.cf","r") as classification_file:
             classification = classification_file.readline().split()
-            classification = {k: v for k, v in zip(index.keys(), classification)}
+            print(index.keys())
+            classification = {k: int(v) for k, v in zip(index.keys(), classification)}
             self.k = k
             if write_graph is not None:
                 logging.getLogger().info("Writing graphML file")
-                for fam, nem_class in classification.items():
-                    graph.node[fam]['nem_class'] = nem_class
-                getattr(nx,'write_'+write_graph)(graph,result_path+"/file."+write_graph)
+                for node in list(untangeled_neighbors_graph.node):
+                    try:
+                        logging.getLogger().debug(node+": "+str(classification[elements[0]]))
+                        untangeled_neighbors_graph.node[node]['nem_class'] = classification[node]
+                    except:
+                        elements = str(node).split("_")
+                        logging.getLogger().debug(elements[0]+": "+str(classification[elements[0]]))
+                        untangeled_neighbors_graph.node[node]['nem_class'] = classification[elements[0]]
+
+                getattr(nx,'write_'+write_graph)(untangeled_neighbors_graph,result_path+"/file."+write_graph)
                 # mst = nx.maximum_spanning_tree(graph)
                 # for u,v,d in mst.edges(data=True):
                 #     d["MST"]=True
@@ -355,37 +344,56 @@ class Pangenome:
         prec           = None
         circularize    = True if S_id_prev in self.circular_contig else False
 
-        def add_neighbors(fam_id, fam_nei, org,prec):
+        all_paths = defaultdict(lambda : defaultdict(list))  
+        #path_organisms_gene = defaultdict(lambda : defaultdict(list)) 
+
+        def add_neighbors(fam_id, fam_nei, prec,O_id,gene):
             neighbors_graph.add_node(fam_id)
             neighbors_graph.add_node(fam_nei)
 
             if prec is not None:
-                try:
-                    neighbors_graph[fam_nei][frozenset([prec,fam_id])] += 1
-                except KeyError:
-                    neighbors_graph[fam_nei][frozenset([prec,fam_id])] = 1
-            neighbors_graph.add_edge(fam_id, fam_nei, {org:1})
+                all_paths[fam_nei][frozenset([prec,fam_id])].append(tuple([O_id,gene]))
+                #path_organisms_gene[([frozenset([prec,fam_id])])][fam_nei].append(O_id)
 
+            if not neighbors_graph.has_edge(fam_id,fam_nei):
+                neighbors_graph.add_edge(fam_id, fam_nei)
+
+            try:
+                neighbors_graph[fam_id][fam_nei]["weight"]+=1
+            except KeyError:
+                neighbors_graph[fam_id][fam_nei]["weight"]=1
+
+
+        projection = "1280.PRJNA239544.CP007447"
+        i_first = None
+        i_last = None
+        order=0
+        logging.getLogger().debug(Pangenome.annotations[0])
         for index, row in enumerate(Pangenome.annotations[1:]):
             familly_id = row[FAMILLY_CODE]
             gene       = row[GENE]
             S_id       = row[CONTIG_ID]
             logging.getLogger().debug(row)
        
-            # if familly_id in high_degree_node or familly_id_nei in high_degree_node:
-            #     logging.getLogger().debug(familly_id)
-            #     i+=1
-            #     continue
+
+            if i_first is None and O_id_nei==projection:
+                i_first = index
+            if i_first is not None and i_last is None and O_id_nei!=projection:
+                i_last = index
+            if familly_id in high_degree_node or familly_id_nei in high_degree_node:
+                logging.getLogger().debug(familly_id)
+                i+=1
+                continue
             if (S_id != S_id_prev):
                 if circularize:
                     familly_id = Pangenome.annotations[index-i+1][FAMILLY_CODE]
-                    add_neighbors(familly_id, familly_id_nei, O_id_nei, prec) 
+                    add_neighbors(familly_id, familly_id_nei, prec, O_id_nei, gene)
                 circularize = True if S_id in self.circular_contig else False
                 i=0
                 prec = None
             else:
                 i+=1
-                add_neighbors(familly_id, familly_id_nei, O_id_nei, prec) 
+                add_neighbors(familly_id, familly_id_nei, prec, O_id_nei, gene)
                 prec = familly_id_nei
             
             familly_id_nei = familly_id
@@ -394,72 +402,103 @@ class Pangenome:
             S_id_prev      = S_id
 
         if circularize:
-            add_neighbors(familly_id, familly_id_nei, O_id_nei, prec)
+            add_neighbors(familly_id, familly_id_nei, prec, O_id_nei, gene)
+        if i_first is not None and i_last is None and O_id_nei!=projection:
+            i_last = index
 
-        #from http://stackoverflow.com/a/9114443/7500030
-        def merge(data):
-            sets = (set(e) for e in data if e)
-            results = [next(sets)]
-            for e_set in sets:
-                to_update = []
-                for i,res in enumerate(results):
-                    if not e_set.isdisjoint(res):
-                        to_update.insert(0,i)
+        new_high_degree_node = set([node for node, degree in neighbors_graph.degree_iter() if degree>max_degree])
+        if len(new_high_degree_node)>max_degree:
+            logging.getLogger().debug(len(new_high_degree_node))
+            neighbors_graph = self.__neighborhoodComputation(max_degree, high_degree_node.union(new_high_degree_node))
+            return neighbors_graph
+        else:
 
-                if not to_update:
-                    results.append(e_set)
-                else:
-                    last = results[to_update.pop(-1)]
-                    for i in to_update:
-                        last |= results[i]
-                        del results[i]
-                    last |= e_set
-            return results
+            untangeled_neighbors_graph = neighbors_graph.copy()
 
-        #untangling stage:
-        # for node in list(neighbors_graph.node):
-        #     paths = [path for path in neighbors_graph[node].keys() if isinstance(path,frozenset)]
-        #     logging.getLogger().debug(node)
-        #     logging.getLogger().debug(paths)
-        #     path_groups = merge(paths)
-        #     logging.getLogger().debug(path_groups)
-        #     if len(path_groups)>2:
-        #         logging.getLogger().debug("split"+len(path_groups))
-        #         for suffix, path_group in enumerate(path_groups):
-        #             new_node = node+"_"+str(suffix)
-        #             logging.getLogger().debug("split"+new_node)
-        #             #all_paths[new_node][frozenset(path_group)]+=1#change number
-        #             neibors_new_node = [neighbor for neighbor in nx.all_neighbors(neighbors_graph, node) if neighbor in path_group]
-        #             logging.getLogger().debug(neibors_new_node)
-        #             for new_neibor in neibors_new_node:
-        #                 renamed_paths = dict()
-        #                 while len(neighbors_graph[new_neibor])>0:
-        #                     to_rename = neighbors_graph[new_neibor].popitem()
-        #                     set_to_rename = set(to_rename[0])
-        #                     if new_node in set_to_rename:
-        #                         set_to_rename.remove(new_node)
-        #                         set_to_rename.add(new_node)
-        #                     renamed_paths[frozenset(set_to_rename)]=to_rename[1]
-        #                 neighbors_graph[new_neibor].update(renamed_paths)
-        #             neighbors_graph.add_node(new_node)
-        #             #neighbors_graph[frozenset(path_group)]
-        #             for neighbor in path_group:
-        #                 neighbors_graph.add_edge(new_node,neighbor)
-        #         print(node)
-        #         neighbors_graph[node].clear()
-        #         neighbors_graph.remove_node(node)
+            #inspired from http://stackoverflow.com/a/9114443/7500030
+            def merge_overlapping_path(data):
+                sets = (set(e) for e in data if e)
+                results = [next(sets)]
+                for e_set in sets:
+                    to_update = []
+                    for i,res in enumerate(results):
+                        if not e_set.isdisjoint(res):
+                            to_update.insert(0,i)
+                    if not to_update:
+                        results.append(e_set)
+                    else:
+                        last = results[to_update.pop(-1)]
+                        for i in to_update:
+                            last |= results[i]
+                            del results[i]
+                        last |= e_set
+                return results
 
-        for node in list(neighbors_graph.node):
-            edges = {k:v for k,v in neighbors_graph[node] if not isinstance(k,frozenset)}
-            neighbors_graph[node].clear()
-            neighbors_graph[node].update(edges)
 
-        #new_high_degree_node = set([node for node, degree in neighbors_graph.degree_iter() if degree>max_degree])
-        # if len(new_high_degree_node)>max_degree:
-        #     logging.getLogger().debug(len(new_high_degree_node))
-        #     neighbors_graph = self.__neighborhoodComputation(max_degree, high_degree_node.union(new_high_degree_node))
+            inversed_dict = dict()
 
-        return neighbors_graph    
+            #untangling stage:
+            for node in list(untangeled_neighbors_graph.node):
+                path_groups = merge_overlapping_path(all_paths[node])
+                logging.getLogger().debug(node)
+                logging.getLogger().debug(all_paths[node])
+                logging.getLogger().debug(path_groups)
+                if len(path_groups)>2:
+                    logging.getLogger().debug("split "+str(len(path_groups)))
+                    for suffix, path_group in enumerate(path_groups):
+                        new_node = node+"_"+str(suffix)
+                        all_paths[new_node][frozenset(path_group)]= -1
+                        logging.getLogger().debug("new_node:"+new_node)
+                        #all_paths[new_node][frozenset(path_group)]+=1#change number
+                        neibors_new_node = [neighbor for neighbor in nx.all_neighbors(untangeled_neighbors_graph, node) if neighbor in path_group]
+                        
+                        for new_neibor in neibors_new_node:
+                            renamed_paths = dict()
+                            while len(all_paths[new_neibor])>0:
+                                to_rename = all_paths[new_neibor].popitem()
+                                set_to_rename = set(to_rename[0])
+                                logging.getLogger().debug("to_rename:"+str(set_to_rename))
+                                if node in set_to_rename:
+                                    set_to_rename.remove(node)
+                                    set_to_rename.add(new_node)
+                                renamed_paths[frozenset(set_to_rename)]=to_rename[1]
+                                logging.getLogger().debug("renamed:"+str(set_to_rename))
+                            all_paths[new_neibor].update(renamed_paths)
+                        untangeled_neighbors_graph.add_node(new_node)
+
+                        inversed_dict.update({couple:new_node for list_couple in all_paths[node].values() for couple in list_couple})
+
+                        for neighbor in path_group:
+                            print(all_paths[node])
+                            #{couple_gene_org: new_node for couple_gene_org in [for path, w in all_paths[node].items() if neighbor in path]}
+                            weight = sum([len(w) for path, w in all_paths[node].items() if neighbor in path])
+                            untangeled_neighbors_graph.add_edge(new_node,neighbor, weight=weight) 
+                    untangeled_neighbors_graph.remove_node(node)
+
+            logging.getLogger().debug(inversed_dict)
+            #exit()
+            logging.getLogger().debug(Pangenome.annotations[i_first])
+
+            logging.getLogger().debug(Pangenome.annotations[i_last-1])
+
+            for index, row in enumerate(Pangenome.annotations[i_first:i_last-1]):
+                fam = row[FAMILLY_CODE]
+                try:
+                    untangeled_neighbors_graph.node[fam]["order"]=int(index)
+                except:
+                    pass
+                    #untangeled_neighbors_graph.node[inversed_dict[tuple([row[ORGANISM],row[GENE]])]]["order"]=int(index)
+                    # if i_first+index-1 >= i_first and i_first+index+1 <=i_last-1:
+                    #     prev_fam = Pangenome.annotations[i_first+index-1][FAMILLY_CODE]
+                    #     next_fam = Pangenome.annotations[i_first+index+1][FAMILLY_CODE]
+                    #     com = nx.common_neighbors(untangeled_neighbors_graph,prev_fam, next_fam)
+                    #     untangeled_neighbors_graph.node[next(com)]["order"]=int(index)
+                    #     if len(list(com))>2:
+                    #         logging.getLogger().debug(list(com))
+                    # else:
+                    #     logging.getLogger().debug(index)
+        Pangenome.neighbors_graph = neighbors_graph
+        return untangeled_neighbors_graph
 
         #logging.getLogger().debug(list(neighbors_graph.degree_iter()))
         #logging.getLogger().debug(len(high_degree_node))
