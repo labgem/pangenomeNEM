@@ -347,7 +347,7 @@ class Pangenome:
         all_paths = defaultdict(lambda : defaultdict(list))  
         #path_organisms_gene = defaultdict(lambda : defaultdict(list)) 
 
-        def add_neighbors(fam_id, fam_nei, prec,O_id,gene):
+        def add_neighbors(fam_id, fam_nei, prec,org,gene):
             neighbors_graph.add_node(fam_id)
             neighbors_graph.add_node(fam_nei)
 
@@ -355,13 +355,13 @@ class Pangenome:
                 # if gene == "1280.PRJNA239544.CP007447_03016":
                 #     logging.getLogger().debug([prec,fam_nei,fam_id])
                 #     exit()
-                all_paths[fam_nei][frozenset([prec,fam_id])].append(gene)
+                all_paths[fam_nei][frozenset([prec,fam_id])].append(tuple([org,gene]))
                 #path_organisms_gene[([frozenset([prec,fam_id])])][fam_nei].append(O_id)
 
             try:
-                neighbors_graph.node[fam_id][O_id]+=" "+gene
+                neighbors_graph.node[fam_id][org]+=" "+gene
             except:
-                neighbors_graph.node[fam_id][O_id]=gene
+                neighbors_graph.node[fam_id][org]=gene
 
             if not neighbors_graph.has_edge(fam_id,fam_nei):
                 neighbors_graph.add_edge(fam_id, fam_nei)
@@ -370,9 +370,9 @@ class Pangenome:
             except KeyError:
                 neighbors_graph[fam_id][fam_nei]["weight"]=1
             try:
-                neighbors_graph[fam_id][fam_nei][O_id]+=1
+                neighbors_graph[fam_id][fam_nei][org]+=1
             except:
-                neighbors_graph[fam_id][fam_nei][O_id]=1
+                neighbors_graph[fam_id][fam_nei][org]=1
 
         projection = "1280.PRJNA239544.CP007447"
         i_first = None
@@ -478,15 +478,23 @@ class Pangenome:
                         for neighbor in path_group:
                             print(all_paths[node])
                             
+                            untangeled_neighbors_graph.add_edge(new_node,neighbor)
                             weight=0
                             for path, genes in all_paths[node].items():
                                 if neighbor in path:
-                                    logging.getLogger().debug({gene:new_node for gene in genes})
-                                    inversed_dict.update({gene:new_node for gene in genes})
-                                    weight+=len(genes)
-                            untangeled_neighbors_graph.add_edge(new_node,neighbor, weight=weight) 
+                                    for org, gene in genes:
+                                        try:
+                                            untangeled_neighbors_graph.node[new_node][org]+=" "+gene
+                                        except:
+                                            untangeled_neighbors_graph.node[new_node][org]=gene
+                                        try:
+                                            neighbors_graph[new_node][neighbor][org]+=1
+                                        except:
+                                            neighbors_graph[new_node][neighbor][org]=1
+                                        inversed_dict.update({gene:new_node})
+                                        weight+=1
+                            untangeled_neighbors_graph[new_node][neighbor]["weight"]=weight
                     untangeled_neighbors_graph.remove_node(node)
-
 
             for index, row in enumerate(Pangenome.annotations[i_first:i_last-1]):
                 fam = row[FAMILLY_CODE]
