@@ -225,7 +225,7 @@ class Pangenome:
             if use_neighborhood:
                 if Pangenome.neighbors_graph is None: 
                     logging.getLogger().info("Start neighborhood graph construction")
-                    untangeled_neighbors_graph = self.__neighborhoodComputation(15)
+                    untangeled_neighbors_graph = self.__neighborhoodComputation()
                 else:
                     logging.getLogger().info("Use already computed neighbors")
                 nei_file.write("1\n")
@@ -345,19 +345,13 @@ class Pangenome:
         circularize    = True if S_id_prev in self.circular_contig else False
 
         all_paths = defaultdict(lambda : defaultdict(list))  
-        #path_organisms_gene = defaultdict(lambda : defaultdict(list)) 
 
         def add_neighbors(fam_id, fam_nei, prec,org,gene):
             neighbors_graph.add_node(fam_id)
             neighbors_graph.add_node(fam_nei)
 
             if prec is not None:
-                # if gene == "1280.PRJNA239544.CP007447_03016":
-                #     logging.getLogger().debug([prec,fam_nei,fam_id])
-                #     exit()
                 all_paths[fam_nei][frozenset([prec,fam_id])].append(tuple([org,gene]))
-                #path_organisms_gene[([frozenset([prec,fam_id])])][fam_nei].append(O_id)
-
             try:
                 neighbors_graph.node[fam_id][org]+=" "+gene
             except:
@@ -374,9 +368,6 @@ class Pangenome:
             except:
                 neighbors_graph[fam_id][fam_nei][org]=1
 
-        projection = "1280.PRJNA239544.CP007447"
-        i_first = None
-        i_last = None
         logging.getLogger().debug(Pangenome.annotations[0])
         for index, row in enumerate(Pangenome.annotations[1:]):
             familly_id = row[FAMILLY_CODE]
@@ -384,11 +375,6 @@ class Pangenome:
             S_id       = row[CONTIG_ID]
             logging.getLogger().debug(row)
        
-
-            if i_first is None and O_id_nei==projection:
-                i_first = index
-            if i_first is not None and i_last is None and O_id_nei!=projection:
-                i_last = index
             if familly_id in high_degree_node or familly_id_nei in high_degree_node:
                 logging.getLogger().debug(familly_id)
                 i+=1
@@ -412,9 +398,7 @@ class Pangenome:
 
         if circularize:
             add_neighbors(familly_id, familly_id_nei, prec, O_id_nei, gene_nei)
-        if i_first is not None and i_last is None and O_id_nei!=projection:
-            i_last = index
-
+        
         new_high_degree_node = set([node for node, degree in neighbors_graph.degree_iter() if degree>max_degree])
         if len(new_high_degree_node)>max_degree:
             logging.getLogger().debug(len(new_high_degree_node))
@@ -443,7 +427,6 @@ class Pangenome:
                         last |= e_set
                 return results
 
-
             inversed_dict = dict()
 
             #untangling stage:
@@ -459,9 +442,7 @@ class Pangenome:
                         new_node = node+"_"+str(suffix)
                         all_paths[new_node][frozenset(path_group)]= -1
                         logging.getLogger().debug("new_node:"+new_node)
-                        #all_paths[new_node][frozenset(path_group)]+=1#change number
                         neibors_new_node = [neighbor for neighbor in nx.all_neighbors(untangeled_neighbors_graph, node) if neighbor in path_group]
-                        
                         for new_neibor in neibors_new_node:
                             renamed_paths = dict()
                             while len(all_paths[new_neibor])>0:
@@ -477,7 +458,6 @@ class Pangenome:
                         untangeled_neighbors_graph.add_node(new_node)
                         for neighbor in path_group:
                             print(all_paths[node])
-                            
                             untangeled_neighbors_graph.add_edge(new_node,neighbor)
                             weight=0
                             for path, genes in all_paths[node].items():
@@ -488,49 +468,30 @@ class Pangenome:
                                         except:
                                             untangeled_neighbors_graph.node[new_node][org]=gene
                                         try:
-                                            neighbors_graph[new_node][neighbor][org]+=1
+                                            untangeled_neighbors_graph[new_node][neighbor][org]+=1
                                         except:
-                                            neighbors_graph[new_node][neighbor][org]=1
+                                            untangeled_neighbors_graph[new_node][neighbor][org]=1
                                         inversed_dict.update({gene:new_node})
                                         weight+=1
                             untangeled_neighbors_graph[new_node][neighbor]["weight"]=weight
                     untangeled_neighbors_graph.remove_node(node)
-
-            for index, row in enumerate(Pangenome.annotations[i_first:i_last-1]):
-                fam = row[FAMILLY_CODE]
-                if fam not in high_degree_node.union(new_high_degree_node):
+            order = 0
+            current_contig = Pangenome.annotations[0][CONTIG_ID]
+            for row in Pangenome.annotations:
+                if row[CONTIG_ID] in self.circular_contig:
+                    fam = row[FAMILLY_CODE]
+                    if fam not in high_degree_node.union(new_high_degree_node):
+                        continue
+                    order = 0 if row[CONTIG_ID] != current_contig else order
+                    current_contig = row[CONTIG_ID]
                     try:
-                        untangeled_neighbors_graph.node[fam]["order"]=int(index)
+                        untangeled_neighbors_graph.node[fam]["order_"+row[ORGANISM]]=order
                     except:
                         try:
                             logging.getLogger().debug(inversed_dict[row[GENE]])
-                            #untangeled_neighbors_graph.node[inversed_dict[row[GENE]]]["order"]=int(index)
+                            untangeled_neighbors_graph.node[inversed_dict[row[GENE]]]["order_"+row[ORGANISM]]=order
                         except:
                             logging.getLogger().warning(row)
-
-                        # prev_fam = Pangenome.annotations[i_first+index-1][FAMILLY_CODE]
-                        # next_fam = Pangenome.annotations[i_first+index+1][FAMILLY_CODE]
-                        # com = nx.neighbors(untangeled_neighbors_graph,prev_fam
-                        # com2 = nx.neighbors(untangeled_neighbors_graph,next_fam)
-                        # logging.getLogger().debug(com)
-                        # logging.getLogger().debug(com2)
-                        # exit()
-                        #untangeled_neighbors_graph.node[inversed_dict[tuple([row[ORGANISM],row[GENE]])]]["order"]=int(index)
-                    #if i_first+index-1 >= i_first and i_first+index+1 <=i_last-1:
-                    #     prev_fam = Pangenome.annotations[i_first+index-1][FAMILLY_CODE]
-                    #     next_fam = Pangenome.annotations[i_first+index+1][FAMILLY_CODE]
-                    #     com = nx.common_neighbors(untangeled_neighbors_graph,prev_fam, next_fam)
-                    #     untangeled_neighbors_graph.node[next(com)]["order"]=int(index)
-                    #     if len(list(com))>2:
-                    #         logging.getLogger().debug(list(com))
-                    # else:
-                    #     logging.getLogger().debug(index)
+                    order+=1
         Pangenome.neighbors_graph = neighbors_graph
         return untangeled_neighbors_graph
-
-        #logging.getLogger().debug(list(neighbors_graph.degree_iter()))
-        #logging.getLogger().debug(len(high_degree_node))
-        #neighbors_graph.remove_nodes_from(high_degree_node)
-
-        #logging.getLogger().debug(nx.number_of_nodes(neighbors_graph))
-        #logging.getLogger().debug(nx.number_of_edges(neighbors_graph))
