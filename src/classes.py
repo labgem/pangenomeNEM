@@ -23,7 +23,7 @@ NEM_LOCATION  = "../NEM/"
 class Pangenome:
 
     presences_absences = coo_matrix((0,0)).todense()
-    annotations        = list()
+    annotations        = dict()
     #remove_singleton   = None
     neighbors_graph    = None
     
@@ -91,7 +91,7 @@ class Pangenome:
         for line in organisms_file:
             elements = line.split()
             self.nb_organisms +=1
-            Pangenome.annotations += self.__load_gff(elements[1], families, elements[0])
+            Pangenome.annotations[elements[0]] += self.__load_gff(elements[1], families, elements[0])
             if len(elements)>2:
                 self.circular_contig += elements[2:len(elements)]
 
@@ -225,7 +225,7 @@ class Pangenome:
             if use_neighborhood:
                 if Pangenome.neighbors_graph is None: 
                     logging.getLogger().info("Start neighborhood graph construction")
-                    untangeled_neighbors_graph = self.__neighborhoodComputation()
+                    untangeled_neighbors_graph = self.__neighborhoodComputation(float("Inf"))
                 else:
                     logging.getLogger().info("Use already computed neighbors")
                 nei_file.write("1\n")
@@ -356,7 +356,6 @@ class Pangenome:
                 neighbors_graph.node[fam_id][org]+=" "+gene
             except:
                 neighbors_graph.node[fam_id][org]=gene
-
             if not neighbors_graph.has_edge(fam_id,fam_nei):
                 neighbors_graph.add_edge(fam_id, fam_nei)
             try:
@@ -374,18 +373,26 @@ class Pangenome:
             gene       = row[GENE]
             S_id       = row[CONTIG_ID]
             logging.getLogger().debug(row)
-       
             if familly_id in high_degree_node or familly_id_nei in high_degree_node:
                 logging.getLogger().debug(familly_id)
                 i+=1
                 continue
             if (S_id != S_id_prev):
                 if circularize:
+                    # j = index-i+1
+                    # while True:
+                    #     if j not in forbiden_neibors:
+                    #         familly_id = Pangenome.annotations[index-i+1][FAMILLY_CODE]
+                    #         add_neighbors(familly_id, familly_id_nei, prec, O_id_nei, gene_nei)
+                    #         break
+                    #     else:
+                    #         j+=1
                     familly_id = Pangenome.annotations[index-i+1][FAMILLY_CODE]
                     add_neighbors(familly_id, familly_id_nei, prec, O_id_nei, gene_nei)
                 circularize = True if S_id in self.circular_contig else False
-                i=0
-                prec = None
+                if index != (len(Pangenome.annotations)-2):
+                    i=0
+                    prec = None
             else:
                 i+=1
                 add_neighbors(familly_id, familly_id_nei, prec, O_id_nei, gene_nei)
@@ -397,6 +404,12 @@ class Pangenome:
             S_id_prev      = S_id
 
         if circularize:
+            familly_id = Pangenome.annotations[index-i+1][FAMILLY_CODE]
+            if familly_id_nei=='15494' or familly_id=='15494' or prec=='15494':
+                logging.getLogger().debug(familly_id)
+                logging.getLogger().debug(familly_id_nei)
+                logging.getLogger().debug(prec)
+                exit()
             add_neighbors(familly_id, familly_id_nei, prec, O_id_nei, gene_nei)
         
         new_high_degree_node = set([node for node, degree in neighbors_graph.degree_iter() if degree>max_degree])
@@ -431,9 +444,9 @@ class Pangenome:
 
             #untangling stage:
             for node in list(untangeled_neighbors_graph.node):
-                path_groups = merge_overlapping_path(all_paths[node])
                 logging.getLogger().debug(node)
                 logging.getLogger().debug(all_paths[node])
+                path_groups = merge_overlapping_path(all_paths[node])           
                 logging.getLogger().debug(path_groups)
                 logging.getLogger().debug(len(path_groups))
                 if len(path_groups)>1:
