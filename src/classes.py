@@ -91,7 +91,7 @@ class Pangenome:
         for line in organisms_file:
             elements = line.split()
             self.nb_organisms +=1
-            Pangenome.annotations[elements[0]] += self.__load_gff(elements[1], families, elements[0])
+            Pangenome.annotations[elements[0]] = self.__load_gff(elements[1], families, elements[0])
             if len(elements)>2:
                 self.circular_contig += elements[2:len(elements)]
 
@@ -104,7 +104,7 @@ class Pangenome:
         cur_org = Pangenome.annotations[0][ORGANISM]
         self.organism_positions[cur_org]=cpt_org
         self.annotation_positions[cur_org]="0-"
-        for i in range(0, len(Pangenome.annotations)):
+        for org in Pangenome.annotations:
             if Pangenome.annotations[i][ORGANISM] != cur_org:
                 self.annotation_positions[cur_org] = intspan(self.annotation_positions[cur_org]+str(i-1))
                 cur_org = Pangenome.annotations[i][ORGANISM]
