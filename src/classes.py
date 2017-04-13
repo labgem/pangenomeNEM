@@ -22,33 +22,27 @@ NEM_LOCATION  = "../NEM/"
 
 class Pangenome:
 
-    presences_absences = coo_matrix((0,0)).todense()
-    annotations        = list()
+
     #remove_singleton   = None
-    neighbors_graph    = None
+    
     
     @staticmethod
     def clear_Pangenome():
-        Pangenome.presences_absences = coo_matrix((0,0)).todense()
         Pangenome.annotations        = list()
         #Pangenome.remove_singleton   = None
         neighbors_graph              = None
     
     def __init__(self, init_from = "args", *args):
+        self.annotations          = list()
+        self.neighbors_graph      = None
         self.nb_organisms         = 0
-        self.organism_positions   = OrderedDict()
-        self.familly_positions    = OrderedDict()
-        self.annotation_positions = OrderedDict()
         self.circular_contig      = set()
-        self.familly_ratio        = dict()
         self.core_list            = list()
         self.pan_size             = 0
         self.core_size            = 0
-        self.classified_famillies = None
         self.class_ratio          = None
         self.k                    = None
         self.BIC                  = None # Bayesian Index Criterion
-        self.weights              = None
 
         if init_from == "file":
             self.__initialize_from_files(*args)
@@ -60,13 +54,13 @@ class Pangenome:
         else:
             raise ValueError("init_from parameter is required")
  
-        self.pan_size = len(self.familly_positions)
-        for fam in self.familly_positions.keys():
-            conservation = (np.sum(np.count_nonzero(Pangenome.presences_absences[self.familly_positions[fam],list(self.organism_positions.values())]))/float(self.nb_organisms))
-            if conservation == 1.00:
-                self.core_size += 1
-                self.core_list.append(fam)
-            self.familly_ratio[fam] = conservation
+        # self.pan_size = len(self.familly_positions)
+        # for fam in self.familly_positions.keys():
+        #     conservation = (np.sum(np.count_nonzero(Pangenome.presences_absences[self.familly_positions[fam],list(self.organism_positions.values())]))/float(self.nb_organisms))
+        #     if conservation == 1.00:
+        #         self.core_size += 1
+        #         self.core_list.append(fam)
+        #     self.familly_ratio[fam] = conservation
 
     def __initialize_from_files(self, organisms_file, families_tsv_file):#, remove_singletons = False
         
@@ -84,10 +78,8 @@ class Pangenome:
                 prec = elements[0]
                 nb_families +=1
                 families[elements[1]]=str(nb_families)
-
         organisms = []
         self.circular_contig = []
-
         for line in organisms_file:
             elements = line.split()
             self.nb_organisms +=1
@@ -96,27 +88,27 @@ class Pangenome:
                 self.circular_contig += elements[2:len(elements)]
 
         self.circular_contig = set(self.circular_contig)
-        #Pangenome.remove_singleton = remove_singletons
+        self.neighbors_graph = self.__neighborhoodComputation()
 
-        Pangenome.presences_absences = coo_matrix((nb_families+1,self.nb_organisms), dtype=np.dtype('uint8')).todense()
-        cpt_org = 0
-        cpt_fam = 0
-        cur_org = Pangenome.annotations[0][ORGANISM]
-        self.organism_positions[cur_org]=cpt_org
-        self.annotation_positions[cur_org]="0-"
-        for i in range(0, len(Pangenome.annotations)):
-            if Pangenome.annotations[i][ORGANISM] != cur_org:
-                self.annotation_positions[cur_org] = intspan(self.annotation_positions[cur_org]+str(i-1))
-                cur_org = Pangenome.annotations[i][ORGANISM]
-                self.annotation_positions[cur_org] = str(i)+"-"
-                cpt_org += 1
-                self.organism_positions[cur_org]=cpt_org
-            fam_id = Pangenome.annotations[i][FAMILLY_CODE]
-            self.familly_positions[fam_id] = int(fam_id)
-            Pangenome.presences_absences[int(fam_id),cpt_org] += 1   
-
-        self.annotation_positions[cur_org] = intspan(self.annotation_positions[cur_org]+str(i))
-        self.familly_positions             = OrderedDict(sorted(self.familly_positions.items(), key=lambda t: t[0]))
+        return nb_families
+        #Pangenome.presences_absences = coo_matrix((nb_families+1,self.nb_organisms), dtype=np.dtype('uint8')).todense()
+        # cpt_org = 0
+        # cpt_fam = 0
+        # cur_org = Pangenome.annotations[0][ORGANISM]
+        # self.organism_positions[cur_org]=cpt_org
+        # self.annotation_positions[cur_org]="0-"
+        # for i in range(0, len(Pangenome.annotations)):
+        #     if Pangenome.annotations[i][ORGANISM] != cur_org:
+        #         self.annotation_positions[cur_org] = intspan(self.annotation_positions[cur_org]+str(i-1))
+        #         cur_org = Pangenome.annotations[i][ORGANISM]
+        #         self.annotation_positions[cur_org] = str(i)+"-"
+        #         cpt_org += 1
+        #         self.organism_positions[cur_org]=cpt_org
+        #     fam_id = Pangenome.annotations[i][FAMILLY_CODE]
+        #     #self.familly_positions[fam_id] = int(fam_id)
+        #     #Pangenome.presences_absences[int(fam_id),cpt_org] += 1   
+        # self.annotation_positions[cur_org] = intspan(self.annotation_positions[cur_org]+str(i))
+        # self.familly_positions             = OrderedDict(sorted(self.familly_positions.items(), key=lambda t: t[0]))
 
     def __load_gff(self, gff_file, groups, organism):
 
@@ -127,23 +119,23 @@ class Pangenome:
             annot.append([protein,"CDS",organism,row.seqid,groups[protein],row.start,row.end,row.strand])
         return(annot)
 
-    def __str__(self):
+    # def __str__(self):
 
-        pan_str = ""
-        pan_str += "----------- Statistics -----------\n"
-        pan_str += "Number of organisms: "+str(self.nb_organisms)+"\n"
-        pan_str += "Pan-genome size:"+str(self.pan_size)+"\n"
-        pan_str += "Exact core-genome size:"+str(self.core_size)+"\n"
-        pan_str += "Exact variable-genome size:"+str(self.pan_size-self.core_size)+"\n"
-        if self.classified_famillies is not None:
-            pan_str += "Classification in "+str(self.k)+" classes: \n"
-            for class_i in self.classified_famillies.keys():
-                pan_str += "\t> # of families in class "+class_i+": "+str(len(self.classified_famillies[class_i]))+"\n"
-        else:
-            pan_str += "No classification have been performed on this Pangenome instance\n"
-        pan_str += "----------------------------------\n"
+    #     pan_str = ""
+    #     pan_str += "----------- Statistics -----------\n"
+    #     pan_str += "Number of organisms: "+str(self.nb_organisms)+"\n"
+    #     pan_str += "Pan-genome size:"+str(self.pan_size)+"\n"
+    #     pan_str += "Exact core-genome size:"+str(self.core_size)+"\n"
+    #     pan_str += "Exact variable-genome size:"+str(self.pan_size-self.core_size)+"\n"
+    #     if self.classified_famillies is not None:
+    #         pan_str += "Classification in "+str(self.k)+" classes: \n"
+    #         for class_i in self.classified_famillies.keys():
+    #             pan_str += "\t> # of families in class "+class_i+": "+str(len(self.classified_famillies[class_i]))+"\n"
+    #     else:
+    #         pan_str += "No classification have been performed on this Pangenome instance\n"
+    #     pan_str += "----------------------------------\n"
 
-        return(pan_str)    
+    #     return(pan_str)    
 
     def assign_weights(self, weights):
         """ weights must be a dictionary having organism names as key and weights > to 0.0 and <= to 1.0"""
@@ -223,7 +215,7 @@ class Pangenome:
             ck_file  = open(result_path+"/file.ck", "w")
             logging.getLogger().info("Writing file.nei file.dat and file.ck files")
             if use_neighborhood:
-                if Pangenome.neighbors_graph is None: 
+                if self.neighbors_graph is None: 
                     logging.getLogger().info("Start neighborhood graph construction")
                     untangeled_neighbors_graph = self.__neighborhoodComputation()
                 else:
@@ -231,7 +223,6 @@ class Pangenome:
                 nei_file.write("1\n")
             else:
                 nei_file.write("0\n")
-
             ck_file.write(str(k)+"\n")
         else:
             raise ValueError("result_path already exist")
@@ -259,8 +250,8 @@ class Pangenome:
                 row_dist_score  = []
                 neighbor_number = 0
                 try:
-                    for neighbor in nx.all_neighbors(Pangenome.neighbors_graph, fam):
-                        distance_score = Pangenome.neighbors_graph[fam][neighbor]["weight"]/self.nb_organisms
+                    for neighbor in nx.all_neighbors(self.neighbors_graph, fam):
+                        distance_score = self.neighbors_graph[fam][neighbor]["weight"]/self.nb_organisms
                         row_fam.append(str(index[neighbor]))
                         row_dist_score.append(str(round(distance_score,4)))
                         neighbor_number += 1
@@ -353,9 +344,9 @@ class Pangenome:
             if prec is not None:
                 all_paths[fam_nei][frozenset([prec,fam_id])].append(tuple([org,gene]))
             try:
-                neighbors_graph.node[fam_id][org]+=" "+gene
+                neighbors_graph.node[fam_id][org].append(gene)
             except:
-                neighbors_graph.node[fam_id][org]=gene
+                neighbors_graph.node[fam_id][org]=list([gene])
 
             if not neighbors_graph.has_edge(fam_id,fam_nei):
                 neighbors_graph.add_edge(fam_id, fam_nei)
@@ -464,9 +455,9 @@ class Pangenome:
                                 if neighbor in path:
                                     for org, gene in genes:
                                         try:
-                                            untangeled_neighbors_graph.node[new_node][org]+=" "+gene
+                                            untangeled_neighbors_graph.node[new_node][org].append(gene)
                                         except:
-                                            untangeled_neighbors_graph.node[new_node][org]=gene
+                                            untangeled_neighbors_graph.node[new_node][org]=list(gene)
                                         try:
                                             untangeled_neighbors_graph[new_node][neighbor][org]+=1
                                         except:
@@ -493,5 +484,4 @@ class Pangenome:
                         except:
                             logging.getLogger().warning(row)
                     order+=1
-        Pangenome.neighbors_graph = neighbors_graph
-        return untangeled_neighbors_graph
+        return neighbors_graph = untangeled_neighbors_graph
