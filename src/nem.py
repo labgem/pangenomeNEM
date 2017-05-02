@@ -23,10 +23,6 @@ import multiprocessing
 import subprocess
 
 import json
-# from goatools.obo_parser import GODag
-# from goatools.base import download_go_basic_obo
-# from goatools import obo_parser
-# from goatools import semantic
 import requests
 import re
 from scipy.cluster.hierarchy import linkage
@@ -111,7 +107,7 @@ if __name__=='__main__':
 	print(pan)
 	
 	outfile = open(ORGANISMS_FILE,"w")
-	outfile.writelines(["%s\n" % item  for item in (pan.organism_positions.keys())])
+	outfile.writelines(["%s\n" % item  for item in (pan.organisms)])
 	outfile.close()
 
 	core_cluster_file = open(EXACT_CORE_FILE,"w")

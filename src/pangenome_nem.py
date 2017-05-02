@@ -108,7 +108,8 @@ if __name__=='__main__':
 	
 	group_mmseqs2 = parser.add_argument_group("mmseqs2/prokka options")
 	group_mmseqs2.add_argument('-v',"--tsv_file", type=argparse.FileType('r'), nargs=1, help="MMseqs2 tsv file")
-	group_mmseqs2.add_argument('-g',"--gff", type=argparse.FileType('r'), nargs="*", help=" 'gff files provided by prokka")
+	#group_mmseqs2.add_argument('-g',"--gff", type=argparse.FileType('r'), nargs="*", help=" 'gff files provided by prokka")
+	group_mmseqs2.add_argument('-l',"--list_org", type=argparse.FileType('r'), nargs="*", help=" 'list organism")
 
 	group_MEG = parser.add_argument_group("MEG options") 
 
@@ -123,7 +124,7 @@ if __name__=='__main__':
 	#parser.add_argument("-m", "--remove_ME", default=False, action="store_true", help="Remove the mobile elements (transposons, integrons, prophage gene) of the pan-genome")
 	parser.add_argument('-d', '--outputdirectory', type=str, nargs=1, default="output.dir", help="The output directory", required=True)
 	parser.add_argument("-n", "--neighborcomputation", type=int, default=1, help="Consider neighboors for the analysis with the max neighbor distance (integer) (0 = infinite distance)")
-	parser.add_argument("-k", "--classnumber", type=int, nargs=1, default=3, help="Number of classes to consider for other results than evolution (default = 3)")
+	parser.add_argument("-k", "--classnumber", type=int, nargs=1, default=[3], help="Number of classes to consider for other results than evolution (default = 3)")
 	parser.add_argument("-e", "--evolution", default=False, action='store_true', help="compute several sample of organism to enable to build the evolution curves.")	
 	parser.add_argument("-t", "--num_thread", default=1, nargs=1, help="The number of thread to use, 0 for autodetection")
 	parser.add_argument("-w", "--verbose", default=False, action="store_true", help="verbose")
@@ -141,12 +142,12 @@ if __name__=='__main__':
 		else:
 			logging.getLogger().error(directory+" already exist")
 			exit()
-	EXACT_CORE_FILE = OUTPUTDIR+"/"+"exact_core_cluster.txt"
-	EVOLUTION_STATS_NEM_FILE = OUTPUTDIR+"/"+"evolution_stats_nem_"+str(options.classnumber[0])+".txt" 
+	EXACT_CORE_FILE            = OUTPUTDIR+"/"+"exact_core_cluster.txt"
+	EVOLUTION_STATS_NEM_FILE   = OUTPUTDIR+"/"+"evolution_stats_nem_"+str(options.classnumber[0])+".txt" 
 	EVOLUTION_STATS_EXACT_FILE = OUTPUTDIR+"/"+"evolution_stats_exact.txt"
-	ORGANISMS_FILE       = OUTPUTDIR+"/"+"organisms.txt"	
-	ONTOLOGY_FILE = OUTPUTDIR+"/"+"ontology.txt"
-	COG_FILE = OUTPUTDIR+"/"+"COG.txt"
+	ORGANISMS_FILE             = OUTPUTDIR+"/"+"organisms.txt"	
+	ONTOLOGY_FILE              = OUTPUTDIR+"/"+"ontology.txt"
+	COG_FILE                   = OUTPUTDIR+"/"+"COG.txt"
 
 	max_neighbordistance = float("inf") if int(options.neighborcomputation)==0 else int(options.neighborcomputation)
 	num_thread = multiprocessing.cpu_count() if options.num_thread==0 else int(options.num_thread)
@@ -194,8 +195,9 @@ if __name__=='__main__':
 		step = np.min(triangle[np.nonzero(triangle)])/10
 		step = 0.001 if step > 0.001 else step
 
-		mds     = manifold.MDS(n_components=pan.nb_organisms-1, dissimilarity="precomputed", random_state=10, n_jobs = num_thread)
+		mds     = manifold.MDS(n_components=pan.nb_organisms-1, dissimilarity="precomputed", random_state=1000, max_iter = 1000, n_init = 1000,n_jobs = num_thread)
 		results = mds.fit(distances.values)
+		print(results.stress_)
 		# xmin=np.min(results.embedding_[:,0])*1.5
 		# xmax=np.max(results.embedding_[:,0])*1.5
 		# ymin=np.min(results.embedding_[:,1])*1.5
@@ -205,10 +207,10 @@ if __name__=='__main__':
 		logging.getLogger().debug(coords)
 		
 		cpt=0
-		cmap = cm.get_cmap(name='rainbow')
-		centroid_x = sum([coord[0] for coord in coords])/len(coords)
-		centroid_y = sum([coord[1] for coord in coords])/len(coords)
-		centroid = (centroid_x,centroid_y,0) # 0 is the radius of a point
+		# cmap = cm.get_cmap(name='rainbow')
+		# centroid_x = sum([coord[0] for coord in coords])/len(coords)
+		# centroid_y = sum([coord[1] for coord in coords])/len(coords)
+		# centroid = (centroid_x,centroid_y,0) # 0 is the radius of a point
 
 		adresses = dict((i,set([i])) for i in range(0,len(coords)))
 		weights = [0] * len(coords)
@@ -261,15 +263,14 @@ if __name__=='__main__':
 				weight_file.write(org+"\t"+str(wei)+"\n")
 
 		logging.getLogger().debug(weights)	
+		pan.assign_weights(weights)
 
 	if options.evolution:
-		arguments = list()       
-		organisms = list(pan.organisms)	
-		total_combinations = oidsCombinations(range(0,len(organisms)),options.min_resampling,options.max_resampling,options.min_resampling)
+		arguments             = list()       
+		organisms             = list(pan.organisms)	
+		total_combinations    = oidsCombinations(range(0,len(organisms)),options.min_resampling,options.max_resampling,options.min_resampling)
 		del total_combinations[len(organisms)]
-
-		nb_total_combinations = 0	
-
+		nb_total_combinations = 0
 		for c in total_combinations:
 			nb_total_combinations += len(total_combinations[c])
 		print("..... Preparing to classify 1 pangenome + "+str(nb_total_combinations)+" subsampled pangenomes .....")
@@ -282,16 +283,15 @@ if __name__=='__main__':
 		Parallel(n_jobs=num_thread)(delayed(run)(i,*arguments[i]) for i in range(len(arguments)))
 
 	else:
-		pan.classify(options.classnumber[0],NEMOUTPUTDIR)
+		pan.classify(NEMOUTPUTDIR+"/nb"+str(pan.nb_organisms)+"_k"+str(options.classnumber[0]+"i_0"), options.classnumber[0])	
 
 	command = 'cat '+NEMOUTPUTDIR+"/*/nem.stat | sort -k1n > "+EVOLUTION_STATS_NEM_FILE
 	print(command)
-	proc = subprocess.Popen(command, shell=True)
-	proc.communicate()	
+	proc    = subprocess.Popen(command, shell=True)
+	proc.communicate()
 	command = 'cat '+NEMOUTPUTDIR+"/*/exact.stat | sort -k1n > "+EVOLUTION_STATS_EXACT_FILE
 	print(command)
-	proc = subprocess.Popen(command, shell=True)
+	proc    = subprocess.Popen(command, shell=True)
 	proc.communicate()
-
 	ortho_2_COG_funcat = findCOG(pan)
 	ortho_2_COG_funcat.to_csv(COG_FILE)

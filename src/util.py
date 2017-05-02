@@ -180,8 +180,8 @@ def findCOG(pangenome):
             'DNT': '1',
         }
                 
-        ortho_2_COG_funcat = pd.DataFrame("S", index = pangenome.families, columns = ["funcat"])
-        for ortho in sorted(pangenome.families):
+        ortho_2_COG_funcat = pd.DataFrame("S", index = pangenome.familly_positions.keys(), columns = ["funcat"])
+        for ortho in pangenome.familly_positions.keys():
                 if len(ortho) == 5:
                         try:
                                 data = '{"desc":"","seqid":"","target_species":"","level":"","nognames":"'+ortho+'","page":0}'

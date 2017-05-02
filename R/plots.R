@@ -2,7 +2,6 @@
 options(show.error.locations = TRUE)
 
 library("ggplot2")
-library(Cairo)
 library("reshape2")
 library("data.table")
 library("ggrepel")
