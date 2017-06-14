@@ -12,9 +12,9 @@ import re
 import math
 import logging
 import gffutils
-import matplotlib.pyplot as plt  
+#import matplotlib.pyplot as plt  
 import random 
-import forceatlas2 
+#import forceatlas2 
 
 NEM_LOCATION  = "../NEM/"
 (GENE, TYPE, ORGANISM, FAMILLY_CODE, START, END, STRAND) = range(0, 7)
@@ -30,10 +30,13 @@ class Pangenome:
         self.core_list            = list()
         self.pan_size             = 0
         self.core_size            = 0
-        self.class_ratio          = None
+        self.partitions_size      = {}
+        self.partitions_size["P"] = 0
+        self.partitions_size["S"] = 0
+        self.partitions_size["C"] = 0
         self.k                    = None
         self.BIC                  = None # Bayesian Index Criterion
-        self.gene_location            = OrderedDict()
+        self.gene_location        = OrderedDict()
 
         if init_from == "file":
             self.__initialize_from_files(*args)
@@ -137,25 +140,27 @@ class Pangenome:
             annot[row.seqid].append(annot_row)
         return(annot)
 
-    # def __str__(self):
+    def __str__(self):
+        pan_str =""
+        pan_str += "----------- Statistics -----------\n"
+        pan_str += "Number of organisms: "+str(self.nb_organisms)+"\n"
 
-    #     pan_str = ""
-    #     pan_str += "----------- Statistics -----------\n"
-    #     pan_str += "Number of organisms: "+str(self.nb_organisms)+"\n"
-    #     pan_str += "Pan-genome size:"+str(self.pan_size)+"\n"
-    #     pan_str += "Exact core-genome size:"+str(self.core_size)+"\n"
-    #     pan_str += "Exact variable-genome size:"+str(self.pan_size-self.core_size)+"\n"
-    #     if self.classified_famillies is not None:
-    #         pan_str += "Classification in "+str(self.k)+" classes: \n"
-    #         for class_i in self.classified_famillies.keys():
-    #             pan_str += "\t> # of families in class "+class_i+": "+str(len(self.classified_famillies[class_i]))+"\n"
-    #     else:
-    #         pan_str += "No classification have been performed on this Pangenome instance\n"
-    #     pan_str += "----------------------------------\n"
+        if self.pan_size != 0:
+            pan_str = ""
+            pan_str += "Pan-genome size:"+str(self.pan_size)+"\n"
+            pan_str += "Exact core-genome size:"+str(self.core_size)+"\n"
+            pan_str += "Exact variable-genome size:"+str(self.pan_size-self.core_size)+"\n"
+            pan_str += "Persistent genome size:"+str(self.partitions_size["P"])+"\n"
+            pan_str += "Shell genome size:"+str(self.partitions_size["S"])+"\n"
+            pan_str += "Cloud genome cloud:"+str(self.partitions_size["C"])+"\n"
+        else:
+            pan_str += "No partitioning have been performed on this Pangenome instance\n"
+            pan_str += "Run the partitioning function to obtain more detailled statistics...\n"
+        pan_str += "----------------------------------\n"
 
-    #     return(pan_str)    
+        return(pan_str)    
 
-    def classify(self, result_path, k = 3, use_neighborhood = True, write_graph = None, neighbor_jumps = 1):
+    def partition(self, result_path, k = 3, use_neighborhood = True, write_graph = None, neighbor_jumps = 1):
         """ """ 
         if not k>1:
             raise ValueError("k must be at leat equal to 2")
@@ -283,7 +288,7 @@ class Pangenome:
             max_epsilon_k = max(sum_epsilon_k)
             shell_k = sum_epsilon_k.index(max_epsilon_k)
 
-            cloud_k = set([1,2,3]) - set([persistent_k,shell_k])
+            cloud_k = set([0,1,2]) - set([persistent_k,shell_k])
             cloud_k = list(cloud_k)[0]
 
             logging.getLogger().debug(sum_mu_k)
@@ -294,20 +299,27 @@ class Pangenome:
             logging.getLogger().debug(cloud_k)
 
             partition               = {}
-            partition[int(persistent_k)+1] = "P"
-            partition[int(shell_k)+1]      = "S"
-            partition[int(cloud_k)+1]      = "C"
+            partition[persistent_k+1] = "P"
+            partition[shell_k+1]      = "S"
+            partition[cloud_k+1]      = "C"
 
             logging.getLogger().debug(partition)
-
             #logging.getLogger().debug(index.keys())
             for node, nem_class in zip(self.neighbors_graph.nodes(), classification):
+                nb_orgs=0
                 for org, genes in self.neighbors_graph.node[node].items():
                     self.neighbors_graph.node[node][org]=" ".join(genes)
-                logging.getLogger().debug(nem_class)
-                logging.getLogger().debug(int(nem_class))
+                    nb_orgs+=1
 
                 self.neighbors_graph.node[node]["partition"]=partition[int(nem_class)]
+
+                self.partitions_size[partition[int(nem_class)]] += 1
+
+                if nb_orgs == self.nb_organisms:
+                    self.core_size+=1
+                    self.neighbors_graph.node[node]["partition_exact"]="C"
+                else:
+                    self.neighbors_graph.node[node]["partition_exact"]="A"
 
             if write_graph is not None:
                 logging.getLogger().info("Writing graphML file")
