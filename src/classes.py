@@ -17,7 +17,7 @@ import random
 #import forceatlas2 
 
 NEM_LOCATION  = "../NEM/"
-(GENE, TYPE, ORGANISM, FAMILLY_CODE, START, END, STRAND) = range(0, 7)
+(GENE, TYPE, ORGANISM, FAMILLY_CODE, START, END, STRAND, NAME) = range(0, 8)
 
 class Pangenome:
 
@@ -134,8 +134,16 @@ class Pangenome:
                 cpt=1
             prev = families[protein]
 
-            annot_row               = [protein,"CDS",organism,familly,row.start,row.end,row.strand]
-            info                    = [protein,"CDS",organism,familly,row.start,row.end,row.strand]
+            try:
+                name = row.attributes['Name'].pop()
+            except:
+                try:
+                    name = row.attributes['gene'].pop()
+                except:
+                    name = ""
+
+            annot_row               = [protein,"CDS",organism,familly,row.start,row.end,row.strand, name]
+            info                    = [protein,"CDS",organism,familly,row.start,row.end,row.strand, name]
             self.gene_location[protein] = [organism, row.seqid, len(annot[row.seqid])]
             annot[row.seqid].append(annot_row)
         return(annot)
@@ -234,7 +242,7 @@ class Pangenome:
         #bernouli -> no weight or normal -> weight
         model = "bern" #if self.weights is None else "norm"
         print_log = " -l y" if logging.getLogger().getEffectiveLevel() < 20 else "" 
-        command = NEM_LOCATION+"nem_exe "+result_path+"/nem_file "+str(k)+" -a nem -i 2000 -m "+model+" pk skd -s r 10 -B fix -b "+("1" if use_neighborhood else "0")+" -T -O random"+print_log
+        command = NEM_LOCATION+"nem_exe "+result_path+"/nem_file "+str(k)+" -a nem -i 2000 -m "+model+" pk skd -s r 10 -n f-B fix -b "+("1" if use_neighborhood else "0")+" -T -O random"+print_log
         logging.getLogger().info(command)
         proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         proc.communicate()
@@ -307,9 +315,11 @@ class Pangenome:
             #logging.getLogger().debug(index.keys())
             for node, nem_class in zip(self.neighbors_graph.nodes(), classification):
                 nb_orgs=0
-                for org, genes in self.neighbors_graph.node[node].items():
-                    self.neighbors_graph.node[node][org]=" ".join(genes)
-                    nb_orgs+=1
+                for key, items in self.neighbors_graph.node[node].items():
+
+                    self.neighbors_graph.node[node][key]=" ".join(items)
+                    if key!="name":
+                        nb_orgs+=1
 
                 self.neighbors_graph.node[node]["partition"]=partition[int(nem_class)]
 
@@ -337,7 +347,7 @@ class Pangenome:
         neighbors_graph = nx.Graph()
         all_paths = defaultdict(lambda : defaultdict(list))  
 
-        def add_neighbors(fam_id, fam_nei, prec,org, gene, gene_nei):
+        def add_neighbors(fam_id, fam_nei, prec,org, gene, gene_nei, name):
             neighbors_graph.add_node(fam_id)
             neighbors_graph.add_node(fam_nei)
 
@@ -348,9 +358,15 @@ class Pangenome:
             else:
                 all_paths[fam_nei][None].append(fam_id)
             try:
-                neighbors_graph.node[fam_id][org]+=(" "+gene)
+                neighbors_graph.node[fam_id][org].add(gene)
             except KeyError:
-                neighbors_graph.node[fam_id][org]=gene
+                neighbors_graph.node[fam_id][org]=set([gene])
+
+            try:
+                neighbors_graph.node[fam_id]['name'].add(name)
+            except KeyError:
+                neighbors_graph.node[fam_id]['name']=set([name])
+
             if not neighbors_graph.has_edge(fam_id,fam_nei):
                 neighbors_graph.add_edge(fam_id, fam_nei)
             # try:
@@ -372,8 +388,9 @@ class Pangenome:
                     for index, row in enumerate(contig_annot[1:]):
                         logging.getLogger().debug(row)
                         gene       = row[GENE]
+                        name       = row[NAME]
                         familly_id = row[FAMILLY_CODE]     
-                        add_neighbors(familly_id, familly_id_nei, prec, organism, gene, gene_nei)
+                        add_neighbors(familly_id, familly_id_nei, prec, organism, gene, gene_nei, name)
                         prec           = familly_id_nei
                         familly_id_nei = familly_id
                         gene_nei       = gene
@@ -381,9 +398,10 @@ class Pangenome:
                     row = contig_annot[0]
                     familly_id = row[FAMILLY_CODE]
                     gene = row[GENE]
+                    name = row[NAME]
                     
                     if contig in self.circular_contig:
-                        add_neighbors(familly_id, familly_id_nei, prec, organism, gene, gene_nei)
+                        add_neighbors(familly_id, familly_id_nei, prec, organism, gene, gene_nei, name)
                         logging.getLogger().debug("first2 "+familly_id)
                         logging.getLogger().debug("prec "+str(all_paths[familly_id]))
                         prec = all_paths[familly_id].pop(None)[0]
@@ -394,11 +412,16 @@ class Pangenome:
                 else:
                     gene       = contig_annot[0][GENE]
                     familly_id = contig_annot[0][FAMILLY_CODE]
+                    name       = contig_annot[0][NAME]
                     neighbors_graph.add_node(familly_id)
                     try:
-                        neighbors_graph.node[familly_id][organism]+=(" "+gene)
+                        neighbors_graph.node[familly_id][organism].add(gene)
                     except KeyError:
-                        neighbors_graph.node[familly_id][organism]=gene
+                        neighbors_graph.node[familly_id][organism]=set([gene])
+                    try:
+                        neighbors_graph.node[fam_id]['name'].add(name)
+                    except KeyError:
+                        neighbors_graph.node[fam_id]['name']=set([name])
         
         #inspired from http://stackoverflow.com/a/9114443/7500030
         def merge_overlapping_path(data):
@@ -423,229 +446,229 @@ class Pangenome:
                 return []
  
         #untangling stage:
-        for node in list(neighbors_graph.node):
-            logging.getLogger().debug(node)
-            logging.getLogger().debug(all_paths[node])
+        # for node in list(neighbors_graph.node):
+        #     logging.getLogger().debug(node)
+        #     logging.getLogger().debug(all_paths[node])
             
-            path_groups = merge_overlapping_path(all_paths[node])
-            logging.getLogger().debug(path_groups)
-            logging.getLogger().debug(len(path_groups))
+        #     path_groups = merge_overlapping_path(all_paths[node])
+        #     logging.getLogger().debug(path_groups)
+        #     logging.getLogger().debug(len(path_groups))
 
-            if len(path_groups)>1:#if several path are non overlaping to browse this node
-                logging.getLogger().debug("split "+str(len(path_groups)))
-                for suffix, path_group in enumerate(path_groups):
-                    new_node = node+"_"+str(suffix)
-                    #all_paths[new_node][frozenset(path_group)]= -1
-                    logging.getLogger().debug("new_node:"+new_node)
-                    neibors_new_node = [neighbor for neighbor in nx.all_neighbors(neighbors_graph, node) if neighbor in path_group]
-                    for new_neibor in neibors_new_node:
-                        renamed_paths = dict()
-                        while len(all_paths[new_neibor])>0:
-                            to_rename = all_paths[new_neibor].popitem()
-                            set_to_rename = set(to_rename[0])
-                            logging.getLogger().debug("to_rename:"+str(set_to_rename))
-                            if node in set_to_rename:
-                                set_to_rename.remove(node)
-                                set_to_rename.add(new_node)
-                            renamed_paths[frozenset(set_to_rename)]=to_rename[1]
-                            logging.getLogger().debug("renamed:"+str(set_to_rename))
-                        all_paths[new_neibor].update(renamed_paths)
-                    neighbors_graph.add_node(new_node)
-                    
-                    already_added_gene = set()
-                    for neighbor in path_group:
-                        neighbors_graph.add_edge(new_node,neighbor)
-                        logging.getLogger().debug(neighbor)
-                        for path, genes in all_paths[node].items():
-                            logging.getLogger().debug(path)
-                            if neighbor in path:
-                                for org, gene in genes:
-                                    if gene not in already_added_gene:
-                                        all_paths[new_node][path].append(tuple([org,gene]))
-                                        org, contig, pos = self.gene_location[gene]
-                                        self.annotations[org][contig][pos][FAMILLY_CODE]=new_node
-                                        try:
-                                            neighbors_graph.node[new_node][org].add(gene)
-                                        except KeyError:
-                                            neighbors_graph.node[new_node][org]=set([gene])
-                                        already_added_gene.add(gene)
-                                    #try:
-                                    #    neighbors_graph[new_node][neighbor][org]+=1
-                                    #except:
-                                    neighbors_graph[new_node][neighbor][org]=1
-                                    # try:
-                                    # neighbors_graph[new_node][neighbor]["weight"]=1
-                                    # except:
-                                        # neighbors_graph[new_node][neighbor]["weight"]=1
-                
-                del all_paths[node]
-                neighbors_graph.remove_node(node)
-
-        # for node_i, node_j, orgs in neighbors_graph.edges(data=True):
-        #     if (neighbors_graph.has_edge(node_i, node_j)):
-        #     new_node = "("+node_i+"#"+node_j+")"
-        #     for path, genes in all_paths[node_i].items():
-        #         for org, gene in genes:
-        #             if org in orgs:
-        #                 org, contig, pos = self.gene_location[gene]
-        #                 try:
-        #                     direction = 1
-        #                     if contig in self.circular_contig:
-        #                         nbgene = len(self.annotations[org][contig])
-        #                         before_i = self.annotations[org][contig][(pos-(1*direction))%nbgene][FAMILLY_CODE]
-        #                         after_i  = self.annotations[org][contig][(pos+(1*direction))%nbgene][FAMILLY_CODE]
-
-        #                         if node_j == before_i:
-        #                             before_i = after_i
-        #                             after_i = node_j
-        #                             direction = -1
-
-        #                         logging.getLogger().debug(node_i)
-        #                         logging.getLogger().debug(node_j)
-
-        #                         logging.getLogger().debug([pos-(1*direction),self.annotations[org][contig][(pos-(1*direction))%nbgene]])
-        #                         logging.getLogger().debug([pos,self.annotations[org][contig][pos%nbgene]])
-        #                         logging.getLogger().debug([pos+(1*direction),self.annotations[org][contig][(pos+(1*direction))%nbgene]])
-        #                         logging.getLogger().debug([pos+(2*direction),self.annotations[org][contig][(pos+(2*direction))%nbgene]])
-
-        #                         after_j = self.annotations[org][contig][(pos+(2*direction))%nbgene][FAMILLY_CODE]
-        #                         if node_j == after_i:
-        #                             logging.getLogger().debug("ici")
-        #                             all_paths[new_node][frozenset([before_i,after_j])].append(tuple([org,gene]))
-        #                         else:
-        #                             logging.getLogger().debug("la")
-        #                         #exit()
-        #                     else:
-        #                         try:
-        #                             before = self.annotations[org][contig][(pos-(1*direction))%len(self.annotations[org][contig])][FAMILLY_CODE]    
-        #                             after  = self.annotations[org][contig][(pos+(1*direction))%len(self.annotations[org][contig])][FAMILLY_CODE]
-        #                         except:
-        #                             pass
-        #                 except IndexError:
-        #                     logging.getLogger().debug("Que faire ?")
-        #                     logging.getLogger().debug([pos,self.annotations[org][contig][pos]])
-        #                     logging.getLogger().debug([pos+(1*direction),self.annotations[org][contig][pos-(1*direction)]])
-                            
-        #                     logging.getLogger().debug(self.annotations[org][contig][pos+(1*direction)])
-        #                     logging.getLogger().debug(self.annotations[org][contig][pos+(2*direction)])
-        #                     #racrocher les gènes à la famille la pllus problable
-        #                     pass
-        #     logging.getLogger().debug(all_paths[new_node])
-        #     path_groups = merge_overlapping_path(all_paths[new_node])
-        #     if len(path_groups)>1:#if several path are non overlaping to browse this (meta)node
+        #     if len(path_groups)>1:#if several path are non overlaping to browse this node
         #         logging.getLogger().debug("split "+str(len(path_groups)))
-        #         logging.getLogger().debug("split "+str(path_groups))
         #         for suffix, path_group in enumerate(path_groups):
-        #             new_node_i = node_i+"#"+str(suffix)
-        #             new_node_j = node_j+"#"+str(suffix)
-        #             neighbors_graph.add_node(new_node_i)
-        #             neighbors_graph.add_node(new_node_j)
-        #             neighbors_graph.add_edge(new_node_i, new_node_j)
-        #             neighbors_graph[new_node_i][new_node_j]["weight"]=5
+        #             new_node = node+"_"+str(suffix)
+        #             #all_paths[new_node][frozenset(path_group)]= -1
         #             logging.getLogger().debug("new_node:"+new_node)
-        #             logging.getLogger().debug("new_node_i:"+new_node_i)
-        #             logging.getLogger().debug("new_node_j:"+new_node_j)
-        #             neibors_new_node_i = [neighbor for neighbor in nx.all_neighbors(neighbors_graph, node_i) if neighbor in path_group]
-        #             logging.getLogger().debug("neibors_new_node_i:"+str(neibors_new_node_i))
-        #             logging.getLogger().debug([neighbor for neighbor in nx.all_neighbors(neighbors_graph, node_i)])
-        #             for new_neibor in neibors_new_node_i:
-        #                 neighbors_graph.add_edge(new_node_i,new_neibor)
-        #                 neighbors_graph.remove_edge(node_i,new_neibor)
-        #                 neighbors_graph[new_node_i][new_neibor]["weight"]=5
-        #                 logging.getLogger().debug("add_edge i:"+str([new_node_i,new_neibor]))
+        #             neibors_new_node = [neighbor for neighbor in nx.all_neighbors(neighbors_graph, node) if neighbor in path_group]
+        #             for new_neibor in neibors_new_node:
         #                 renamed_paths = dict()
         #                 while len(all_paths[new_neibor])>0:
         #                     to_rename = all_paths[new_neibor].popitem()
         #                     set_to_rename = set(to_rename[0])
         #                     logging.getLogger().debug("to_rename:"+str(set_to_rename))
-        #                     if node_i in set_to_rename:
-        #                         set_to_rename.remove(node_i)
-        #                         set_to_rename.add(new_node_i)
+        #                     if node in set_to_rename:
+        #                         set_to_rename.remove(node)
+        #                         set_to_rename.add(new_node)
         #                     renamed_paths[frozenset(set_to_rename)]=to_rename[1]
         #                     logging.getLogger().debug("renamed:"+str(set_to_rename))
         #                 all_paths[new_neibor].update(renamed_paths)
-        #             neibors_new_node_j = [neighbor for neighbor in nx.all_neighbors(neighbors_graph, node_j) if neighbor in path_group]
-        #             logging.getLogger().debug("neibors_new_node_j:"+str(neibors_new_node_j))
-        #             logging.getLogger().debug([neighbor for neighbor in nx.all_neighbors(neighbors_graph, node_j)])
-        #             for new_neibor in neibors_new_node_j:
-        #                 neighbors_graph.add_edge(new_node_j,new_neibor)
-        #                 neighbors_graph.remove_edge(node_j,new_neibor)
-        #                 neighbors_graph[new_node_j][new_neibor]["weight"]=5
-        #                 logging.getLogger().debug("add_edge j:"+str([new_node_j,new_neibor]))
-        #                 renamed_paths = dict()
-        #                 while len(all_paths[new_neibor])>0:
-        #                     to_rename = all_paths[new_neibor].popitem()
-        #                     set_to_rename = set(to_rename[0])
-        #                     logging.getLogger().debug("to_rename:"+str(set_to_rename))
-        #                     if node_j in set_to_rename:
-        #                         set_to_rename.remove(node_j)
-        #                         setsQ_to_rename.add(new_node_j)
-        #                     renamed_paths[frozenset(set_to_rename)]=to_rename[1]
-        #                     logging.getLogger().debug("renamed:"+str(set_to_rename))
-        #                 all_paths[new_neibor].update(renamed_paths)
+        #             neighbors_graph.add_node(new_node)
+                    
         #             already_added_gene = set()
         #             for neighbor in path_group:
+        #                 neighbors_graph.add_edge(new_node,neighbor)
         #                 logging.getLogger().debug(neighbor)
-        #                 for path, genes in all_paths[node_i].items():
+        #                 for path, genes in all_paths[node].items():
         #                     logging.getLogger().debug(path)
         #                     if neighbor in path:
-        #                         logging.getLogger().debug(path)
         #                         for org, gene in genes:
         #                             if gene not in already_added_gene:
-        #                                 all_paths[new_node_i][path].append(tuple([org,gene]))
+        #                                 all_paths[new_node][path].append(tuple([org,gene]))
         #                                 org, contig, pos = self.gene_location[gene]
-        #                                 self.annotations[org][contig][pos][FAMILLY_CODE]=new_node_i
+        #                                 self.annotations[org][contig][pos][FAMILLY_CODE]=new_node
         #                                 try:
-        #                                     neighbors_graph.node[new_node_i][org].add(gene)
+        #                                     neighbors_graph.node[new_node][org].add(gene)
         #                                 except KeyError:
-        #                                     neighbors_graph.node[new_node_i][org]=set([gene])
+        #                                     neighbors_graph.node[new_node][org]=set([gene])
         #                                 already_added_gene.add(gene)
-        #                                 try:
-        #                                     neighbors_graph[new_node_i][neighbor][org]+=1
-        #                                 except KeyError:
-        #                                     logging.getLogger().debug(new_node_i)
-        #                                     logging.getLogger().debug(neighbor)
-        #                                     logging.getLogger().debug(neighbors_graph[new_node_i][neighbor])
-        #                                     neighbors_graph[new_node_i][neighbor][org]=1
-        #                                 try:
-        #                                     neighbors_graph[new_node_i][neighbor]["weight"]+=1
-        #                                 except:
-        #                                     neighbors_graph[new_node_i][neighbor]["weight"]=1
-        #                         #neighbors_graph.node[new_node][org]=" ".join(neighbors_graph.node[new_node][org])
-        #                 logging.getLogger().debug(neighbor)
-        #                 for path, genes in all_paths[node_j].items():
-        #                     logging.getLogger().debug(path)
-        #                     if neighbor in path:
-        #                         logging.getLogger().debug(path)
-        #                         for org, gene in genes:
-        #                             if gene not in already_added_gene:
-        #                                 logging.getLogger().debug(gene)
-        #                                 all_paths[new_node_j][path].append(tuple([org,gene]))
-        #                                 org, contig, pos = self.gene_location[gene]
-        #                                 self.annotations[org][contig][pos][FAMILLY_CODE]=new_node_j
-        #                                 try:
-        #                                     neighbors_graph.node[new_node_j][org].add(gene)
-        #                                 except KeyError:
-        #                                     neighbors_graph.node[new_node_j][org]=set([gene])
-        #                                 already_added_gene.add(gene)
-        #                                 try:
-        #                                     neighbors_graph[new_node_j][neighbor][org]+=1
-        #                                 except KeyError:
-        #                                     logging.getLogger().debug(new_node_j)
-        #                                     logging.getLogger().debug(neighbor)
-        #                                     logging.getLogger().debug(neighbors_graph[new_node_j][neighbor])
-        #                                     neighbors_graph[new_node_j][neighbor][org]=1
-        #                                 try:
-        #                                     neighbors_graph[new_node_j][neighbor]["weight"]+=1
-        #                                 except:
-        #                                     neighbors_graph[new_node_j][neighbor]["weight"]=1
+        #                             #try:
+        #                             #    neighbors_graph[new_node][neighbor][org]+=1
+        #                             #except:
+        #                             neighbors_graph[new_node][neighbor][org]=1
+        #                             # try:
+        #                             # neighbors_graph[new_node][neighbor]["weight"]=1
+        #                             # except:
+        #                                 # neighbors_graph[new_node][neighbor]["weight"]=1
+                
+        #         del all_paths[node]
+        #         neighbors_graph.remove_node(node)
 
-                #del all_paths[node_i]
-                #del all_paths[node_j]
-                #neighbors_graph.remove_node(node_i)
-                #neighbors_graph.remove_node(node_j)
-            else:
-                logging.getLogger().debug("no split")
+        # # for node_i, node_j, orgs in neighbors_graph.edges(data=True):
+        # #     if (neighbors_graph.has_edge(node_i, node_j)):
+        # #     new_node = "("+node_i+"#"+node_j+")"
+        # #     for path, genes in all_paths[node_i].items():
+        # #         for org, gene in genes:
+        # #             if org in orgs:
+        # #                 org, contig, pos = self.gene_location[gene]
+        # #                 try:
+        # #                     direction = 1
+        # #                     if contig in self.circular_contig:
+        # #                         nbgene = len(self.annotations[org][contig])
+        # #                         before_i = self.annotations[org][contig][(pos-(1*direction))%nbgene][FAMILLY_CODE]
+        # #                         after_i  = self.annotations[org][contig][(pos+(1*direction))%nbgene][FAMILLY_CODE]
+
+        # #                         if node_j == before_i:
+        # #                             before_i = after_i
+        # #                             after_i = node_j
+        # #                             direction = -1
+
+        # #                         logging.getLogger().debug(node_i)
+        # #                         logging.getLogger().debug(node_j)
+
+        # #                         logging.getLogger().debug([pos-(1*direction),self.annotations[org][contig][(pos-(1*direction))%nbgene]])
+        # #                         logging.getLogger().debug([pos,self.annotations[org][contig][pos%nbgene]])
+        # #                         logging.getLogger().debug([pos+(1*direction),self.annotations[org][contig][(pos+(1*direction))%nbgene]])
+        # #                         logging.getLogger().debug([pos+(2*direction),self.annotations[org][contig][(pos+(2*direction))%nbgene]])
+
+        # #                         after_j = self.annotations[org][contig][(pos+(2*direction))%nbgene][FAMILLY_CODE]
+        # #                         if node_j == after_i:
+        # #                             logging.getLogger().debug("ici")
+        # #                             all_paths[new_node][frozenset([before_i,after_j])].append(tuple([org,gene]))
+        # #                         else:
+        # #                             logging.getLogger().debug("la")
+        # #                         #exit()
+        # #                     else:
+        # #                         try:
+        # #                             before = self.annotations[org][contig][(pos-(1*direction))%len(self.annotations[org][contig])][FAMILLY_CODE]    
+        # #                             after  = self.annotations[org][contig][(pos+(1*direction))%len(self.annotations[org][contig])][FAMILLY_CODE]
+        # #                         except:
+        # #                             pass
+        # #                 except IndexError:
+        # #                     logging.getLogger().debug("Que faire ?")
+        # #                     logging.getLogger().debug([pos,self.annotations[org][contig][pos]])
+        # #                     logging.getLogger().debug([pos+(1*direction),self.annotations[org][contig][pos-(1*direction)]])
+                            
+        # #                     logging.getLogger().debug(self.annotations[org][contig][pos+(1*direction)])
+        # #                     logging.getLogger().debug(self.annotations[org][contig][pos+(2*direction)])
+        # #                     #racrocher les gènes à la famille la pllus problable
+        # #                     pass
+        # #     logging.getLogger().debug(all_paths[new_node])
+        # #     path_groups = merge_overlapping_path(all_paths[new_node])
+        # #     if len(path_groups)>1:#if several path are non overlaping to browse this (meta)node
+        # #         logging.getLogger().debug("split "+str(len(path_groups)))
+        # #         logging.getLogger().debug("split "+str(path_groups))
+        # #         for suffix, path_group in enumerate(path_groups):
+        # #             new_node_i = node_i+"#"+str(suffix)
+        # #             new_node_j = node_j+"#"+str(suffix)
+        # #             neighbors_graph.add_node(new_node_i)
+        # #             neighbors_graph.add_node(new_node_j)
+        # #             neighbors_graph.add_edge(new_node_i, new_node_j)
+        # #             neighbors_graph[new_node_i][new_node_j]["weight"]=5
+        # #             logging.getLogger().debug("new_node:"+new_node)
+        # #             logging.getLogger().debug("new_node_i:"+new_node_i)
+        # #             logging.getLogger().debug("new_node_j:"+new_node_j)
+        # #             neibors_new_node_i = [neighbor for neighbor in nx.all_neighbors(neighbors_graph, node_i) if neighbor in path_group]
+        # #             logging.getLogger().debug("neibors_new_node_i:"+str(neibors_new_node_i))
+        # #             logging.getLogger().debug([neighbor for neighbor in nx.all_neighbors(neighbors_graph, node_i)])
+        # #             for new_neibor in neibors_new_node_i:
+        # #                 neighbors_graph.add_edge(new_node_i,new_neibor)
+        # #                 neighbors_graph.remove_edge(node_i,new_neibor)
+        # #                 neighbors_graph[new_node_i][new_neibor]["weight"]=5
+        # #                 logging.getLogger().debug("add_edge i:"+str([new_node_i,new_neibor]))
+        # #                 renamed_paths = dict()
+        # #                 while len(all_paths[new_neibor])>0:
+        # #                     to_rename = all_paths[new_neibor].popitem()
+        # #                     set_to_rename = set(to_rename[0])
+        # #                     logging.getLogger().debug("to_rename:"+str(set_to_rename))
+        # #                     if node_i in set_to_rename:
+        # #                         set_to_rename.remove(node_i)
+        # #                         set_to_rename.add(new_node_i)
+        # #                     renamed_paths[frozenset(set_to_rename)]=to_rename[1]
+        # #                     logging.getLogger().debug("renamed:"+str(set_to_rename))
+        # #                 all_paths[new_neibor].update(renamed_paths)
+        # #             neibors_new_node_j = [neighbor for neighbor in nx.all_neighbors(neighbors_graph, node_j) if neighbor in path_group]
+        # #             logging.getLogger().debug("neibors_new_node_j:"+str(neibors_new_node_j))
+        # #             logging.getLogger().debug([neighbor for neighbor in nx.all_neighbors(neighbors_graph, node_j)])
+        # #             for new_neibor in neibors_new_node_j:
+        # #                 neighbors_graph.add_edge(new_node_j,new_neibor)
+        # #                 neighbors_graph.remove_edge(node_j,new_neibor)
+        # #                 neighbors_graph[new_node_j][new_neibor]["weight"]=5
+        # #                 logging.getLogger().debug("add_edge j:"+str([new_node_j,new_neibor]))
+        # #                 renamed_paths = dict()
+        # #                 while len(all_paths[new_neibor])>0:
+        # #                     to_rename = all_paths[new_neibor].popitem()
+        # #                     set_to_rename = set(to_rename[0])
+        # #                     logging.getLogger().debug("to_rename:"+str(set_to_rename))
+        # #                     if node_j in set_to_rename:
+        # #                         set_to_rename.remove(node_j)
+        # #                         setsQ_to_rename.add(new_node_j)
+        # #                     renamed_paths[frozenset(set_to_rename)]=to_rename[1]
+        # #                     logging.getLogger().debug("renamed:"+str(set_to_rename))
+        # #                 all_paths[new_neibor].update(renamed_paths)
+        # #             already_added_gene = set()
+        # #             for neighbor in path_group:
+        # #                 logging.getLogger().debug(neighbor)
+        # #                 for path, genes in all_paths[node_i].items():
+        # #                     logging.getLogger().debug(path)
+        # #                     if neighbor in path:
+        # #                         logging.getLogger().debug(path)
+        # #                         for org, gene in genes:
+        # #                             if gene not in already_added_gene:
+        # #                                 all_paths[new_node_i][path].append(tuple([org,gene]))
+        # #                                 org, contig, pos = self.gene_location[gene]
+        # #                                 self.annotations[org][contig][pos][FAMILLY_CODE]=new_node_i
+        # #                                 try:
+        # #                                     neighbors_graph.node[new_node_i][org].add(gene)
+        # #                                 except KeyError:
+        # #                                     neighbors_graph.node[new_node_i][org]=set([gene])
+        # #                                 already_added_gene.add(gene)
+        # #                                 try:
+        # #                                     neighbors_graph[new_node_i][neighbor][org]+=1
+        # #                                 except KeyError:
+        # #                                     logging.getLogger().debug(new_node_i)
+        # #                                     logging.getLogger().debug(neighbor)
+        # #                                     logging.getLogger().debug(neighbors_graph[new_node_i][neighbor])
+        # #                                     neighbors_graph[new_node_i][neighbor][org]=1
+        # #                                 try:
+        # #                                     neighbors_graph[new_node_i][neighbor]["weight"]+=1
+        # #                                 except:
+        # #                                     neighbors_graph[new_node_i][neighbor]["weight"]=1
+        # #                         #neighbors_graph.node[new_node][org]=" ".join(neighbors_graph.node[new_node][org])
+        # #                 logging.getLogger().debug(neighbor)
+        # #                 for path, genes in all_paths[node_j].items():
+        # #                     logging.getLogger().debug(path)
+        # #                     if neighbor in path:
+        # #                         logging.getLogger().debug(path)
+        # #                         for org, gene in genes:
+        # #                             if gene not in already_added_gene:
+        # #                                 logging.getLogger().debug(gene)
+        # #                                 all_paths[new_node_j][path].append(tuple([org,gene]))
+        # #                                 org, contig, pos = self.gene_location[gene]
+        # #                                 self.annotations[org][contig][pos][FAMILLY_CODE]=new_node_j
+        # #                                 try:
+        # #                                     neighbors_graph.node[new_node_j][org].add(gene)
+        # #                                 except KeyError:
+        # #                                     neighbors_graph.node[new_node_j][org]=set([gene])
+        # #                                 already_added_gene.add(gene)
+        # #                                 try:
+        # #                                     neighbors_graph[new_node_j][neighbor][org]+=1
+        # #                                 except KeyError:
+        # #                                     logging.getLogger().debug(new_node_j)
+        # #                                     logging.getLogger().debug(neighbor)
+        # #                                     logging.getLogger().debug(neighbors_graph[new_node_j][neighbor])
+        # #                                     neighbors_graph[new_node_j][neighbor][org]=1
+        # #                                 try:
+        # #                                     neighbors_graph[new_node_j][neighbor]["weight"]+=1
+        # #                                 except:
+        # #                                     neighbors_graph[new_node_j][neighbor]["weight"]=1
+
+        #         #del all_paths[node_i]
+        #         #del all_paths[node_j]
+        #         #neighbors_graph.remove_node(node_i)
+        #         #neighbors_graph.remove_node(node_j)
+        #     else:
+        #         logging.getLogger().debug("no split")
         # for node, path_group in all_paths.items():
         #     for neighbors in path_group:
                 

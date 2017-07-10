@@ -33,7 +33,7 @@ import subprocess
 #import matplotlib.pyplot as plt
 #import matplotlib.cm as cm
 
-logging.basicConfig(level = logging.DEBUG, format = '\n%(asctime)s %(filename)s:l%(lineno)d %(levelname)s\t%(message)s', datefmt='%H:%M:%S')
+logging.basicConfig(level = logging.INFO, format = '\n%(asctime)s %(filename)s:l%(lineno)d %(levelname)s\t%(message)s', datefmt='%H:%M:%S')
 
 MASH_LOCATION = ""#ADD MASH
 SUBPATH = "/NEMOUT"
@@ -72,11 +72,9 @@ if __name__=='__main__':
 	parser.add_argument("-n", "--neighborcomputation", type=int, default=1, help="Consider neighboors for the analysis with the max neighbor distance (integer) (0 = infinite distance)")
 	parser.add_argument("-k", "--classnumber", type=int, nargs=1, default=[3], help="Number of classes to consider for other results than evolution (default = 3)")
 	parser.add_argument("-e", "--evolution", default=False, action='store_true', help="compute several sample of organism to enable to build the evolution curves.")	
-	parser.add_argument("-t", "--num_thread", default=1, nargs=1, help="The number of thread to use, 0 for autodetection")
+#	parser.add_argument("-t", "--num_thread", default=1, nargs=1, help="The number of thread to use, 0 for autodetection")
 	parser.add_argument("-w", "--verbose", default=False, action="store_true", help="verbose")
-	parser.add_argument("-]", "--max_resampling", default = 30, nargs=1, help="Number max of subsamples in each combinaison of organisms")
-	parser.add_argument("-[", "--min_resampling", default = 10, nargs=1, help="Number max of subsamples in each combinaison of organisms")
-	
+
 	options = parser.parse_args()
 
 	OUTPUTDIR       = options.outputdirectory[0]
@@ -89,22 +87,25 @@ if __name__=='__main__':
 			logging.getLogger().error(directory+" already exist")
 			exit()
 	EXACT_CORE_FILE            = OUTPUTDIR+"/"+"exact_core_cluster.txt"
-	EVOLUTION_STATS_NEM_FILE   = OUTPUTDIR+"/"+"evolution_stats_nem_"+str(options.classnumber[0])+".txt" 
-	EVOLUTION_STATS_EXACT_FILE = OUTPUTDIR+"/"+"evolution_stats_exact.txt"
+	STATS_EXACT_FILE           = OUTPUTDIR+"/"+"stats_exact.txt"
+	STATS_NEM_FILE             = OUTPUTDIR+"/"+"stats_nem_"+str(options.classnumber[0])+".txt" 
 	ORGANISMS_FILE             = OUTPUTDIR+"/"+"organisms.txt"	
 	ONTOLOGY_FILE              = OUTPUTDIR+"/"+"ontology.txt"
 	COG_FILE                   = OUTPUTDIR+"/"+"COG.txt"
 
 	max_neighbordistance = float("inf") if int(options.neighborcomputation)==0 else int(options.neighborcomputation)
-	num_thread = multiprocessing.cpu_count() if options.num_thread==0 else int(options.num_thread)
-	num_thread = 1 if num_thread==0 else num_thread 
+	# num_thread = multiprocessing.cpu_count() if options.num_thread==0 else int(options.num_thread)
+	# num_thread = 1 if num_thread==0 else num_thread 
 	
 	distances = None
 	
 	pan = Pangenome("file", options.organisms[0],  options.gene_families[0])#, options.remove_singleton
 
+	pan.partition(NEMOUTPUTDIR+"/nb"+str(pan.nb_organisms)+"_k"+str(options.classnumber[0])+"i_0", options.classnumber[0], write_graph = "gexf")	
+
 	print(pan)
-	
+
+	print("> Creation of a exact_core_cluster.txt file with all core clusters")
 	outfile = open(ORGANISMS_FILE,"w")
 	outfile.writelines(["%s\n" % item  for item in (pan.organisms)])
 	outfile.close()
@@ -113,7 +114,11 @@ if __name__=='__main__':
 	core_cluster_file.write("\n".join(pan.core_list))
 	core_cluster_file.write("\n")
 	core_cluster_file.close()
-	print("> Creation of a exact_core_cluster.txt file with all core clusters")
+
+	stat_exact_file = open(STATS_EXACT_FILE,"w")
+	stat_exact_file.write(str(pan.nb_organisms) + "\t"+ str(pan.core_size) + "\t"+str(pan.pan_size-pan.core_size) + "\t" + str(pan.pan_size)+ "\n")
+	stat_nem_file = open(STATS_NEM_FILE,"w")
+	stat_nem_file.write(str(pan.nb_organisms) + str(pan.partitions_size["P"]) + "\t"+str(pan.partitions_size["S"]) + "\t" + str(pan.partitions_size["C"]) + "\t" + str(pan.pan_size)+ "\t"+str(pan.BIC)+"\n")
 
 	# if options.ponderation:
 	# 	if options.mash_fasta:
@@ -225,9 +230,7 @@ if __name__=='__main__':
 	# 	arguments.insert(0, [NEMOUTPUTDIR, pan])
 	# 	Parallel(n_jobs=num_thread)(delayed(run)(i,*arguments[i]) for i in range(len(arguments)))
 	# else:
-	pan.partition(NEMOUTPUTDIR+"/nb"+str(pan.nb_organisms)+"_k"+str(options.classnumber[0])+"i_0", options.classnumber[0], write_graph = "gexf")	
 
-	print(pan)
 
 	# command = 'cat '+NEMOUTPUTDIR+"/*/nem.stat | sort -k1n > "+EVOLUTION_STATS_NEM_FILE
 	# print(command)

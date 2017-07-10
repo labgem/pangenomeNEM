@@ -132,8 +132,8 @@ if(nrow(data)>=2){
 }
 #CLUSTER
 
-binary_matrix <- read.table(paste0(args[1],"NEM_results/nborg",max_c,"_k3_i0/file.dat"), header=FALSE)
-
+#binary_matrix <- read.table(paste0(args[1],"NEM_results/nborg",max_c,"_k3_i0/file.dat"), header=FALSE)
+binary_matrix <- read.table("test_evol_2/72_0/NEM_results/nb72_k3i_0/nem_file.dat", header=FALSE)
 head(binary_matrix)
 binary_matrix <- ifelse(binary_matrix != 0, TRUE, FALSE)
 
@@ -142,8 +142,8 @@ occurences <- rowSums(binary_matrix)
 
 head(occurences)
 
-classification_vector <- unlist(strsplit(readLines(paste0(args[1],"NEM_results/nborg",max_c,"_k3_i0/file.cf")), " "))
-
+#classification_vector <- unlist(strsplit(readLines(paste0(args[1],"NEM_results/nborg",max_c,"_k3_i0/file.cf")), " "))
+classification_vector <- unlist(strsplit(readLines("test_evol_2/72_0/NEM_results/nb72_k3i_0/nem_file.cf"), " "))
 
 head(classification_vector)
 
@@ -285,8 +285,8 @@ if (file.exists(cog)){
 
 #tile_plot
 
-organism_names <- unlist(strsplit(readLines(paste0(args[1],"/organisms.txt")), "\n"))
-
+#organism_names <- unlist(strsplit(readLines(paste0(args[1],"/organisms.txt")), "\n"))
+organism_names <- unlist(strsplit(readLines("out"), "\n"))
 colnames(binary_matrix) <- organism_names
 #binary_matrix = rbind(binary_matrix,colSums(binary_matrix))
 
@@ -299,19 +299,21 @@ colnames(binary_matrix) <- organism_names
 #binary_matrix_clust_t <- hclust(dist(t(binary_matrix), method = "manhattan"))
 
 #binary_matrix <- binary_matrix[,binary_matrix_clust_t$order]
-binary_matrix = data.frame(binary_matrix,classification = classification_vector, check.names=FALSE)
-binary_matrix = binary_matrix[order(match(binary_matrix$classification,c("persistant", "shell", "cloud") )),]
+binary_matrix = data.frame(binary_matrix,"NEM partitions" = classification_vector, check.names=FALSE)
+binary_matrix[occurences == 72, "Traditional partitions"]="strict_core"
+binary_matrix[occurences != 72, "Traditional partitions"]="accessory"
+binary_matrix = binary_matrix[order(match(binary_matrix$"NEM partitions",c("persistant", "shell", "cloud")),match(binary_matrix$"Traditional partitions",c("strict_core", "accessory") )),]
 #binary_matrix <- binary_matrix[binary_matrix_clust$order,]
 
-persistant_size = table(classification_vector)["persistant"]
-print(persistant_size)
-shell_size = table(classification_vector)["shell"]
+# persistant_size = table(classification_vector)["persistant"]
+# print(persistant_size)
+# shell_size = table(classification_vector)["shell"]
 
-col <- setdiff(colnames(binary_matrix),"classification")
-total_shell = colSums(binary_matrix[binary_matrix$classification == "shell",col])
-total_persistant = colSums(binary_matrix[binary_matrix$classification == "persistant",col])
-total_non_cloud = colSums(binary_matrix[binary_matrix$classification != "cloud",col])
-total_pan = colSums(binary_matrix[,col])
+# col <- setdiff(colnames(binary_matrix),"classification")
+# total_shell = colSums(binary_matrix[binary_matrix$classification == "shell",col])
+# total_persistant = colSums(binary_matrix[binary_matrix$classification == "persistant",col])
+# total_non_cloud = colSums(binary_matrix[binary_matrix$classification != "cloud",col])
+# total_pan = colSums(binary_matrix[,col])
 
 binary_matrix$familles <- seq(1,nrow(binary_matrix))
 data = melt(binary_matrix, id.vars=c("familles"))
@@ -320,10 +322,10 @@ print(head(data))
 colnames(data) = c("fam","org","value")
 
 #ratio_shell = data.frame(x=col, y= round((total_shell/total_non_cloud)*shell_size+persistant_size))
-ratio_persistant = data.frame(x=col, y= round((total_persistant/total_pan)*persistant_size))
-print(ratio_persistant)
+# ratio_persistant = data.frame(x=col, y= round((total_persistant/total_pan)*persistant_size))
+# print(ratio_persistant)
 
-data$value <- factor(data$value, levels = c(TRUE,FALSE,"persistant", "shell", "cloud"), labels = c("presence","absence","persistant", "shell", "cloud"))
+data$value <- factor(data$value, levels = c(TRUE,FALSE,"persistant", "shell", "cloud", "strict_core", "accessory"), labels = c("presence","absence","persistant", "shell", "cloud","strict_core", "accessory"))
 print("gg")
 plot <- ggplot(data = data)+
         geom_raster(aes_string(x="org",y="fam", fill="value"))+
