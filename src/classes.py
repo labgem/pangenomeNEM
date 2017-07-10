@@ -168,7 +168,7 @@ class Pangenome:
 
         return(pan_str)    
 
-    def partition(self, result_path, k = 3, use_neighborhood = True, write_graph = None, neighbor_jumps = 1):
+    def partition(self, result_path, k = 3, use_neighborhood = False, write_graph = None, neighbor_jumps = 1):
         """ """ 
         if not k>1:
             raise ValueError("k must be at leat equal to 2")
@@ -242,7 +242,9 @@ class Pangenome:
         #bernouli -> no weight or normal -> weight
         model = "bern" #if self.weights is None else "norm"
         print_log = " -l y" if logging.getLogger().getEffectiveLevel() < 20 else "" 
-        command = NEM_LOCATION+"nem_exe "+result_path+"/nem_file "+str(k)+" -a nem -i 2000 -m "+model+" pk skd -s r 10 -n f-B fix -b "+("1" if use_neighborhood else "0")+" -T -O random"+print_log
+        command = NEM_LOCATION+"nem_exe "+result_path+"/nem_file "+str(k)+" -a nem -i 2000 -m "+model+" pk skd -s r 10 -n f -B fix -b "+("1" if use_neighborhood else "0")+" -T -O random"+print_log
+        #command = NEM_LOCATION+"nem_exe "+result_path+"/nem_file "+str(k)+" -a nem -i 2000 -m "+model+" pk skd -s r 10 -B fix -b 0 -T -O random"+print_log
+     
         logging.getLogger().info(command)
         proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         proc.communicate()
