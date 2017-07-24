@@ -75,11 +75,11 @@ class Pangenome:
                 prec = elements[0]
                 first_iter = False
             if elements[0] == prec:
-                families[elements[1]]=str(nb_families)
+                families[elements[1]]=elements[0]
             else :
                 prec = elements[0]
                 nb_families +=1
-                families[elements[1]]=str(nb_families)
+                families[elements[1]]=elements[0]
         organisms = []
         self.circular_contig = []
 
@@ -168,7 +168,7 @@ class Pangenome:
 
         return(pan_str)    
 
-    def partition(self, result_path, k = 3, use_neighborhood = False, write_graph = None, neighbor_jumps = 1):
+    def partition(self, result_path, k = 3, use_neighborhood = True, write_graph = None, neighbor_jumps = 1):
         """ """ 
         if not k>1:
             raise ValueError("k must be at leat equal to 2")
@@ -182,17 +182,17 @@ class Pangenome:
                 raise ValueError("write_graph must contain a format in the following list:'"+"', ".join(accessed_graph_output)+"'")
 
         if not os.path.exists(result_path):
-            #NEM requires 5 files: nem_file.index, nem_file.str, nem_file.dat, nem_file.ck (optional) and nem_file.nei
+            #NEM requires 5 files: nem_file.index, nem_file.str, nem_file.dat, nem_file.m (optional) and nem_file.nei
             os.makedirs(result_path)
 
         else:
             raise ValueError("result_path already exist")
 
-        logging.getLogger().info("Writing nem_file.str nem_file.index nem_file.nei nem_file.dat and nem_file.ck nem_files")
+        logging.getLogger().info("Writing nem_file.str nem_file.index nem_file.nei nem_file.dat and nem_file.m nem_files")
         index_file = open(result_path+"/nem_file.index", "w")
-        #ck_file  = open(result_path+"/nem_file.ck", "w")
         nei_file = open(result_path+"/nem_file.nei", "w")
         dat_file = open(result_path+"/nem_file.dat", "w")
+        m_file = open(result_path+"/nem_file.m", "w")
 
         if use_neighborhood:
             nei_file.write("1\n")
@@ -209,6 +209,8 @@ class Pangenome:
             node_name, node_organisms = node
 
             index_file.write(str(index[node_name])+"\t"+str(node_name)+"\n")
+            logging.getLogger().debug(node_organisms)
+            logging.getLogger().debug(self.organisms)
             dat_file.write("\t".join(["1" if org in node_organisms else "0" for org in self.organisms])+"\n")
 
             if use_neighborhood:
@@ -232,32 +234,61 @@ class Pangenome:
                     logging.getLogger().warning("The familly: "+node_name+" is an isolated familly")
                     nei_file.write(str(index[node_name])+"\t0\n")
 
+                
+
+        m_file.write("1 0.33 0.33 ") # 1 to initialize parameter, 0.33 and 0.33 for to give one third of initial portition to each class (last 0.33 is automaticaly determined by substraction)
+        m_file.write(" ".join(["1"]*self.nb_organisms)+" ") # persistent binary vector
+        m_file.write(" ".join(["1"]*self.nb_organisms)+" ") # shell binary vector
+        m_file.write(" ".join(["0"]*self.nb_organisms)+" ") # cloud binary vector
+        m_file.write(" ".join(["0.01"]*self.nb_organisms)+" ") # persistent dispersition vector
+        m_file.write(" ".join(["0.5"]*self.nb_organisms)+" ") # shell dispersition vector
+        m_file.write(" ".join(["0.01"]*self.nb_organisms)) # cloud dispersition vector
+
         index_file.close()
-        #ck_file.close()
         nei_file.close()
-        dat_file.close()             
+        dat_file.close()
+        m_file.close()
 
         logging.getLogger().info("Running NEM...")
 
         #bernouli -> no weight or normal -> weight
         model = "bern" #if self.weights is None else "norm"
         print_log = " -l y" if logging.getLogger().getEffectiveLevel() < 20 else "" 
-        command = NEM_LOCATION+"nem_exe "+result_path+"/nem_file "+str(k)+" -a nem -i 2000 -m "+model+" pk skd -s r 10 -n f -B fix -b "+("1" if use_neighborhood else "0")+" -T -O random"+print_log
-        #command = NEM_LOCATION+"nem_exe "+result_path+"/nem_file "+str(k)+" -a nem -i 2000 -m "+model+" pk skd -s r 10 -B fix -b 0 -T -O random"+print_log
+        #command = NEM_LOCATION+"nem_exe "+result_path+"/nem_file "+str(k)+" -a nem -i 2000 -m "+model+" pk skd -s r 10 -n f -B fix -b "+("1" if use_neighborhood else "0")+" -T -O random"+print_log
+        command = NEM_LOCATION+"nem_exe "+result_path+"/nem_file "+str(k)+" -a nem -i 2000 -m "+model+" pk skd -s m "+result_path+"/nem_file.m -B fix -b 0 -T -O random -f fuzzy"+print_log
      
         logging.getLogger().info(command)
         proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        proc.communicate()
+        (out,err) = proc.communicate()
+        logging.getLogger().debug(out)
+        logging.getLogger().debug(err)
         # M = float(re.search("\(M = (.+?)\)",output).group(1))# M=
         
         # logging.getLogger().info("Based on "+str(k)+" classes, BIC = "+str(round(self.BIC,4)))
-        if os.path.isfile(result_path+"/nem_file.cf"):
+        if os.path.isfile(result_path+"/nem_file.uf"):
             logging.getLogger().info("Reading NEM results")
         else:
-            logging.getLogger().error("No NEM output found in nem_file.cf")
+            logging.getLogger().error("No NEM output found in nem_file.uf")
         
-        with open(result_path+"/nem_file.cf","r") as classification_nem_file, open(result_path+"/nem_file.mf","r") as parameter_nem_file:
-            classification = classification_nem_file.readline().split()
+        with open(result_path+"/nem_file.uf","r") as classification_nem_file, open(result_path+"/nem_file.mf","r") as parameter_nem_file:
+            classification = []
+            for i, line in enumerate(classification_nem_file):
+                elements = [float(el) for el in line.split()]
+                max_prob = max([float(el) for el in elements])
+                classes = [pos for pos, prob in enumerate(elements) if prob == max_prob]
+                logging.getLogger().debug(classes)
+                logging.getLogger().debug(i)
+
+                if (len(classes)>1):
+                    classification.append(2)#shell
+                else:
+                    if classes[0] == 0:
+                        classification.append(1)#persistent
+                    elif classes[0] == 2:
+                        classification.append(3)#cloud
+                    else:
+                        classification.append(2)#shell
+
             parameter = parameter_nem_file.readlines()
             M = float(parameter[6].split()[3]) # M is markov ps-like
             if model == "norm":
@@ -421,9 +452,9 @@ class Pangenome:
                     except KeyError:
                         neighbors_graph.node[familly_id][organism]=set([gene])
                     try:
-                        neighbors_graph.node[fam_id]['name'].add(name)
+                        neighbors_graph.node[familly_id]['name'].add(name)
                     except KeyError:
-                        neighbors_graph.node[fam_id]['name']=set([name])
+                        neighbors_graph.node[familly_id]['name']=set([name])
         
         #inspired from http://stackoverflow.com/a/9114443/7500030
         def merge_overlapping_path(data):
