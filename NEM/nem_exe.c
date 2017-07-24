@@ -84,6 +84,7 @@ Vers-mod  Date         Who  Description
 1.06-e    21-SEP-1998  MD   TieRule copied in Errinfo
 1.07-a    26-FEB-1999  MD   Add Bernoulli family
 1.07-b    26-FEB-1999  MD   Add "\n" at end of final classification file
+1.08-a    20-JUI-2017  GG   Add param input by file rather than by arguments
 \*/
 
 #include "mainfunc.h"   /* Prototype of exported mainfunc() */
@@ -118,8 +119,7 @@ static const char *DisperDesVC[ DISPER_NB ] = { "S__", "SK_", "S_D", "S_KD" } ;
 static const char *ProporDesVC[ PROPOR_NB ] = { "P_", "Pk" } ;
 static const char *InitDesC[ INIT_NB ] = { "Sort_variables" ,
 					   "Random_centers" , 
-					   "Mixture_initial" ,
-					   "Mixture_fixed" ,
+					   "Param_file" ,
 					   "Full_labels" , 
 					   "Partial_labels" } ;    /*V1.03-f*/
 
@@ -193,11 +193,19 @@ static void FreeAllocatedData
          ( 
              const char  *LabelName,    /* I */
              int         Npt,           /* I */
-	     int         *KfileP,       /* O : file # classes */ /*V1.06-c*/
+             int         *KfileP,       /* O : file # classes */ /*V1.06-c*/
              int         **LabelVP,     /* O and allocated (Npt) */
              float       **ClassifMP    /* O and allocated (Npt*Nk) */
          );
-
+    static int  ReadParamFile  /*V1.08-a*/
+         (
+             const char  *ParamName,    /* I */
+  	     const FamilyET Family,
+             const int   K,          /* I : number of classes */
+             const int   D,          /* I : number of variables */
+             ParamFileET* ParamFileMode, /* O : specified if parameters will be used at begin or throughout the clustering process */
+             ModelParaT* ParaP       /* O : read parameters */
+         );
     static int  MakeErrinfo
          ( 
              const char* RefName,       /* I : filename of reference class */
@@ -478,11 +486,16 @@ static int GetInputPara
             return err ;
         break ;
 
+    case INIT_PARAM_FILE:
+        fprintf( stderr, "Reading parameter file ...\n" ) ;
+        if ( ( err = ReadParamFile( NemParaP->ParamName,
+                                    StatModelP->Spec.ClassFamily,
+                                    StatModelP->Spec.K,
+                                    DataP->NbVars,
+                                    & NemParaP->ParamFileMode,
+                                    & StatModelP->Para ) ) != STS_OK ) return err ;
     case INIT_SORT:    /* allocate partition (will be initialized later) */
     case INIT_RANDOM:  /* allocate partition (will be initialized later) */
-    case INIT_MIXINI:
-    case INIT_MIXFIX:
-
         /* Allocate classification matrix */
         if ( ( (*ClassifMP) = 
 	       GenAlloc( DataP->NbPts * StatModelP->Spec.K, sizeof( float ),
@@ -749,7 +762,128 @@ static int  ReadLabelFile
 
 }  /* end of ReadLabelFile() */
 
+/* ------------------------------------------------------------------- */
+static int  ReadParamFile /*V1.08-a*/
+         ( 
+             const char  *ParamName,    /* I */
+  	     const FamilyET Family,
+             const int   K,          /* I : number of classes */
+             const int   D,          /* I : number of variables */
+             ParamFileET* ParamFileMode, /* O : specified if parameters will be used at begin or throughout the clustering process */
+             ModelParaT* ParaP       /* O : read parameters */
+         )
+/* ------------------------------------------------------------------- */
+{
+   FILE  *fp;
 
+   if ( ( fp = fopen( ParamName, "r" ) ) == NULL )
+   {
+       fprintf( stderr, "File %s does not exist\n", ParamName ) ;
+       return STS_E_FILEIN ;
+   }
+
+  /* Read if file correspond to parameters at beginning (1) or throughout the clustering process (2) */ /*V1.08-a*/
+
+  int nbvalues = 1 + (K - 1) + K * D + K * D ;
+
+  int miOrMf = 0; 
+  if (fscanf( fp , "%d" , &miOrMf) == EOF)
+  {
+     fprintf( stderr, "The file %s needs at least %d values (%d missing)\n",ParamName,1 + (K - 1) + K * D + K * D,nbvalues) ;
+     return STS_E_FILEIN;
+  }
+  nbvalues-- ;
+  fprintf( stderr, "The file %d",miOrMf) ;
+  if (miOrMf==1)
+  { 
+    *ParamFileMode = PARAM_FILE_INIT ;
+  }
+  else if (miOrMf==2)
+  {
+    *ParamFileMode = PARAM_FILE_FIX ;
+  }
+  else
+  {
+    fprintf( stderr, "First line of file %s must be 1 (parameters at beginning) or 2 (fixed parameters throughout the clustering process) \n", ParamName ) ;
+    return STS_E_FILEIN ;
+  }
+  StatusET  sts = STS_OK ;
+  int       k ;   /* class counter : 0..K-1 */
+  int       d ;   /* variable counter : 0..D-1 */
+  float     pK ;  /* remaining proportion for class K */
+    
+  /* Read proportions */
+  float value;
+  for ( k = 0, pK = 1 ; 
+        k < K - 1 ; 
+        k ++ ) {
+   if (fscanf( fp , "%f" , &value) == EOF)
+   {
+        fprintf( stderr, "The file %s needs at least %d values (%d missing)\n",ParamName,1 + (K - 1) + K * D + K * D,nbvalues) ;
+        return STS_E_FILEIN;
+   }
+   nbvalues-- ;
+   ParaP->Prop_K[ k ] = value ;
+   pK = pK - ParaP->Prop_K[ k ] ;
+  }
+  ParaP->Prop_K[ K - 1 ] = pK ;
+  if ( pK <= 0.0 ) {
+    fprintf( stderr, "Last class has pK = %5.2f <= 0\n", pK ) ;
+    sts = STS_E_FILE ;
+  }
+
+   /* Read centers */
+  for ( k = 0 ; k < K ; k ++ ) {
+ 
+    for ( d = 0 ; d < D ; d ++ ) {
+
+      if (fscanf( fp , "%f" , &value) == EOF)
+      {
+         fprintf( stderr, "The file %s needs at least %d values (%d missing)\n",ParamName,1 + (K - 1) + K * D + K * D,nbvalues) ;
+         return STS_E_FILEIN;
+      }
+      nbvalues-- ;
+      ParaP->Center_KD[ k * D + d ] = value ;
+    }
+  }
+
+   /* Read dispersions */
+  for ( k = 0 ; k < K ; k ++ ) {
+
+    for ( d = 0 ; d < D ; d ++ ) {
+
+       if (fscanf( fp , "%f" , &value) == EOF)
+       {
+         fprintf( stderr, "The file %s needs at least %d values (%d missing)\n",ParamName,1 + (K - 1) + K * D + K * D,nbvalues) ;
+         return STS_E_FILEIN;
+       }
+       
+       nbvalues-- ;
+       if ( Family == FAMILY_NORMAL ) {
+         ParaP->Disp_KD[ k * D + d ] = value * value ;
+       }
+       else
+         ParaP->Disp_KD[ k * D + d ] = value ;
+       if ( ParaP->Disp_KD[ k * D + d ] <= 0 ) {
+
+          fprintf( stderr, "Dispersion(k=%d, d=%d) = %5.3f <= 0\n", 
+	         k+1, d+1, ParaP->Disp_KD[ k * D + d ] ) ;
+         sts = STS_E_FILE ;
+      }
+    }
+  }
+
+  if (fscanf( fp , "%f" , &value) != EOF)
+  {
+      fprintf( stderr, "The file %s needs do not need more than %d values\n",ParamName,1 + (K - 1) + K * D + K * D) ;
+      sts = STS_E_FILEIN;
+  }
+
+  fclose( fp ) ;
+          
+  return sts ;
+
+}  /* end of ReadParamFile() */
 
 /* ------------------------------------------------------------------- */
 static int  MakeErrinfo

@@ -4,7 +4,7 @@
 
     Project NEM : display of long help
 
-    Wed Feb 22 11:35:34 2017
+    Mon Jul 17 16:04:35 2017
 
 \*/
 
@@ -92,7 +92,7 @@ void PrintHelpGeneral( FILE* F )
     fprintf( F , "    interested to know for what kind of problem you have found\n" ) ;
     fprintf( F , "    this program to be of use.\n" ) ;
     fprintf( F , "\n" ) ;
-    fprintf( F , "Van Mô Dang\n" ) ;
+    fprintf( F , "Van Mo Dang\n" ) ;
     fprintf( F , "Van.Mo.Dang@utc.fr\n" ) ;
     fprintf( F , "http://www.hds.utc.fr/~mdang\n" ) ;
     fprintf( F , "\n" ) ;
@@ -183,7 +183,7 @@ void PrintHelpOptions( FILE* F )
     fprintf( F , "     classification to standard output; useful to pipe the result to an \n" ) ;
     fprintf( F , "     'nem_exe -s f -' session.\n" ) ;
     fprintf( F , "\n" ) ;
-    fprintf( F , "  -s init   [ s 1      ]   { s <v> | f <ini.uf> | r <n> | l <file> } \n" ) ;
+    fprintf( F , "  -s init   [ s 1      ]   { s <v> | f <ini.uf> | r <n> | l <file> | m <file> } \n" ) ;
     fprintf( F , "     Initialization mode.\n" ) ;
     fprintf( F , "     -s s <v>   \n" ) ;
     fprintf( F , "        Sort observations by variable <v>, then divide them\n" ) ;
@@ -203,11 +203,10 @@ void PrintHelpOptions( FILE* F )
     fprintf( F , "        parameters. Those labels remain fixed throughout the\n" ) ;
     fprintf( F , "        clustering process.\n" ) ;
     fprintf( F , "\n" ) ;
-    fprintf( F , "     -s mi <para> \n" ) ;
-    fprintf( F , "     -s mf <para>\n" ) ;
-    fprintf( F , "        Use specified parameters at beginning (mi) or throughout the\n" ) ;
-    fprintf( F , "        clustering process (mf). Parameters syntax :\n" ) ;
-    fprintf( F , "        p_1 ... p_{K-1}   m_11 .. m_1D m21 ... m_KD   s_11 ... s_KD.\n" ) ;
+    fprintf( F , "     -s m <file> \n" ) ;
+    fprintf( F , "        Use specified parameters at beginning (1) or throughout the\n" ) ;
+    fprintf( F , "        clustering process (2). Parameters syntax :\n" ) ;
+    fprintf( F , "        {1 2} p_1 ... p_{K-1}   m_11 .. m_1D m21 ... m_KD   s_11 ... s_KD.\n" ) ;
     fprintf( F , "        The s_kd are the standard errors for normal distributions, or\n" ) ;
     fprintf( F , "        the scale parameters for the Laplace distributions.\n" ) ;
     fprintf( F , "\n" ) ;
@@ -431,6 +430,18 @@ void PrintHelpFileIn( FILE* F )
     fprintf( F , "    0.9 0.1  /* object 1 : initial membership = 0.9/0.1 in class 1/2 */\n" ) ;
     fprintf( F , "    0.3 0.7  /* object 2 : initial membership = 0.3/0.7 in class 1/2 */\n" ) ;
     fprintf( F , "\n" ) ;
+    fprintf( F , "\n" ) ;
+    fprintf( F , " 4.c) file.m (option -s m)\n" ) ;
+    fprintf( F , " -----------\n" ) ;
+    fprintf( F , "    Contains the parameters (at begining or throughout the clustering process) of the mixture model separated by spaces\n" ) ;
+    fprintf( F , "\n" ) ;
+    fprintf( F , "    If the parameters are just initialized by this file, the file start by 1, ortherwise if the parameters are fixed throughout the clustering process the file start by 2\n" ) ;
+    fprintf( F , "    Then :\n" ) ;
+    fprintf( F , "    p_1 ... p_{K-1}   m_11 .. m_1D m21 ... m_KD   s_11 ... s_KD.\n" ) ;
+    fprintf( F , "    The s_kd are the standard errors for normal distributions, or\n" ) ;
+    fprintf( F , "    the scale parameters for the Laplace distributions.\n" ) ;
+    fprintf( F , "    - Ex 1 : fixed parameters (4 variables and 2 classes)\n" ) ;
+    fprintf( F , "    2 0.6 1 1 1 1 0 0 0 0 0.1 0.2 0.1 0.3 0.1 0.4 0.2 0.1 \n" ) ;
     fprintf( F , "\n" ) ;
 } /* end of PrintHelpFileIn() */
 

@@ -7,7 +7,7 @@
 
 #include "nem_ver.h"  /* Exported prototypes */
 
-const char *NemVersionStrC = "1.07" ; /* Current version of NEM */
+const char *NemVersionStrC = "1.08" ; /* Current version of NEM */
 
 void PrintVersions( FILE* F )         /* Describes successive versions */
 {
@@ -22,6 +22,7 @@ void PrintVersions( FILE* F )         /* Describes successive versions */
     fprintf( F , " 1.05  09.04.98  Missing data, initialization modified\n" ) ;
     fprintf( F , " 1.06  26.02.99  Pseudo-likelihood beta, Laplace distributions\n" ) ;
     fprintf( F , " 1.07  08.04.99  Bernoulli distributions\n" ) ;
+    fprintf( F , " 1.08  21.07.17  Add param input by file rather than by arguments \n" ) ;
     fprintf( F , "\n" ) ;
 }
 

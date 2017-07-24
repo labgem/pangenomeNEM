@@ -58,6 +58,7 @@ Vers-mod  Date         Who Description
 1.06-q    22-OCT-1998  MD  Bug : RandNemAlgo must save/restore best cen./disp.
 1.06-r    03-NOV-1998  MD  Process case 0 < cumnum < EPSILON
 1.06-t    01-DEV-1998  MD  pkfki and cinumv now double (was float)
+1.08-a    20-JUI-2017  GG   Add param input by file rather than by arguments
 \*/
 
 #include "nem_typ.h"    /* DataT, ... */
@@ -1148,8 +1149,7 @@ static int ClassifyByNemOneBeta                             /*V1.04-a*/
         break ;
 
 
-    case INIT_MIXINI:  /*V1.06-j*/
-    case INIT_MIXFIX:
+    case INIT_PARAM_FILE:
         fprintf( stderr, 
 		 "Initializing parameters from given value\n");
 
@@ -1804,7 +1804,7 @@ static int NemAlgo
 
         /* M-Step (Maximization) : compute current model parameters
            from old partition */
-	if ( NemParaP->InitMode != INIT_MIXFIX )
+	if ( NemParaP->ParamFileMode != PARAM_FILE_FIX )
 	  err = EstimPara( CM, DataP, nk,  NemParaP->MissMode, SpecP,
 			   &emptyk, ParaP ) ;
 

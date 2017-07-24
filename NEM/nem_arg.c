@@ -44,6 +44,7 @@ Vers-mod  Date         Who Description
 1.06-h    05-OCT-1998  MD  default nb of random inits = D * 5 
 1.06-i    05-OCT-1998  MD  default crit = CRIT_M
 1.07-a    08-APR-1999  MD  Add Bernoulli family
+1.08-a    20-JUI-2017  GG   Add param input by file rather than by arguments
 \*/
 
 #include "nem_typ.h"    /* DataT, ... */
@@ -79,6 +80,7 @@ Vers-mod  Date         Who Description
 #define DEFAULT_FORMAT       FORMAT_HARD
 #define DEFAULT_INIT         INIT_SORT
 #define DEFAULT_MISSING      MISSING_REPLACE    /*V1.05-a*/
+#define DEFAULT_NO_PARAM_FILE NO_PARAM_FILE     /*V1.08-a*/
 #define DEFAULT_SORTEDVAR    0
 #define DEFAULT_NEIGHSPEC    NEIGH_FOUR
 #define DEFAULT_NBITERS      100
@@ -91,7 +93,6 @@ Vers-mod  Date         Who Description
 
 typedef enum
 {
-
   HELP_GENERAL,
   HELP_OPTIONS,
   HELP_EXAMPLES,
@@ -120,7 +121,7 @@ static const char *HelpStrVC[ HELP_NB ] = {
   "versions"
 } ; /* V1.04-k*/
 
-static const char *InitStrVC[ INIT_NB ] = { "s", "r", "mi", "mf", "f", "l" } ;
+static const char *InitStrVC[ INIT_NB ] = { "s", "r", "m", "f", "l" } ;
 /*V1.05-a*/
 static const char *MissStrVC[ MISSING_NB ] = { "replace" , "ignore" } ;
 /*V1.06-b*/
@@ -135,20 +136,6 @@ static const char *TieStrVC[ TIE_NB ] = { "random", "first" } ;/*V1.06-e*/
 
 
 /* ==================== LOCAL FUNCTION PROTOTYPING =================== */
-
-/* Called by NemArgs */
-
-StatusET GetMixPara        /* STS_OK or STS_E_ARG */
- (
-  const FamilyET  Family,     /* I : distribution family */
-  const int       K,          /* I : number of classes */
-  const int       D,          /* I : number of variables */
-  const char*     Opts_Q[],   /* I : array of options */
-  const int       Q,          /* I : number of options */
-  int*            IoptP,      /* I/O : index of current option */
-  ModelParaT*     ParaP       /* O : read parameters */
- ) ;
-
 
 
 /* ==================== GLOBAL FUNCTION DEFINITION =================== */
@@ -289,6 +276,7 @@ int NemArgs
   NemParaP->Seed          = time( NULL ) ;          /*V1.04-e*/
   NemParaP->Format        = DEFAULT_FORMAT ;
   NemParaP->InitMode      = DEFAULT_INIT ;
+  NemParaP->ParamFileMode = DEFAULT_NO_PARAM_FILE ;
   NemParaP->SortedVar     = DEFAULT_SORTEDVAR ;
   NemParaP->NeighSpec     = DEFAULT_NEIGHSPEC ;
   NemParaP->VisitOrder    = DEFAULT_ORDER ;         /*V1.04-f*/
@@ -588,12 +576,22 @@ int NemArgs
 		    }
 		  break ;
 
-		case INIT_MIXINI: /* next args are parameter values */
-		case INIT_MIXFIX: /* next args are parameter values */
-		  /*V1.06-c*/
-		  err = GetMixPara( StatModelP->Spec.ClassFamily, nk, 
-				    DataP->NbVars, opts, nbopt, 
-				    & iopt, & StatModelP->Para ) ;
+		case INIT_PARAM_FILE: /* next args are parameter values */
+		    
+		  iopt ++ ;   /*V1.08-a*/
+		  if ( iopt < nbopt )
+		    {
+		      strncpy( NemParaP->ParamName, opts[ iopt ], 
+			       LEN_FILENAME ) ;
+		    }
+		  else
+		    {
+		      fprintf( stderr, 
+			       " Expected file name after switch %s\n", 
+			       opts[ iopt - 1 ] ) ;
+		      err = STS_E_ARG ;
+		    }
+                  break ;
 		  break ;
 
                 default:
@@ -1050,90 +1048,6 @@ int GetEnum( const char* S, const char* SV[], int SizeV ) /*V1.04-b*/
     return -1 ;
 }
 
-
-
-
-
-/* ------------------------------------------------------------------- */
-StatusET GetMixPara        /* STS_OK or STS_E_ARG */
- (
-  const FamilyET  Family,     /* I : distribution family */
-  const int       K,          /* I : number of classes */
-  const int       D,          /* I : number of variables */
-  const char*     Opts_Q[],   /* I : array of options */
-  const int       Q,          /* I : number of options */
-  int*            IoptP,      /* I/O : index of current option */
-  ModelParaT*     ParaP       /* O : read parameters */
- )
-/* ------------------------------------------------------------------- */
-{
-  StatusET  sts = STS_OK ;
-  int       k ;   /* class counter : 0..K-1 */
-  int       d ;   /* variable counter : 0..D-1 */
-  float     pK ;  /* remaining proportion for class K */
-	    
-  int       nbpara = K - 1 + K * D + K * D ;
-
-  if ( (*IoptP) + nbpara >= Q ) {
-    fprintf( stderr, "Need at least %d parameters (%d provided)\n",
-	     nbpara, Q - (*IoptP) ) ;
-
-    return STS_E_ARG ;
-  }
-
-  /* Read proportions */
-  for ( k = 0, pK = 1 ; 
-	k < K - 1 ; 
-	k ++ ) {
-    (*IoptP) ++ ;
-    ParaP->Prop_K[ k ] = atof( Opts_Q[ (*IoptP) ] ) ;
-    pK = pK - ParaP->Prop_K[ k ] ;
-  }
-  ParaP->Prop_K[ K - 1 ] = pK ;
-  if ( pK <= 0.0 ) {
-    fprintf( stderr, "Last class has pK = %5.2f <= 0\n", pK ) ;
-    return STS_E_ARG ;
-  }
-
-
-  /* Read centers */
-  for ( k = 0 ; k < K ; k ++ ) {
-
-    for ( d = 0 ; d < D ; d ++ ) {
-
-      (*IoptP) ++ ;
-      ParaP->Center_KD[ k * D + d ] = atof( Opts_Q[ (*IoptP) ] ) ;
-    }
-  }
-
-  /* Read dispersions */
-  for ( k = 0 ; k < K ; k ++ ) {
-
-    for ( d = 0 ; d < D ; d ++ ) {
-
-      (*IoptP) ++ ;
-      if ( Family == FAMILY_NORMAL ) {
-	float x = atof( Opts_Q[ (*IoptP) ] ) ;
-	ParaP->Disp_KD[ k * D + d ] = x * x ;
-      }
-      else
-	ParaP->Disp_KD[ k * D + d ] = atof( Opts_Q[ (*IoptP) ] ) ;
-
-      if ( ParaP->Disp_KD[ k * D + d ] <= 0 ) {
-
-	fprintf( stderr, "Dispersion(k=%d, d=%d) = %5.3f <= 0\n", 
-		 k+1, d+1, ParaP->Disp_KD[ k * D + d ] ) ;
-	sts = STS_E_ARG ;
-      }
-    }
-  }
-
-  return sts ;
-
-}   /* end of GetMixPara() */
-
-
-
 /* ------------------------------------------------------------------- */
 void PrintUsage( const char* CmdName )
 /* ------------------------------------------------------------------- */
@@ -1222,7 +1136,7 @@ void PrintUsage( const char* CmdName )
     fprintf( stderr, "%33s f <ini.uf> = from <ini.uf>\n", " " ) ; /*V1.04-a*/
     fprintf( stderr, "%33s r <n> = <n> random inits\n", " " ) ;
     fprintf( stderr, "%33s l <file> = use known labels from <file>\n", " " ) ;
-    fprintf( stderr, "%33s mi/mf <para> = initial/fixed parameters\n", " " ) ;
+    fprintf( stderr, "%33s m <file> = initial/fixed parameters\n", " " ) ; /*V1.08-a*/
 
     fprintf( stderr, "--- Press return for more options ---" ) ;
     getchar( ) ;

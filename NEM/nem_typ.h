@@ -36,6 +36,7 @@
     V1.06-j   30-NOV-1998  Add EPSILON_INV
     V1.06-k   01-DEC-1998  FkP double* instead of *float in compudensft
     V1.07-a   26-FEB-1999  FAMILY_BERNOULLI added
+    1.08-a    20-JUI-2017  GG   Add param input by file rather than by arguments 
 \*/
 
 /*
@@ -84,8 +85,8 @@ typedef enum {
 typedef enum { 
         ALGO_NEM ,    
         ALGO_NCEM ,
-	ALGO_GEM ,
-	ALGO_NB
+        ALGO_GEM ,
+        ALGO_NB
         } 
         AlgoET;
 
@@ -95,18 +96,18 @@ typedef enum {
         BETA_PSGRAD ,     /* Estimate beta using pseudo-likelihood gradient */
         BETA_HEUD,        /* Estimate beta using Hathaway heuristic */  
         BETA_HEUL,        /* Estimate beta using likelihood heuristic */  
-	BETA_NB
+        BETA_NB
         } 
         BetaET;           /* Beta estimation mode */ /*V1.04-a*/
 
 
 typedef enum { 
         CRIT_U ,    /* Use NEM criterion */
-	CRIT_M ,    /* Use markovian fuzzy log pseudo-likelihood */ /*V1.05-d*/
-	CRIT_D ,    /* Use Hathaway criterion */
-	CRIT_L ,    /* Use Mixture log-likelihood */
-	CRIT_NB	  
-        } 	  
+        CRIT_M ,    /* Use markovian fuzzy log pseudo-likelihood */ /*V1.05-d*/
+        CRIT_D ,    /* Use Hathaway criterion */
+        CRIT_L ,    /* Use Mixture log-likelihood */
+        CRIT_NB  
+        }
         CritET;     /* Which criterion to choose local max */ /*V1.04-h*/
 
 
@@ -167,12 +168,11 @@ typedef enum {
 typedef enum {
         INIT_SORT,
         INIT_RANDOM,
-	INIT_MIXINI,      /* EM mixture estimate at start */
-        INIT_MIXFIX,      /* EM mixture estimate with fixed value */
+        INIT_PARAM_FILE,      /* EM mixture estimate at start */
         INIT_FILE,
-	INIT_LABEL,
+        INIT_LABEL,
         INIT_NB
-        }
+}
         InitET ;
 
 typedef enum
@@ -183,6 +183,13 @@ typedef enum
 }
 MissET ;   /*V1.05-a*/
 
+typedef enum
+{
+  PARAM_FILE_FIX,  /* EM mixture parameters fixed at start an during all the clustering process */
+  PARAM_FILE_INIT,   /* EM mixture parameters fixed at start */
+  NO_PARAM_FILE,  /* EM mixture parameters not fixed at start */
+}
+ParamFileET ;   /*V1.08-a*/
 
 typedef enum {
         NEIGH_FOUR,
@@ -279,6 +286,7 @@ typedef struct
     FormET  Format ;    /* output file format (hard or fuzzy) */
     InitET  InitMode ;  /* initialization mode (histogram, random, file) */
     MissET  MissMode ;  /* how to process missing statistics */ /*V1.05-a*/
+    ParamFileET ParamFileMode ; /* parameters used at begin or throughout the clustering process*/ /*V1.08-a*/
     int     SortedVar ; /* variable to be sorted : 0..NbVars */
     NeighET NeighSpec ; /* neighborhood specification */
     OrderET VisitOrder ;/* order of visit at E-step */ /*V1.04-e*/
@@ -292,6 +300,7 @@ typedef struct
     char    NeighName[ LEN_FILENAME + 1 ] ; /* name of neighborhood file */
     char    LabelName[ LEN_FILENAME + 1 ] ; /* name of fixed labels file */
     char    RefName[ LEN_FILENAME + 1 ] ;   /* name of reference labels file *//*V1.04-f*/
+    char    ParamName[ LEN_FILENAME + 1 ] ; /* name of initilization param file *//*V1.08-a*/
 }
 NemParaT ;      /* NEM running parameters */
 
