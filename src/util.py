@@ -20,7 +20,6 @@ import string
 from decimal import Decimal
 import scipy.misc
 from math import cos, sin, pi, sqrt, atan2
-from Bio import SeqIO
 import subprocess
 import pandas as pd
 import logging

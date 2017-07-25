@@ -270,7 +270,7 @@ class Pangenome:
         else:
             logging.getLogger().error("No NEM output found in nem_file.uf")
         
-        with open(result_path+"/nem_file.uf","r") as classification_nem_file, open(result_path+"/nem_file.mf","r") as parameter_nem_file:
+        with open(res ult_path+"/nem_file.uf","r") as classification_nem_file, open(result_path+"/nem_file.mf","r") as parameter_nem_file:
             classification = []
             for i, line in enumerate(classification_nem_file):
                 elements = [float(el) for el in line.split()]
