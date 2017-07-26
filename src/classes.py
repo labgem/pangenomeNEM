@@ -428,6 +428,8 @@ class Pangenome:
                 start = 0
                 while contig_annot[start][FAMILLY_CODE] in self.families_repeted and start < len(contig_annot):
                     start += 1
+                if start == len(contig_annot):
+                    continue
                 familly_id_nei = contig_annot[start][FAMILLY_CODE]
                 gene_nei       = contig_annot[start][GENE]
                 logging.getLogger().debug(contig_annot[start])
@@ -458,6 +460,7 @@ class Pangenome:
                 else:
                     logging.getLogger().debug(contig)
                     #all_paths[familly_id].pop(None)[0]
+                    neighbors_graph.add_node(familly_id)
                     try:
                         neighbors_graph.node[familly_id][organism].add(gene)
                     except KeyError:
