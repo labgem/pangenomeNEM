@@ -37,6 +37,7 @@ class Pangenome:
         self.k                    = None
         self.BIC                  = None # Bayesian Index Criterion
         self.gene_location        = OrderedDict()
+        self.families_repeted     = set()
 
         if init_from == "file":
             self.__initialize_from_files(*args)
@@ -63,7 +64,7 @@ class Pangenome:
         #         self.core_list.append(fam)
         #     self.familly_ratio[fam] = conservation
 
-    def __initialize_from_files(self, organisms_file, families_tsv_file):
+    def __initialize_from_files(self, organisms_file, families_tsv_file, lim_occurence):
 
         logging.getLogger().info("Reading "+families_tsv_file.name+" families file ...")
         families    = dict()
@@ -89,7 +90,7 @@ class Pangenome:
             elements = line.split()
             self.nb_organisms +=1
             self.organisms.add(elements[0])
-            self.annotations[elements[0]] = self.__load_gff(elements[1], families, elements[0])
+            self.annotations[elements[0]] = self.__load_gff(elements[1], families, elements[0], lim_occurence)
             if len(elements)>2:
                 self.circular_contig += elements[2:len(elements)]
 
@@ -115,7 +116,7 @@ class Pangenome:
         # self.annotation_positions[cur_org] = intspan(self.annotation_positions[cur_org]+str(i))
         # self.familly_positions             = OrderedDict(sorted(self.familly_positions.items(), key=lambda t: t[0]))
 
-    def __load_gff(self, gff_file, families, organism):
+    def __load_gff(self, gff_file, families, organism, lim_occurence):
         logging.getLogger().info("Reading "+gff_file+" file ...")
         db_gff = gffutils.create_db(gff_file, ':memory:')
         annot = defaultdict(list)
@@ -123,6 +124,9 @@ class Pangenome:
         tandem_repeat = {}
         prev = None
         ctp_prev = 1
+
+        cpt_fam_occ = defaultdict(int)
+
         for row in db_gff.all_features(featuretype='CDS', order_by=('seqid','start')):
             logging.getLogger().debug(row)
             protein = row.id
@@ -132,6 +136,8 @@ class Pangenome:
                 cpt+=1
             else:
                 cpt=1
+
+            cpt_fam_occ[familly]+=1
             prev = families[protein]
 
             try:
@@ -146,6 +152,10 @@ class Pangenome:
             info                    = [protein,"CDS",organism,familly,row.start,row.end,row.strand, name]
             self.gene_location[protein] = [organism, row.seqid, len(annot[row.seqid])]
             annot[row.seqid].append(annot_row)
+        if (lim_occurence != -1):
+            fam_to_remove =[fam for fam,occ in cpt_fam_occ.items() if occ>lim_occurence]
+            self.families_repeted = self.families_repeted.union(set(fam_to_remove))
+
         return(annot)
 
     def __str__(self):
@@ -386,10 +396,10 @@ class Pangenome:
 
             if prec is None:
                 logging.getLogger().debug([fam_id, fam_nei, prec,org,gene])
-            if prec is not None:
-                all_paths[fam_nei][frozenset([prec,fam_id])].append(tuple([org,gene_nei]))
-            else:
-                all_paths[fam_nei][None].append(fam_id)
+            # if prec is not None:
+            #     all_paths[fam_nei][frozenset([prec,fam_id])].append(tuple([org,gene_nei]))
+            # else:
+            #     all_paths[fam_nei][None].append(fam_id)
             try:
                 neighbors_graph.node[fam_id][org].add(gene)
             except KeyError:
@@ -413,40 +423,41 @@ class Pangenome:
 
         for organism, annot_contigs in self.annotations.items():
             for contig, contig_annot in annot_contigs.items():
-                if len(contig_annot)>1:
-                    prec  = None
-                    familly_id_nei = contig_annot[0][FAMILLY_CODE]
-                    gene_nei       = contig_annot[0][GENE]
-                    logging.getLogger().debug(contig_annot[0])
-                    for index, row in enumerate(contig_annot[1:]):
-                        logging.getLogger().debug(row)
-                        gene       = row[GENE]
-                        name       = row[NAME]
-                        familly_id = row[FAMILLY_CODE]     
+                at_least_2_families = False
+                prec  = None
+                start = 0
+                while contig_annot[start][FAMILLY_CODE] in self.families_repeted and start < len(contig_annot):
+                    start += 1
+                familly_id_nei = contig_annot[start][FAMILLY_CODE]
+                gene_nei       = contig_annot[start][GENE]
+                logging.getLogger().debug(contig_annot[start])
+                for index, row in enumerate(contig_annot[start+1:]):
+
+                    logging.getLogger().debug(row)
+                    gene       = row[GENE]
+                    name       = row[NAME]
+                    familly_id = row[FAMILLY_CODE]  
+                    if familly_id not in self.families_repeted:
                         add_neighbors(familly_id, familly_id_nei, prec, organism, gene, gene_nei, name)
                         prec           = familly_id_nei
                         familly_id_nei = familly_id
                         gene_nei       = gene
-                    
-                    row = contig_annot[0]
-                    familly_id = row[FAMILLY_CODE]
-                    gene = row[GENE]
-                    name = row[NAME]
-                    
-                    if contig in self.circular_contig:
-                        add_neighbors(familly_id, familly_id_nei, prec, organism, gene, gene_nei, name)
-                        logging.getLogger().debug("first2 "+familly_id)
-                        logging.getLogger().debug("prec "+str(all_paths[familly_id]))
-                        prec = all_paths[familly_id].pop(None)[0]
-                        all_paths[familly_id][frozenset([familly_id_nei,prec])].append(tuple([organism,gene]))
-                    else:
-                        logging.getLogger().debug(contig)
-                        all_paths[familly_id].pop(None)[0]
+                        at_least_2_families = True
+                
+                row = contig_annot[start]
+                familly_id = row[FAMILLY_CODE]
+                gene = row[GENE]
+                name = row[NAME]
+                
+                if contig in self.circular_contig and at_least_2_families:
+                    add_neighbors(familly_id, familly_id_nei, prec, organism, gene, gene_nei, name)
+                    logging.getLogger().debug("first2 "+familly_id)
+                    logging.getLogger().debug("prec "+str(all_paths[familly_id]))
+                    #prec = all_paths[familly_id].pop(None)[0]
+                    #all_paths[familly_id][frozenset([familly_id_nei,prec])].append(tuple([organism,gene]))
                 else:
-                    gene       = contig_annot[0][GENE]
-                    familly_id = contig_annot[0][FAMILLY_CODE]
-                    name       = contig_annot[0][NAME]
-                    neighbors_graph.add_node(familly_id)
+                    logging.getLogger().debug(contig)
+                    #all_paths[familly_id].pop(None)[0]
                     try:
                         neighbors_graph.node[familly_id][organism].add(gene)
                     except KeyError:

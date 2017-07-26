@@ -69,7 +69,8 @@ if __name__=='__main__':
 	#parser.add_argument("-s", "--remove_singleton", default=False, action="store_true", help="Remove singleton to the pan-genome")
 	#parser.add_argument("-m", "--remove_ME", default=False, action="store_true", help="Remove the mobile elements (transposons, integrons, prophage gene) of the pan-genome")
 	parser.add_argument('-d', '--outputdirectory', type=str, nargs=1, default="output.dir", help="The output directory")
-	parser.add_argument("-n", "--neighborcomputation", type=int, default=1, help="Consider neighboors for the analysis with the max neighbor distance (integer) (0 = infinite distance)")
+	parser.add_argument('-r', '--remove_high_copy_number_families', type=int, nargs=1, default=[-1], help="Remove families having a number of copy of one families above or equal to this threshold in at least one organism (-1 to keep all families whatevez their occurence)")
+	parser.add_argument("-n", "--neighborcomputation", type=bool, default=1, help="Consider neighboors for the statiscal partionning")
 	parser.add_argument("-k", "--classnumber", type=int, nargs=1, default=[3], help="Number of classes to consider for other results than evolution (default = 3)")
 	parser.add_argument("-t", "--num_thread", default=1, nargs=1, help="The number of thread to use, 0 for autodetection")
 	parser.add_argument("-w", "--verbose", default=False, action="store_true", help="verbose")
@@ -89,16 +90,8 @@ if __name__=='__main__':
 	STATS_EXACT_FILE           = OUTPUTDIR+"/"+"stats_exact.txt"
 	STATS_NEM_FILE             = OUTPUTDIR+"/"+"stats_nem_"+str(options.classnumber[0])+".txt" 
 	ORGANISMS_FILE             = OUTPUTDIR+"/"+"organisms.txt"	
-	ONTOLOGY_FILE              = OUTPUTDIR+"/"+"ontology.txt"
-	COG_FILE                   = OUTPUTDIR+"/"+"COG.txt"
 
-	max_neighbordistance = float("inf") if int(options.neighborcomputation)==0 else int(options.neighborcomputation)
-	# num_thread = multiprocessing.cpu_count() if options.num_thread==0 else int(options.num_thread)
-	# num_thread = 1 if num_thread==0 else num_thread 
-	
-	distances = None
-	
-	pan = Pangenome("file", options.organisms[0],  options.gene_families[0])#, options.remove_singleton
+	pan = Pangenome("file", options.organisms[0],  options.gene_families[0], options.remove_high_copy_number_families[0])
 
 	pan.partition(NEMOUTPUTDIR+"/nb"+str(pan.nb_organisms)+"_k"+str(options.classnumber[0])+"i_0", options.classnumber[0], write_graph = "gexf")	
 
