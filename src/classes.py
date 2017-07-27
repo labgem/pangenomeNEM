@@ -374,7 +374,7 @@ class Pangenome:
             except KeyError:
                 neighbors_graph.node[fam_id]['name']=set([name])
 
-            if edge = True and not neighbors_graph.has_edge(fam_id,fam_nei):
+            if edge == True and not neighbors_graph.has_edge(fam_id,fam_nei):
                 neighbors_graph.add_edge(fam_id, fam_nei)
                 try:
                     neighbors_graph[fam_id][fam_nei]["weight"]=1
@@ -383,7 +383,7 @@ class Pangenome:
                 try:
                     neighbors_graph[fam_id][fam_nei][org]+=1
                 except KeyError:
-                neighbors_graph[fam_id][fam_nei][org]=1
+                    neighbors_graph[fam_id][fam_nei][org]=1
 
         for organism, annot_contigs in self.annotations.items():
             for contig, contig_annot in annot_contigs.items():
@@ -404,7 +404,7 @@ class Pangenome:
                     name       = row[NAME]
                     familly_id = row[FAMILLY_CODE]  
                     if familly_id not in self.families_repeted:
-                        add_neighbors(familly_id, familly_id_nei, organism, gene, name, True)
+                        add_families(familly_id, familly_id_nei, organism, gene, name, True)
                         prec           = familly_id_nei
                         familly_id_nei = familly_id
                         at_least_2_families = True
@@ -415,11 +415,11 @@ class Pangenome:
                 name = row[NAME]
                 
                 if contig in self.circular_contig and at_least_2_families:
-                    add_neighbors(familly_id, familly_id_nei, organism, gene, name, True)
+                    add_families(familly_id, familly_id_nei, organism, gene, name, True)
                     logging.getLogger().debug("first2 "+familly_id)
                     logging.getLogger().debug("prec "+str(all_paths[familly_id]))
                 else:
-                    add_neighbors(familly_id, familly_id, organism, gene, name, False)
+                    add_families(familly_id, familly_id, organism, gene, name, False)
                     logging.getLogger().debug(contig)
         
  
