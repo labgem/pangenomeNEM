@@ -56,8 +56,8 @@ if __name__=='__main__':
 		
 	#TODO add_argument_group and .add_mutually_exclusive_group()
 	group_progenome = parser.add_argument_group("progenome options")
-	group_progenome.add_argument('-o', '--organisms', type=argparse.FileType('r'), nargs=1, help="The tsv file provided by progenome containing the gene annotations")
-	group_progenome.add_argument('-g', '--gene_families', type=argparse.FileType('r'), nargs=1, help="The tsv file provided by progenome containing eggNOG orthologous groups related to the annotated genomes")
+	group_progenome.add_argument('-o', '--organisms', type=argparse.FileType('r'), nargs=1, help="The tsv file provided by progenome containing the gene annotations", required=True)
+	group_progenome.add_argument('-g', '--gene_families', type=argparse.FileType('r'), nargs=1, help="The tsv file provided by progenome containing eggNOG orthologous groups related to the annotated genomes",  required=True)
 
 	# parser.add_argument("-p", "--ponderation", default=False, action="store_true", help="use mash to calculate distance between genomes and based on these distances ponderate underepresented genomes via a MDS approach")
 	# ponderation = parser.add_mutually_exclusive_group()

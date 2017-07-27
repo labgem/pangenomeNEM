@@ -18,10 +18,8 @@ import shutil
 import random
 import string
 from decimal import Decimal
-import scipy.misc
 from math import cos, sin, pi, sqrt, atan2
 import subprocess
-import pandas as pd
 import logging
 
 ####################################################################################
