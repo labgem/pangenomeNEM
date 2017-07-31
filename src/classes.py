@@ -348,7 +348,10 @@ class Pangenome:
                 logging.getLogger().info("Writing graphML file")
                 getattr(nx,'write_'+write_graph)(self.neighbors_graph,result_path+"/graph."+write_graph)
         
-        logging.getLogger().info("Discarded families are:\n"+"\n".join(self.families_repeted))
+        if len(self.families_repeted)>0:
+            logging.getLogger().info("Discarded families are:\n"+"\n".join(self.families_repeted))
+        else:
+            logging.getLogger().info("No families have been Discarded")
         #positions = forceatlas2.forceatlas2_networkx_layout(self.neighbors_graph, 
         #                                                    niter=10,
         #                                                    edgeWeightInfluence=0.8)
@@ -363,8 +366,6 @@ class Pangenome:
         def add_families(fam_id, fam_nei,org, gene, name,edge = True):#, prec , gene_nei
             neighbors_graph.add_node(fam_id)
             neighbors_graph.add_node(fam_nei)
-
-
             try:
                 neighbors_graph.node[fam_id][org].add(gene)
             except KeyError:
@@ -374,8 +375,9 @@ class Pangenome:
             except KeyError:
                 neighbors_graph.node[fam_id]['name']=set([name])
 
-            if edge == True and not neighbors_graph.has_edge(fam_id,fam_nei):
-                neighbors_graph.add_edge(fam_id, fam_nei)
+            if edge == True:
+                if not neighbors_graph.has_edge(fam_id,fam_nei):
+                    neighbors_graph.add_edge(fam_id, fam_nei)
                 try:
                     neighbors_graph[fam_id][fam_nei]["weight"]+=1
                 except KeyError:
