@@ -348,7 +348,7 @@ class Pangenome:
                 logging.getLogger().info("Writing graphML file")
                 getattr(nx,'write_'+write_graph)(self.neighbors_graph,result_path+"/graph."+write_graph)
         
-        logging.getLogger.info("Discarded families are:\n"+"\n".join(self.families_repeted))
+        logging.getLogger().info("Discarded families are:\n"+"\n".join(self.families_repeted))
         #positions = forceatlas2.forceatlas2_networkx_layout(self.neighbors_graph, 
         #                                                    niter=10,
         #                                                    edgeWeightInfluence=0.8)
