@@ -348,6 +348,7 @@ class Pangenome:
                 logging.getLogger().info("Writing graphML file")
                 getattr(nx,'write_'+write_graph)(self.neighbors_graph,result_path+"/graph."+write_graph)
         
+        logging.getLogger.info("Discarded families are:\n"+"\n".join(self.families_repeted))
         #positions = forceatlas2.forceatlas2_networkx_layout(self.neighbors_graph, 
         #                                                    niter=10,
         #                                                    edgeWeightInfluence=0.8)
@@ -358,8 +359,7 @@ class Pangenome:
     def __neighborhoodComputation(self):#initNeighborDistance, maxNeighborDistance,
 
         neighbors_graph = nx.Graph()
-        all_paths = defaultdict(lambda : defaultdict(list))  
-
+        
         def add_families(fam_id, fam_nei,org, gene, name,edge = True):#, prec , gene_nei
             neighbors_graph.add_node(fam_id)
             neighbors_graph.add_node(fam_nei)
@@ -377,7 +377,7 @@ class Pangenome:
             if edge == True and not neighbors_graph.has_edge(fam_id,fam_nei):
                 neighbors_graph.add_edge(fam_id, fam_nei)
                 try:
-                    neighbors_graph[fam_id][fam_nei]["weight"]=1
+                    neighbors_graph[fam_id][fam_nei]["weight"]+=1
                 except KeyError:
                     neighbors_graph[fam_id][fam_nei]["weight"]=1
                 try:
@@ -388,7 +388,6 @@ class Pangenome:
         for organism, annot_contigs in self.annotations.items():
             for contig, contig_annot in annot_contigs.items():
                 at_least_2_families = False
-                prec  = None
                 start = 0
                 while (start < len(contig_annot) and contig_annot[start][FAMILLY_CODE] in self.families_repeted):
                     start += 1
@@ -397,30 +396,31 @@ class Pangenome:
 
                 familly_id_nei = contig_annot[start][FAMILLY_CODE]
                 logging.getLogger().debug(contig_annot[start])
-                for index, row in enumerate(contig_annot[start+1:]):
-
-                    logging.getLogger().debug(row)
-                    gene       = row[GENE]
-                    name       = row[NAME]
-                    familly_id = row[FAMILLY_CODE]  
-                    if familly_id not in self.families_repeted:
-                        add_families(familly_id, familly_id_nei, organism, gene, name, True)
-                        prec           = familly_id_nei
-                        familly_id_nei = familly_id
+                for index, gene_row in enumerate(contig_annot[start+1:]):
+                    logging.getLogger().debug(gene_row)
+                    if gene_row[FAMILLY_CODE] not in self.families_repeted:
+                        add_families(gene_row[FAMILLY_CODE],
+                                     familly_id_nei,
+                                     organism,
+                                     gene_row[GENE],
+                                     gene_row[NAME],
+                                     True)
+                        familly_id_nei = gene_row[FAMILLY_CODE]
                         at_least_2_families = True
                 
-                row = contig_annot[start]
-                familly_id = row[FAMILLY_CODE]
-                gene = row[GENE]
-                name = row[NAME]
-                
                 if contig in self.circular_contig and at_least_2_families:
-                    add_families(familly_id, familly_id_nei, organism, gene, name, True)
-                    logging.getLogger().debug("first2 "+familly_id)
-                    logging.getLogger().debug("prec "+str(all_paths[familly_id]))
+                    add_families(contig_annot[start][FAMILLY_CODE],
+                                 familly_id_nei,
+                                 organism,
+                                 contig_annot[start][GENE],
+                                 contig_annot[start][NAME],
+                                 True)
                 else:
-                    add_families(familly_id, familly_id, organism, gene, name, False)
-                    logging.getLogger().debug(contig)
+                    add_families(contig_annot[start][FAMILLY_CODE],
+                                 contig_annot[start][FAMILLY_CODE],
+                                 organism,
+                                 contig_annot[start][GENE],
+                                 contig_annot[start][NAME],
+                                 False)
         
- 
         return neighbors_graph
