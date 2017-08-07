@@ -23,11 +23,117 @@ import gzip
 NEM_LOCATION  = "../NEM/nem_exe"
 (GENE, TYPE, ORGANISM, FAMILLY_CODE, START, END, STRAND, NAME) = range(0, 8)
 
+"""  
+    :mod:`pangenome` -- Depict microbial diversity
+===================================
+
+.. module:: pangenome
+   :platform: Unix
+   :synopsis: Depict microbial diversity via a partionned pangenome graph.
+    .. moduleauthor:: Guillaume GAUTREAU (LABGeM, Genoscope, France) ggautrea@genoscope.cns.fr
+
+    Description
+    -------------------
+    Pangenomes are generally stored in a binary matrix denoting the presence or absence of each gene family across organisms. However, this structure does not handle the genomic organization of gene families in each organism. We propose a graph model where nodes represent families and edges chromosomal neighborhood information. Indeed, it is known that core gene families share conserved organizations whereas variable regions are rather randomly distributed along genomes.
+Moreover, our method classifies gene families through an Expectation/Maximization algorithm based on Bernoulli mixture model. This approach splits pangenomes in three groups: (1) persistent genome, equivalent to a relaxed core genome (genes conserved in all but a few genomes); (2) shell genome, genes having intermediate frequencies corresponding to moderately conserved genes potentially associated to environmental adaptation capabilities; (3) cloud genome, genes found at very low frequency.
+
+""" 
 
 class PPanGGOLiN:
-    """  """ 
+
+    """  
+          The ``PPanGGOLiN`` class
+        ======================
+        .. class:: PPanGGOLiN
+
+            Pangenomes are generally stored in a binary matrix denoting the presence or absence of each gene family across organisms. 
+            However, this structure does not handle the genomic organization of gene families in each organism. 
+            We propose a graph model where nodes represent families and edges chromosomal neighborhood information. 
+            Indeed, it is known that core gene families share conserved organizations whereas variable regions are rather randomly distributed along genomes.
+            The PPanGGOLiN class models the genemic diversity of a pangenome, this modelisation organize the genemic diveristy via a pangenome graph of chromosomal neigborhood.
+            Moreover, our method classifies gene families through an Expectation/Maximization algorithm based on Bernoulli mixture model. 
+            This approach splits pangenomes in three groups: 
+                1. *persistent genome*, equivalent to a relaxed core genome (genes conserved in all but a few genomes); 
+                2. *shell genome*, genes having intermediate frequencies corresponding to moderately conserved genes potentially associated to environmental adaptation capabilities; 
+                3. *cloud genome*, genes found at very low frequency.
+
+            .. attribute:: annotations
+
+                multilevel dictionnaries 
+
+            .. attribute:: neighbors_graph
+
+                bllla
+
+            .. attribute:: organisms
+
+                bllla
+
+            .. attribute:: nb_organisms
+
+                bllla
+
+            .. attribute:: circular_contig
+
+                bllla
+
+            .. attribute:: pan_size
+
+                bllla
+
+            .. attribute:: intermediate_file
+
+                bllla
+
+            .. attribute:: partitions
+
+                bllla
+
+            .. attribute:: BIC
+
+                bllla
+
+            .. attribute:: families_repeted
+
+                bllla
+
+            .. method:: partition(nem_dir_path)
+
+                bllla
+
+            .. method:: export_to_GEXF()
+
+                bllla
+
+            .. method:: import_from_GEXF()
+
+                blbaal
+
+            .. method:: neighborhood_computation()
+
+                blbaal
+
+            .. method:: delete_pangenome_graph()
+
+                blbaal
+
+            .. method:: delete_intermediate_file()
+
+                blbaal
+
+    """ 
     def __init__(self, init_from = "args", *args):
-        """  """ 
+        """ 
+            :param init_from: specified the excepted input (can be "file", "args", "database")
+            :param *args: depending on the previous paramter, args can take multiple forms
+            :type init_from: str
+            :type *args: list of argument 
+
+            :Example:
+
+            >>>pan = PPanGGOLiN("file", organisms, gene_families, remove_high_copy_number_families)
+            >>>pan = PPanGGOLiN("args", self.annotations, self.organisms, self.circular_contig, self.families_repeted)
+        """ 
         self.annotations          = dict()
         self.neighbors_graph      = None
         self.organisms            = OrderedSet()
@@ -52,29 +158,45 @@ class PPanGGOLiN:
              self.circular_contig,
              self.families_repeted) = args 
         elif init_from == "database":
+            logging.getLogger().error("database is not yet implemented")
             pass
         else:
             raise ValueError("init_from parameter is required")
         self.nb_organisms = len(self.organisms)
 
     def __initialize_from_files(self, organisms_file, families_tsv_file, lim_occurence):
-        """ """
+        """ 
+            :param organisms_file: 
+            :param families_tsv_file: 
+            :param lim_occurence: 
+            :type file: 
+            :type file: 
+            :type int: 
+
+            :Example:
+
+            >>>pan.__initialize_from_files(organisms_file, families_tsv_file, lim_occurence)
+
+
+The tsv file provided by progenome containing the gene annotations. --organims is a tab delimited files containg at least 2 mandatory fields by row and as many optional field as circular contig. Each row correspond to an organism to be added to the pangenome.
+Reserved words are : "id", "label", "name", "weight", "partition", "partition_exact"
+The first field is the organinsm name (id should be unique not contain any spaces, " or ' and reserved words).
+The seconde field is the gff file associated to the organism. This path can be abolute or relative. The gff file must contain an id feature for each CDS (id should be unique not contain any spaces, " or ' and reserved words).
+The next fields contain the name of perfectly assemble circular contigs (contig name must should be unique and not contain any spaces, " or ' and reserved words).
+example:
+
+
+
+
+        """ 
         logging.getLogger().info("Reading "+families_tsv_file.name+" families file ...")
         families    = dict()
         nb_families = 0
         first_iter  = True
         for line in families_tsv_file:
             elements = line.split()
-            if first_iter:
-                prec = elements[0]
-                first_iter = False
-            if elements[0] == prec:
-                families[elements[1]]=elements[0]
-            else :
-                prec = elements[0]
-                nb_families +=1
-                families[elements[1]]=elements[0]
-        organisms = []
+            families[elements[1]]=elements[0]
+
         self.circular_contig = []
 
         logging.getLogger().info("Reading "+organisms_file.name+" families file ...")
@@ -88,10 +210,20 @@ class PPanGGOLiN:
 
         self.circular_contig = set(self.circular_contig)
 
-        return nb_families
-
     def __load_gff(self, gff_file, families, organism, lim_occurence):
-        """ Load the content of a gff file """ 
+        """
+            Load the content of a gff file
+            :param gff_file: 
+            :param families: 
+            :param organism: 
+            :param lim_occurence: 
+            :type str: 
+            :type dict: 
+            :type str: 
+            :type int: 
+            :return: annot: 
+            :rtype: dict 
+        """ 
         logging.getLogger().info("Reading "+gff_file+" file ...")
         db_gff = gffutils.create_db(gff_file, ':memory:')
         annot = defaultdict(list)
@@ -128,7 +260,7 @@ class PPanGGOLiN:
             #self.gene_location[protein] = [organism, row.seqid, len(annot[row.seqid])]
             annot[row.seqid].append(annot_row)
         if (lim_occurence >0):
-            fam_to_remove =[fam for fam,occ in cpt_fam_occ.items() if occ>lim_occurence]
+            fam_to_remove =[fam for fam, occ in cpt_fam_occ.items() if occ > lim_occurence]
             self.families_repeted = self.families_repeted.union(set(fam_to_remove))
 
         return(annot)
@@ -154,7 +286,9 @@ class PPanGGOLiN:
         return(pan_str)    
 
     def partition(self, nem_dir_path):
-        """ Read the Mo Dang's thesis to understand NEM and Bernouilli Mixture Model, a summary is available here : http://www.kybernetika.cz/content/1998/4/393/paper.pdf """ 
+        """
+            . seealso:: Read the Mo Dang's thesis to understand NEM and Bernouilli Mixture Model, a summary is available here : http://www.kybernetika.cz/content/1998/4/393/paper.pdf
+        """ 
 
         if not os.path.exists(nem_dir_path):
             #NEM requires 5 files: nem_file.index, nem_file.str, nem_file.dat, nem_file.m and nem_file.nei
@@ -162,12 +296,12 @@ class PPanGGOLiN:
         self.intermediate_file = nem_dir_path
 
         logging.getLogger().info("Writing nem_file.str nem_file.index nem_file.nei nem_file.dat and nem_file.m files")
-        str_file = open(nem_dir_path+"/nem_file.str", "w")
+        str_file   = open(nem_dir_path+"/nem_file.str", "w")
         index_file = open(nem_dir_path+"/nem_file.index", "w")
-        org_file = open(nem_dir_path+"/column_org_file", "w")
-        nei_file = open(nem_dir_path+"/nem_file.nei", "w")
-        dat_file = open(nem_dir_path+"/nem_file.dat", "w")
-        m_file = open(nem_dir_path+"/nem_file.m", "w")
+        org_file   = open(nem_dir_path+"/column_org_file", "w")
+        nei_file   = open(nem_dir_path+"/nem_file.nei", "w")
+        dat_file   = open(nem_dir_path+"/nem_file.dat", "w")
+        m_file     = open(nem_dir_path+"/nem_file.m", "w")
 
         str_file.write("S\t"+str(self.pan_size)+"\t"+str(self.nb_organisms)+"\n")
         str_file.close()
@@ -212,11 +346,11 @@ class PPanGGOLiN:
 
         m_file.write("1 0.33 0.33 ") # 1 to initialize parameter, 0.33 and 0.33 for to give one third of initial portition to each class (last 0.33 is automaticaly determined by substraction)
         m_file.write(" ".join(["1"]*self.nb_organisms)+" ") # persistent binary vector
-        m_file.write(" ".join(["1"]*self.nb_organisms)+" ") # shell binary vector
+        m_file.write(" ".join(["1"]*self.nb_organisms)+" ") # shell binary vector (1 ou 0, whatever because dispersion will be of 0.5)
         m_file.write(" ".join(["0"]*self.nb_organisms)+" ") # cloud binary vector
-        m_file.write(" ".join(["0.01"]*self.nb_organisms)+" ") # persistent dispersition vector
-        m_file.write(" ".join(["0.5"]*self.nb_organisms)+" ") # shell dispersition vector
-        m_file.write(" ".join(["0.01"]*self.nb_organisms)) # cloud dispersition vector
+        m_file.write(" ".join(["0.01"]*self.nb_organisms)+" ") # persistent dispersition vector (low)
+        m_file.write(" ".join(["0.5"]*self.nb_organisms)+" ") # shell dispersition vector (high)
+        m_file.write(" ".join(["0.01"]*self.nb_organisms)) # cloud dispersition vector (low)
 
         index_file.close()
         nei_file.close()
@@ -225,12 +359,12 @@ class PPanGGOLiN:
 
         logging.getLogger().info("Running NEM...")
 
-        K       = 3 # number of partitions
-        ALGO    = "nem" #fuzzy classification by mean field approximation
-        BETA    = 0 # coeficient of spatial smoothing to apply, 0 is equivalent to EM for mixture model
-        ITERMAX = 100 # number of iteration max 
-        MODEL   = "bern" # multivariate Bernoulli mixture model
-        PROPORTION = "pk" #equal proportion :  "p_"     varying proportion : "pk"
+        K              = 3 # number of partitions
+        ALGO           = "nem" #fuzzy classification by mean field approximation
+        BETA           = 0 # coeficient of spatial smoothing to apply, 0 is equivalent to EM for mixture model
+        ITERMAX        = 100 # number of iteration max 
+        MODEL          = "bern" # multivariate Bernoulli mixture model
+        PROPORTION     = "pk" #equal proportion :  "p_"     varying proportion : "pk"
         VARIANCE_MODEL = "skd" #one variance per partition and organism : "sdk"      one variance per partition, same in all organisms : "sd_"   one variance per organism, same in all partion : "s_d"    same variance in organisms and partions : "s__" 
 
         command = " ".join([NEM_LOCATION, 
@@ -312,7 +446,7 @@ class PPanGGOLiN:
             max_epsilon_k = max(sum_epsilon_k)
             shell_k = sum_epsilon_k.index(max_epsilon_k)
 
-            cloud_k = set([0,1,2]) - set([persistent_k,shell_k])
+            cloud_k = set([0,1,2]) - set([persistent_k, shell_k])
             cloud_k = list(cloud_k)[0]
 
             logging.getLogger().debug(sum_mu_k)
@@ -360,7 +494,12 @@ class PPanGGOLiN:
         # figure.savefig("graph2.png")
         
     def export_to_GEXF(self, graph_output_path, compressed=False):
-        """ """
+        """ 
+
+        
+            .. warning:: please use the function neighborhoodComputation before please use the function partition before
+
+        """
         if self.neighbors_graph is None:
             logging.getLogger().error("neighbors_graph is not built, please use the function neighborhoodComputation before")
         elif self.intermediate_file is None:
@@ -493,17 +632,18 @@ if __name__=='__main__':
     parser = argparse.ArgumentParser(description='Build a partitioned pangenome graph from annotated genomes and gene families')
     parser.add_argument('-?', '--version', action='version', version='0.1')
     parser.add_argument('-o', '--organisms', type=argparse.FileType('r'), nargs=1, help="""
-The tsv file provided by progenome containing the gene annotations. --organims is a tab delimited files containg at least 2 mandatory fields by row and as many optional field as circular contig. Each row correspond to an organism to be added to the pangenome.
+A tab delimited file containg at least 2 mandatory fields by row and as many optional field as circular contig. Each row correspond to an organism to be added to the pangenome.
 Reserved words are : "id", "label", "name", "weight", "partition", "partition_exact"
 The first field is the organinsm name (id should be unique not contain any spaces, " or ' and reserved words).
-The seconde field is the gff file associated to the organism. This path can be abolute or relative. The gff file must contain an id feature for each CDS (id should be unique not contain any spaces, " or ' and reserved words).
-The next fields contain the name of perfectly assemble circular contigs (contig name must should be unique and not contain any spaces, " or ' and reserved words).
+The second field is the gff file associated to the organism. This path can be abolute or relative. The gff file must contain an id feature for each CDS (id should be unique not contain any spaces, " or ' and reserved words).
+The next fields contain the name of perfectly assembled circular contigs.
+Contig names should be unique and not contain any spaces, quote, double quote and reserved words.
 example:""", required=True)
     parser.add_argument('-f', '--gene_families', type=argparse.FileType('r'), nargs=1, help="""
-is a file containg contain the families of gene. Each row contain 2 fields.
+A tab delimited file containg the gene families. Each row contain 2 fields.
 Reserved words are : "id", "label", "name", "weight", "partition", "partition_exact"
-first field is the familly name.
-second field is the gene name.
+The first field is the familly name.
+The second field is the gene name.
 famillies are intended to be grouped by chuncks of row.
 the families name can be any string but must should be unique and not contain any spaces, " or ' and reserved words
 As a conventation, it is recommanded to use the name of the most reprensative gene of the famillies as the familly name.
