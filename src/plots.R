@@ -17,12 +17,12 @@ ggcolors <- function(n = 6){
 
 args = commandArgs(trailingOnly=TRUE)
 
-color_chart = c(pangenome="black", accessory="#EB37ED", shell = "#00D860", persistant="#F7A507", strict_core ="#FF2828", cloud = "#79DEFF")
+color_chart = c(pangenome="black", "100_accessory"="#EB37ED", "100_core" ="#FF2828","95_accessory"="#fde2fd", "95_core" ="#fbc7c7", shell = "#00D860", persistant="#F7A507", cloud = "#79DEFF")
 
 #cloud = Bleu
 #shell = vert
 #persistant = orange
-#strict_core = Rouge
+#100_core = Rouge
 #pangenome = noir
 #accesoire = rose
 
@@ -86,7 +86,7 @@ if(nrow(data)>=2){
 	ggsave(paste0(args[1],"/figures/","evolution.pdf"), device = "pdf", width = (par("din")[1]*2) ,p)
 
 	data <- read.table(paste0(args[1],"/","evolution_stats_exact.txt")) 
-	colnames(data) <- c("c","strict_core","accessory","pangenome")
+	colnames(data) <- c("c","100_core","100_accessory","pangenome")
 	data <- melt(data, id = "c")
 	colnames(data) <- c("c","cluster","value")
 
@@ -96,18 +96,18 @@ if(nrow(data)>=2){
 	final_state = data[data$c == max_c,]
 
 	final_pangenome = final_state[final_state$cluster == "pangenome", "value"]
-	final_accessory = final_state[final_state$cluster == "accessory", "value"]
-	final_core_strict = final_state[final_state$cluster == "strict_core", "value"]
+	final_100_accessory = final_state[final_state$cluster == "100_accessory", "value"]
+	final_core_strict = final_state[final_state$cluster == "100_core", "value"]
 
-	final<- c(final_pangenome,final_accessory,final_core_strict)
-	names(final) <- c("pangenome","accessory","strict_core")
+	final<- c(final_pangenome,final_100_accessory,final_core_strict)
+	names(final) <- c("pangenome","100_accessory","100_core")
 
 	median_by_comb <- setDT(data)[,list(med=as.numeric(median(value))),by=c("c","cluster")]
 	colnames(median_by_comb) <- c("comb","cluster","med")
 
 	p <- ggplot(data = data, aes_string(x="c",y="value", colour = "cluster"))+
 		ggtitle(bquote(list("Rarefaction curve. Heaps-law parameters based on Tettelin et al. 2008 approach", kappa==.(kappa), gamma==.(gamma))))+
-		geom_smooth(data = median_by_comb[median_by_comb$cluster %in% c("pangenome","accessory") ,], aes_string(x="comb",y="med",colour = "cluster"), method="nls",formula=y~kapa*(x^gama),method.args =list(start=c(kapa=1000,gama=1)),linetype="twodash",size = 1.5,se=FALSE, show.legend = FALSE)+
+		geom_smooth(data = median_by_comb[median_by_comb$cluster %in% c("pangenome","100_accessory") ,], aes_string(x="comb",y="med",colour = "cluster"), method="nls",formula=y~kapa*(x^gama),method.args =list(start=c(kapa=1000,gama=1)),linetype="twodash",size = 1.5,se=FALSE, show.legend = FALSE)+
 		stat_summary(fun.ymin = function(z) { quantile(z,0.25) },  fun.ymax = function(z) { quantile(z,0.75) }, geom="ribbon", alpha=0.1,size=0.1, linetype="dashed", show.legend = FALSE)+
 		stat_summary(fun.y=median, geom="line",size=0.5)+
 		stat_summary(fun.y=median, geom="point",shape=4,size=1, show.legend = FALSE)+
@@ -133,7 +133,8 @@ if(nrow(data)>=2){
 #CLUSTER
 
 #binary_matrix <- read.table(paste0(args[1],"NEM_results/nborg",max_c,"_k3_i0/file.dat"), header=FALSE)
-binary_matrix <- read.table("test_evol_2/72_0/NEM_results/nb72_k3i_0/nem_file.dat", header=FALSE)
+#binary_matrix <- read.table("test_evol_2/72_0/NEM_results/nb72_k3i_0/nem_file.dat", header=FALSE)
+binary_matrix <- read.table("nem_file.dat", header=FALSE)
 head(binary_matrix)
 binary_matrix <- ifelse(binary_matrix != 0, TRUE, FALSE)
 
@@ -143,7 +144,15 @@ occurences <- rowSums(binary_matrix)
 head(occurences)
 
 #classification_vector <- unlist(strsplit(readLines(paste0(args[1],"NEM_results/nborg",max_c,"_k3_i0/file.cf")), " "))
-classification_vector <- unlist(strsplit(readLines("test_evol_2/72_0/NEM_results/nb72_k3i_0/nem_file.cf"), " "))
+#classification_vector <- unlist(strsplit(readLines("test_evol_2/72_0/NEM_results/nb72_k3i_0/nem_file.cf"), " "))
+	classification = read.table("nem_file.uf", header=FALSE)
+classification_vector <- apply (classification,1, FUN = function(x){
+	if(x[1]==1 && x[3]==0){
+		return(1)
+	} else if (x[1]==0 && x[3]==1){
+		return(3)
+	} else{return(2)}
+})
 
 head(classification_vector)
 
@@ -163,13 +172,17 @@ classification_vector[classification_vector == means[3,"cluster"]] <- "persistan
 c = data.frame(nb_org = occurences, cluster = classification_vector)
 
 plot <- ggplot(data = c) + 
-	geom_bar(aes_string(x = "factor(nb_org)", fill = "cluster")) +
+	geom_bar(aes_string(x = "nb_org", fill = "cluster")) +
 #	coord_flip() +
 	scale_fill_manual(name = "partition", values = color_chart, breaks=c("persistant","shell","cloud")) +
+	scale_x_discrete(limits = seq(1, ncol(binary_matrix))) +
+	#geom_vline(xintercept = ceiling(0.05*ncol(binary_matrix))+0.5) +
+	geom_vline(xintercept = round(0.95*ncol(binary_matrix))-0.5) +
 	xlab("# of organisms in which each familly is present")+
 	ylab("# of families")
 
-ggsave(paste0(args[1],"/figures/","clusters.pdf"), device = "pdf", height= (par("din")[2]*1.5),plot)
+ggsave(paste0("clusters.pdf"), device = "pdf", height= (par("din")[2]*1.5),plot)
+#ggsave(paste0(args[1],"/figures/","clusters.pdf"), device = "pdf", height= (par("din")[2]*1.5),plot)
 
 #cluster with GO
 onto <- paste0(args[1],"ontology.txt")
@@ -299,10 +312,15 @@ colnames(binary_matrix) <- organism_names
 #binary_matrix_clust_t <- hclust(dist(t(binary_matrix), method = "manhattan"))
 
 #binary_matrix <- binary_matrix[,binary_matrix_clust_t$order]
-binary_matrix = data.frame(binary_matrix,"NEM partitions" = classification_vector, check.names=FALSE)
-binary_matrix[occurences == 72, "Traditional partitions"]="strict_core"
-binary_matrix[occurences != 72, "Traditional partitions"]="accessory"
-binary_matrix = binary_matrix[order(match(binary_matrix$"NEM partitions",c("persistant", "shell", "cloud")),match(binary_matrix$"Traditional partitions",c("strict_core", "accessory") )),]
+nb_org = ncol(binary_matrix)
+binary_matrix = data.frame(binary_matrix,"NEM partitions" = classification_vector, occurences = occurences, check.names=FALSE)
+
+
+binary_matrix[occurences == nb_org, "Former partitions"]="100_core"
+binary_matrix[occurences != nb_org, "Former partitions"]="100_accessory"
+binary_matrix[occurences >= nb_org*0.95, "Traditional partitions"]="95_core"
+binary_matrix[occurences <  nb_org*0.95, "Traditional partitions"]="95_accessory"
+binary_matrix = binary_matrix[order(match(binary_matrix$"NEM partitions",c("persistant", "shell", "cloud")),match(binary_matrix$"Former partitions",c("100_core", "100_accessory") ),match(binary_matrix$"Traditional partitions",c("95_core", "95_accessory") ),-binary_matrix$occurences), colnames(binary_matrix) != "occurences"]
 #binary_matrix <- binary_matrix[binary_matrix_clust$order,]
 
 # persistant_size = table(classification_vector)["persistant"]
@@ -325,16 +343,17 @@ colnames(data) = c("fam","org","value")
 # ratio_persistant = data.frame(x=col, y= round((total_persistant/total_pan)*persistant_size))
 # print(ratio_persistant)
 
-data$value <- factor(data$value, levels = c(TRUE,FALSE,"persistant", "shell", "cloud", "strict_core", "accessory"), labels = c("presence","absence","persistant", "shell", "cloud","strict_core", "accessory"))
-print("gg")
+data$value <- factor(data$value, levels = c(TRUE,FALSE,"persistant", "shell", "cloud","95_core", "95_accessory", "100_core", "100_accessory"), labels = c("presence","absence","persistant", "shell", "cloud","95_core", "95_accessory", "100_core", "100_accessory"))
+
 plot <- ggplot(data = data)+
         geom_raster(aes_string(x="org",y="fam", fill="value"))+
 		scale_fill_manual(values = c("presence"="green","absence"="grey80",color_chart)) +
-#	geom_point(data = ratio_persistant,aes_string(x="x",y="y"), color = color_chart["strict_core"], size =0.5, shape=4)+
+#	geom_point(data = ratio_persistant,aes_string(x="x",y="y"), color = color_chart["100_core"], size =0.5, shape=4)+
 	#geom_point(data = ratio_shell,aes_string(x="x",y="y"), color = color_chart["shell"], size =0.5, shape=4)+
 		theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5), panel.border = element_blank(), panel.background = element_blank())
 
-ggsave(paste0(args[1],"/figures/","tile_plot.pdf"), device = "pdf", plot)
+ggsave(paste0("tile_plot.pdf"), device = "pdf", plot)
+#ggsave(paste0(args[1],"/figures/","tile_plot.pdf"), device = "pdf", plot)
 
 # MDS
 coordMDS <- paste0(args[1],"/coordMDS_weigths.txt")
