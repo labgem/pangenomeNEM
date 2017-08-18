@@ -19,6 +19,7 @@ import string
 import shutil
 import gzip
 import operator
+import numpy as np
 #import forceatlas2 
 
 NEM_LOCATION  = "../NEM/nem_exe"
@@ -262,8 +263,7 @@ example:
                     familly           = families[protein]
                     logging.getLogger().info("infered singleton: "+protein)
                 else:
-                    logging.getLogger().error("unknown families:"+protein, ", check your families file or run again the program using the option to infere singleton")
-                    raise KeyError("Unknown families while infere singleton is false")
+                    raise KeyError("Unknown families:"+protein, ", check your families file or run again the program using the option to infere singleton")
 
             # if familly == prev:
             #     familly = familly+"-"+str(ctp_prev)
@@ -338,19 +338,132 @@ example:
             except KeyError:
                 self.neighbors_graph[fam_id][fam_nei]["weight"]=1.0
 
-    def __extract_families_of_genomic_context(self, gene, context_size = 1):
-        ret = set()
+    def __extract_families_of_genomic_context(self, gene, context_size = 5):
+        ret = list()
         try:
             (organism, sequence, index) = self.gene_location[gene]
-            min_boundary = index-context_size if index-context_size else 0
-            for annot in self.annotations[organism][sequence][min_boundary:(index+context_size+1)]:
-                if annot[GENE]!=gene:
-                    ret.add(annot[FAMILLY])            
         except KeyError:
             logging.getLogger().debug("not a gene id: "+str(gene))
-        return frozenset(ret)
 
-    def __untangle_multi_copy_families(self, multi_copy):
+        if sequence not in self.circular_contig: # linear contig
+            min_boundary = index-context_size if (index-context_size)>0 else 0
+            for annot in self.annotations[organism][sequence][min_boundary:(index+context_size+1)]:#python find automatically the max boudary
+                ret.append(annot[FAMILLY])   
+        else:# circular contig 
+            seq_size      = len(self.annotations[organism][sequence])
+            window_length = (context_size*2+1)
+            if seq_size > window_length:# circular contig larger than window
+                for i in range(index-context_size,index+context_size+1):
+                    ret.append(self.annotations[organism][sequence][i%seq_size][FAMILLY])
+            else:# circular contig smaler than window
+                for i in range(seq_size):
+                    ret.append(self.annotations[organism][sequence][i][FAMILLY])
+        return tuple(ret)
+
+    def __untangle_multi_copy_families(self, multi_copy, context_size = 5, th_is = 5):
+        import editdistance
+        from scipy.cluster.hierarchy import dendrogram, linkage, ward, cut_tree
+        from scipy.spatial.distance import squareform, pdist
+        from matplotlib import pyplot as plt
+
+        cpt=0
+        not_complete=0
+        def __group_similar_contexts1(contexts, context_size, distance_max):
+            def compute_minimal_edit_distance(i, j):
+                reverse_distance = 0
+                distance         = editdistance.eval(complete_contexts[i], complete_contexts[j])
+                if distance != 0:
+                    reverse_distance = editdistance.eval(complete_contexts[i], tuple(reversed(complete_contexts[j])))
+                return min(distance, reverse_distance)
+            window_length     = (context_size*2+1)
+            complete_contexts = [context for context in contexts.keys() if len(context)==window_length]
+            # pdist(np.array(complete_contexts))
+            
+            if len(complete_contexts) >1:
+                computation_vector     = np.vectorize(compute_minimal_edit_distance)
+                logging.getLogger().debug(contexts)
+                logging.getLogger().debug(list(enumerate(complete_contexts)))
+                distance_matrix        = np.fromfunction(computation_vector, shape=(len(complete_contexts),len(complete_contexts)), dtype=int)
+                
+                logging.getLogger().debug(distance_matrix)
+                hierarchical_linkage   = linkage(squareform(distance_matrix), 'single')
+                logging.getLogger().debug(hierarchical_linkage)
+
+                partition = cut_tree(hierarchical_linkage, height = distance_max)
+
+            # plt.figure(figsize=(25, 10))
+            # plt.title('Hierarchical Clustering Dendrogram (len), '+str(nb_copy))
+            # plt.xlabel('sample index')
+            # plt.ylabel('distance')
+            # dendrogram(
+            # hierarchical_linkage,
+            # leaf_rotation=90., leaf_font_size=8.,)
+            # plt.show()
+
+                complete_contexts = [context for context in contexts.keys()]
+
+                computation_vector     = np.vectorize(compute_minimal_edit_distance)
+                logging.getLogger().debug(contexts)
+                logging.getLogger().debug(list(enumerate(complete_contexts)))
+                distance_matrix        = np.fromfunction(computation_vector, shape=(len(complete_contexts),len(complete_contexts)), dtype=int)
+                
+                logging.getLogger().debug(distance_matrix)
+                hierarchical_linkage2   = linkage(squareform(distance_matrix), 'single')
+                all_c = cut_tree(hierarchical_linkage2, height = distance_max)
+                if len(partition) != len(all_c):
+                    logging.getLogger().warning(len(partition)+" "+len(all_c))
+
+                    plt.figure(figsize=(25, 10))
+                    plt.title('Hierarchical Clustering Dendrogram (part), '+str(nb_copy))
+                    plt.xlabel('sample index')
+                    plt.ylabel('distance')
+                    dendrogram(
+                    hierarchical_linkage,
+                    leaf_rotation=90., leaf_font_size=8.,)
+                    plt.savefig(str(cpt)+"part.png")
+                    plt.close()
+
+                    plt.figure(figsize=(25, 10))
+                    plt.title('Hierarchical Clustering Dendrogram (all), '+str(nb_copy))
+                    plt.xlabel('sample index')
+                    plt.ylabel('distance')
+                    dendrogram(
+                    hierarchical_linkage2,
+                    leaf_rotation=90., leaf_font_size=8.,)
+                    plt.savefig(str(cpt)+"part-all.png")
+                    plt.close()
+                    cpt+=1
+            else:
+                not_complete+=1
+
+        def __group_similar_contexts2(contexts, context_size, distance_max):
+
+            def compute_minimal_edit_distance(context1, context2):
+                reverse_distance = 0
+                distance         = editdistance.eval(context1, context2)
+                if distance != 0:
+                    reverse_distance = editdistance.eval(context1, tuple(reversed(context2)))
+                return min(distance, reverse_distance)
+
+            window_length     = (context_size*2+1)
+            complete_contexts = [context for context in contexts.keys() if len(context)==window_length]
+            
+            graph = nx.Graph()
+
+            for i in range(len(complete_contexts)):
+                for j in range(i):
+                    graph.add_node(i)
+                    graph.add_node(j)
+                    graph.add_edge(i,j, weight=compute_minimal_edit_distance(complete_contexts[i], complete_contexts[j]))
+
+            from mcl import mcl_clustering
+            M, clusters = mcl_clustering.networkx_mcl(graph, inflate_factor = 20)
+            logging.getLogger().debug(clusters)
+
+            import community
+            partition = community.best_partition(graph, resolution = 20.0)
+            logging.getLogger().debug(partition)
+
 
         def merge_overlapping_context(data):
             if len(data)>0:
@@ -379,9 +492,7 @@ example:
         logging.getLogger().debug(len(multi_copy.values()))
         logging.getLogger().debug(multi_copy)
         #while len(resolved)!=len(multi_copy):
-        contexts_size={}
-        ovl_contexts_size={}
-        for fam, nb_copy in sorted(multi_copy.items(), key=operator.itemgetter(1)):
+        for fam, nb_copy in sorted(multi_copy.items(), key=operator.itemgetter(1), reverse=True):
             if fam not in resolved:
                 contexts = defaultdict(set)
                 for org, genes in self.neighbors_graph.node[fam].items():
@@ -389,42 +500,46 @@ example:
                         if org != "name":
                             contexts[self.__extract_families_of_genomic_context(gene)].add(gene)
 
-                #all_neigh = nx.all_neighbors(self.neighbors_graph,fam)
+                __group_similar_contexts1(contexts, context_size, context_size)
+                logging.getLogger().debug(nb_copy)
+                logging.getLogger().debug(str(not_complete))
+                exit()
+                # all_neigh = nx.all_neighbors(self.neighbors_graph,fam)
 
-                contexts_size[fam]=len(contexts)
-                logging.getLogger().debug(fam)
-                logging.getLogger().debug(len(contexts))
-                logging.getLogger().debug(contexts)
+                # contexts_size[fam]=len(contexts)
+                # logging.getLogger().debug(fam)
+                # logging.getLogger().debug(len(contexts))
+                # logging.getLogger().debug(contexts)
                 
-                ovl_contexts = merge_overlapping_context(contexts)
-                print(ovl_contexts)
+                # ovl_contexts = merge_overlapping_context(contexts)
+                # print(ovl_contexts)
 
-                ovl_contexts_size[fam]=len(ovl_contexts)
-                logging.getLogger().debug(len(ovl_contexts))
-                logging.getLogger().debug(ovl_contexts)
+                # ovl_contexts_size[fam]=len(ovl_contexts)
+                # logging.getLogger().debug(len(ovl_contexts))
+                # logging.getLogger().debug(ovl_contexts)
 
-                cpt = 0
-                for con in ovl_contexts:
-                    new_fam = fam+"#"+str(cpt)
-                    for context, genes in contexts.items():
-                        if len(context & con)>0:
-                            logging.getLogger().debug(cpt)
-                            logging.getLogger().debug(context)
-                            logging.getLogger().debug(genes)
+                # cpt = 0
+                # for con in ovl_contexts:
+                #     new_fam = fam+"#"+str(cpt)
+                #     for context, genes in contexts.items():
+                #         if len(context & con)>0:
+                #             logging.getLogger().debug(cpt)
+                #             logging.getLogger().debug(context)
+                #             logging.getLogger().debug(genes)
                             
-                            for gene in genes:
-                                logging.getLogger().debug(gene)
-                                (org, seq, index) = self.gene_location[gene]
-                                name  = self.annotations[org][seq][index][NAME]
-                                self.__add_gene(new_fam, org, gene, name,  None)
-                                for neighbor in context: 
-                                    self.__add_link(new_fam, neighbor, org)
-                                self.annotations[org][seq][index][FAMILLY] = new_fam
-                    cpt+=1
-                #resolved.add(context)
-                logging.getLogger().debug(nx.number_of_nodes(self.neighbors_graph)) 
+                #             for gene in genes:
+                #                 logging.getLogger().debug(gene)
+                #                 (org, seq, index) = self.gene_location[gene]
+                #                 name  = self.annotations[org][seq][index][NAME]
+                #                 self.__add_gene(new_fam, org, gene, name,  None)
+                #                 for neighbor in context: 
+                #                     self.__add_link(new_fam, neighbor, org)
+                #                 self.annotations[org][seq][index][FAMILLY] = new_fam
+                #     cpt+=1
+                # #resolved.add(context)
+                # logging.getLogger().debug(nx.number_of_nodes(self.neighbors_graph)) 
 
-                self.neighbors_graph.remove_node(fam)
+                # self.neighbors_graph.remove_node(fam)
         logging.getLogger().debug(max(contexts_size.values()))
         logging.getLogger().debug(sum(contexts_size.values()))
         logging.getLogger().debug(len(contexts_size.values()))
