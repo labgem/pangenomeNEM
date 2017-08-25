@@ -833,9 +833,9 @@ example:
             #logging.getLogger().debug(index.keys())
             for node, nem_class in zip(self.neighbors_graph.nodes(), classification):
                 nb_orgs=0
-                for key, items in self.neighbors_graph.node[node].items():
+                for key in self.neighbors_graph.node[node].keys():
                     try:
-                        self.neighbors_graph.node[node][key]="|".join(items)    
+                        self.neighbors_graph.node[node][key]="|".join(self.neighbors_graph.node[node][key])    
                     except TypeError:
                         if key == "length":
                             l = list(self.neighbors_graph.node[node][key])
