@@ -330,7 +330,7 @@ example:
         try: 
             self.neighbors_graph.node[fam_id]["nb_gene"]+=1
         except KeyError:
-            self.neighbors_graph.node[fam_id]["nb_gene"]=0
+            self.neighbors_graph.node[fam_id]["nb_gene"]=1
 
         try:
             self.neighbors_graph.node[fam_id][org].add(gene)
@@ -617,7 +617,7 @@ example:
                                         organism,
                                         gene_row[GENE],
                                         gene_row[NAME],
-                                        gene_row[START]-gene_row[END],
+                                        gene_row[END]-gene_row[START],
                                         gene_row[PRODUCT],
                                         multi_copy)
                         self.neighbors_graph.add_node(family_id_nei)
@@ -630,7 +630,7 @@ example:
                                     organism,
                                     contig_annot[start][GENE],
                                     contig_annot[start][NAME],
-                                    contig_annot[start][START]-contig_annot[start][END],
+                                    contig_annot[start][END]-contig_annot[start][START],
                                     contig_annot[start][PRODUCT],
                                     multi_copy)
                     self.neighbors_graph.add_node(family_id_nei)
@@ -640,7 +640,7 @@ example:
                                     organism,
                                     contig_annot[start][GENE],
                                     contig_annot[start][NAME],
-                                    contig_annot[start][START]-contig_annot[start][END],
+                                    contig_annot[start][END]-contig_annot[start][START],
                                     contig_annot[start][PRODUCT],
                                     multi_copy)
 
