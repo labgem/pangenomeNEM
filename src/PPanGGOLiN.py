@@ -833,9 +833,9 @@ example:
             #logging.getLogger().debug(index.keys())
             for node, nem_class in zip(self.neighbors_graph.nodes(), classification):
                 nb_orgs=0
-                for key in self.neighbors_graph.node[node].keys():
+                for key in list(self.neighbors_graph.node[node].keys()):
                     try:
-                        self.neighbors_graph.node[node][key]="|".join(self.neighbors_graph.node[node][key])    
+                        self.neighbors_graph.node[node][key]="|".join(self.neighbors_graph.node[node][key])
                     except TypeError:
                         if key == "length":
                             l = list(self.neighbors_graph.node[node][key])
@@ -939,16 +939,16 @@ example:
                                        +list(self.organisms))+"\n")
 
             for node, data in self.neighbors_graph.nodes(data=True):
-                genes = [data[org] if org in data else "" for org in self.organisms]
-                nb_org = len(genes)
+                genes  = [data[org] if org in data else "" for org in self.organisms]
+                nb_org = len([gene for gene in genes if gene != ""])
                 matrix.write(sep.join([node,
                                        data["partition"],
                                        data["partition_exact"],
                                        str(nb_org),
-                                       str(data["nb_gene"]/nb_org),
+                                       str(round(data["nb_gene"]/nb_org,2)),
                                        data["product"],
-                                       str(data["length_avg"]),
-                                       str(data["length_med"]),
+                                       str(round(data["length_avg"],2)),
+                                       str(round(data["length_med"],2)),
                                        str(data["length_min"]),
                                        str(data["length_max"])]
                                        +genes)+"\n")
