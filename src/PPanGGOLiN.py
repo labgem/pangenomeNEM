@@ -174,7 +174,6 @@ class PPanGGOLiN:
         self.partitions["Accessory"]  = list()
         self.BIC                      = None # Bayesian Index Criterion
         self.partitions_by_organisms  = defaultdict(lambda: defaultdict(set))
-        self.specific_genes_by_organisms  = defaultdict(set)
 
         if init_from == "file":
             self.__initialize_from_files(*args)
@@ -374,7 +373,7 @@ example:
         if sequence not in self.circular_contig: # linear contig
             min_boundary = index-context_size if (index-context_size)>0 else 0
             for annot in self.annotations[organism][sequence][min_boundary:(index+context_size+1)]:#python find automatically the max boudary
-                ret.append(annot[FAMILY])   
+                ret.append(annot[FAMILY])
         else:# circular contig 
             seq_size      = len(self.annotations[organism][sequence])
             window_length = (context_size*2+1)
@@ -595,7 +594,7 @@ example:
         if self.neighbors_graph is None:
             self.neighbors_graph = nx.Graph()
         elif self.is_partitionned:
-            logging.getLogger().error("The pangenome graph is already built and partionned, please use the function delete pangenome graph before build it again")
+            raise Exception("The pangenome graph is already built and partionned, please use the function delete pangenome graph before build it again")
 
         multi_copy = defaultdict(int) if untangle_multi_copy_families else None
 
@@ -850,9 +849,6 @@ example:
                         self.partitions_by_organisms[key][partition[int(nem_class)]].add(self.neighbors_graph.node[node][key])
                         nb_orgs+=1
 
-                if nb_orgs==1:#to_remove, just for LIST
-                    self.specific_genes_by_organisms[last_org].add(self.neighbors_graph.node[node][last_org])#to_remove, just for LIST
-
                 self.neighbors_graph.node[node]["partition"]=partition[int(nem_class)]
                 self.partitions[partition[int(nem_class)]].append(node)
 
@@ -879,18 +875,25 @@ example:
         # nx.draw_graphviz(self.neighbors_graph, ax=figure.add_subplot(111))#, positions
         # figure.savefig("graph2.png")
         
-    def export_to_GEXF(self, graph_output_path, compressed=False):
+    def export_to_GEXF(self, graph_output_path, compute_layout = False, compressed=False):
         """ 
 
         
             .. warning:: please use the function neighborhoodComputation before please use the function partition before
 
         """
+
         if self.neighbors_graph is None:
             logging.getLogger().error("neighbors_graph is not built, please use the function neighborhoodComputation before")
         elif not self.is_partitionned:
             logging.getLogger().warnings("the pangenome graph is not partionned, please use the function partition before")
         else:
+            if compute_layout:
+                from fa2l import force_atlas2_layout
+                logging.getLogger().info("Compute Force Atlas layout")
+                positions = force_atlas2_layout(self.neighbors_graph,None, iterations=1000, edge_weight_influence=0.7, jitter_tolerance = 20, barnes_hut_theta=1.2)
+                print(positions)
+                exit()
             logging.getLogger().info("Writing GEXF file")
             if compressed:
                 graph_output_path = gzip.open(graph_output_path,"w")
@@ -956,6 +959,7 @@ example:
     def delete_pangenome_graph(self):
         self.delete_nem_intermediate_files()
         self.nem_output               = None
+        self.neighbors_graph          = None
         self.pan_size                 = 0
         self.nem_output               = None
         self.is_partitionned          = False
@@ -966,10 +970,13 @@ example:
         self.partitions["Core_Exact"] = list()
         self.partitions["Accessory"]  = list()
         self.BIC                      = None
+        self.partitions_by_organisms  = defaultdict(lambda: defaultdict(set))
 
     def delete_nem_intermediate_files(self):
         logging.getLogger().info("delete "+self.nem_intermediate_files)
-        shutil.rmtree(self.nem_intermediate_files)
+        if self.nem_intermediate_files is not None:
+            # shutil.rmtree(self.nem_intermediate_files)
+            self.nem_intermediate_files = None
 
 if __name__=='__main__':
 #blabla-1
@@ -1071,12 +1078,40 @@ Show all messages including debug ones""")
     # partitions_by_organisms_file.close()
     # exact_by_organisms_file.close()
 
-    # for org, specific_families in pan.specific_genes_by_organisms.items(): 
-    #     file = open(OUTPUTDIR+"/"+org+".list","w")
-    #     file.write("\n".join(specific_families))
-    #     file.close()
-
     if options.delete_nem_intermediate_files:
         pan.delete_pangenome_graph()
 
     logging.getLogger().info("Finished !")
+
+    #####################################
+
+    start_size = pan.nb_organisms
+
+    with open(OUTPUTDIR+"/stat_evol.txt","w") as evol, open(OUTPUTDIR+"/stat_evol_exact.txt","w") as evol_exact:
+        evol.write("\t".join([str(pan.nb_organisms),
+                                  str(len(pan.partitions["Persistent"])),
+                                  str(len(pan.partitions["Shell"])),
+                                  str(len(pan.partitions["Cloud"])),
+                                  str(pan.pan_size)])+"\n")
+        evol_exact.write("\t".join([str(pan.nb_organisms),
+                                      str(len(pan.partitions["Core_Exact"])),
+                                      str(len(pan.partitions["Accessory"])),
+                                      str(pan.pan_size)])+"\n")
+        pan.delete_pangenome_graph()
+        while pan.nb_organisms>2:
+            if ((pan.nb_organisms%20)==0):
+                pan.neighborhood_computation()
+                pan.partition(NEMOUTPUTDIR+"_"+str(pan.nb_organisms))
+                evol.write("\t".join([str(pan.nb_organisms),
+                                  str(len(pan.partitions["Persistent"])),
+                                  str(len(pan.partitions["Shell"])),
+                                  str(len(pan.partitions["Cloud"])),
+                                  str(pan.pan_size)])+"\n")
+                evol_exact.write("\t".join([str(pan.nb_organisms),
+                                      str(len(pan.partitions["Core_Exact"])),
+                                      str(len(pan.partitions["Accessory"])),
+                                      str(pan.pan_size)])+"\n")
+                pan.delete_pangenome_graph()
+            removed = pan.organisms.pop()
+            pan.annotations.pop(removed, None)
+            pan.nb_organisms-=1
