@@ -20,6 +20,7 @@ import shutil
 import gzip
 import operator
 import numpy as np
+import time
 
 #import forceatlas2 
 
@@ -588,7 +589,7 @@ example:
         # logging.getLogger().debug(len(ovl_contexts_size.values()))
         # logging.getLogger().debug(ovl_contexts_size)
         # logging.getLogger().debug(contexts_size)
-        
+    
     def neighborhood_computation(self, untangle_multi_copy_families = False):
         """ """
         if self.neighbors_graph is None:
@@ -874,7 +875,34 @@ example:
         # figure = plt.figure()
         # nx.draw_graphviz(self.neighbors_graph, ax=figure.add_subplot(111))#, positions
         # figure.savefig("graph2.png")
+    
+    # def export_to_DIMACS(self, DIMACS_output_path):
+    #     cpt_n = 0
+    #     n = ""
+    #     e = ""
         
+    #     index = {}
+
+    #     for id_org, organism, annot_contigs in enumerate(self.annotations.items()):
+    #         for contig, contig_annot in annot_contigs.items():
+    #             n+="n label="+contig_annot[0][GENE]+"color="+id_org"\n"
+    #             index[contig_annot[0][GENE]]=cpt_n
+    #             cpt_n+=1
+    #             for index, gene_row in enumerate(contig_annot[1:]):
+    #                 n+="n label="+gene_row[GENE]+"color="+id_org"\n"
+    #                 index[gene_row[GENE]]=cpt_n
+    #                 e+="e "+str(cpt_n-1)+" "+str(cpt_n)+"\n"
+    #                 cpt_n+=1
+
+    #     for node_name, node_organisms in self.neighbors_graph.nodes(data=True):
+
+    #     DIMACS_file = open(DIMACS_output_path,'w')
+    #     DIMACS_file.write(n)
+    #     DIMACS_file.write(p)
+    #     DIMACS_file.close()
+
+
+
     def export_to_GEXF(self, graph_output_path, compute_layout = False, compressed=False):
         """ 
 
@@ -975,7 +1003,7 @@ example:
     def delete_nem_intermediate_files(self):
         logging.getLogger().info("delete "+self.nem_intermediate_files)
         if self.nem_intermediate_files is not None:
-            # shutil.rmtree(self.nem_intermediate_files)
+            shutil.rmtree(self.nem_intermediate_files)
             self.nem_intermediate_files = None
 
 if __name__=='__main__':
@@ -1039,6 +1067,8 @@ Show all messages including debug ones""")
             logging.getLogger().error(directory+" already exist")
             exit()
 
+    start_loading_file = time.time()
+
     pan = PPanGGOLiN("file",
                      options.organisms[0],
                      options.gene_families[0],
@@ -1048,12 +1078,15 @@ Show all messages including debug ones""")
     if options.update is not None:
         pan.import_from_GEXF(options.update[0])
 
+    start_neighborhood_computation = time.time()
     pan.neighborhood_computation()
+    start_partitioning = time.time()
     pan.partition(NEMOUTPUTDIR)
-    logging.getLogger().info(pan)
+    
 
+    time_of_writing_output_file = time.time()
     GEXF_GRAPH_FILE  = OUTPUTDIR+"/"+"graph.gexf"
-
+    start_partitioning = time.time()
     if options.compress_graph:
         pan.export_to_GEXF(GEXF_GRAPH_FILE+".gz", compressed=True)
     else:
@@ -1065,6 +1098,13 @@ Show all messages including debug ones""")
         file.close()
 
     pan.csv_matrix(OUTPUTDIR+"/matrix.csv")
+
+    logging.getLogger().info(pan)
+    logging.getLogger().info("Execution time of file loading: " +str(round(start_neighborhood_computation-start_loading_file, 2))+" s")
+    logging.getLogger().info("Execution time of neighborhood computation: " +str(round(start_partitioning-start_neighborhood_computation, 2))+" s")
+    logging.getLogger().info("Execution time of partitioning: " +str(round(time_of_writing_output_file-start_partitioning, 2))+" s")
+    logging.getLogger().info("Execution time of writing output files: " +str(round(time.time()-time_of_writing_output_file, 2))+" s")
+    logging.getLogger().info("Total execution time: " +str(round(time.time()-start_loading_file, 2))+" s")
 
     # print(pan.partitions_by_organisms)
     # partitions_by_organisms_file = open(OUTPUTDIR+"/partitions_by_organisms.txt","w")
@@ -1099,9 +1139,9 @@ Show all messages including debug ones""")
                                       str(pan.pan_size)])+"\n")
         pan.delete_pangenome_graph()
         while pan.nb_organisms>2:
-            if ((pan.nb_organisms%20)==0):
+            if ((pan.nb_organisms%10)==0):
                 pan.neighborhood_computation()
-                pan.partition(NEMOUTPUTDIR+"_"+str(pan.nb_organisms))
+                pan.partition(OUTPUTDIR+"/"+str(pan.nb_organisms))
                 evol.write("\t".join([str(pan.nb_organisms),
                                   str(len(pan.partitions["Persistent"])),
                                   str(len(pan.partitions["Shell"])),
@@ -1111,7 +1151,9 @@ Show all messages including debug ones""")
                                       str(len(pan.partitions["Core_Exact"])),
                                       str(len(pan.partitions["Accessory"])),
                                       str(pan.pan_size)])+"\n")
-                pan.delete_pangenome_graph()
+                evol.flush()
+                evol_exact.flush()
+                pan.nem_intermediate_files = None
             removed = pan.organisms.pop()
             pan.annotations.pop(removed, None)
-            pan.nb_organisms-=1
+            pan.nb_organisms-=1           
