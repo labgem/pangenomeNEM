@@ -21,6 +21,8 @@ import gzip
 import operator
 import numpy as np
 import time
+from mcl.mcl_clustering import networkx_mcl
+import community
 
 #import forceatlas2 
 
@@ -28,7 +30,7 @@ NEM_LOCATION  = "../NEM/nem_exe"
 (GENE, TYPE, FAMILY, START, END, STRAND, NAME, PRODUCT) = range(0, 8)#data index in annotation
 (ORGANISM, SEQUENCE, INDEX) = range(0, 3)# index for annotation in gene_location
 
-RESERVED_WORDS = set(["id", "label", "name", "weight", "partition", "partition_exact", "length", "length_min", "length_max", "length_avg", "length_avg", "product", 'nb_gene'])
+RESERVED_WORDS = set(["id", "label", "name", "weight", "partition", "partition_exact", "length", "length_min", "length_max", "length_avg", "length_avg", "product", 'nb_gene', 'community'])
 
 """  
     :mod:`pangenome` -- Depict microbial diversity
@@ -692,25 +694,25 @@ example:
             logging.getLogger().debug(self.organisms)
             dat_file.write("\t".join(["1" if org in node_organisms else "0" for org in self.organisms])+"\n")
 
-            # row_fam         = []
-            # row_dist_score  = []
-            # neighbor_number = 0
-            # try:
-            #     for neighbor in nx.all_neighbors(self.neighbors_graph, node_name):
-            #         nb_presences = sum([pre_abs for org, pre_abs in self.neighbors_graph[node_name][neighbor].items() if org != 'weight'])
-            #         self.neighbors_graph[node_name][neighbor]["weight"]= nb_presences
-            #         distance_score = nb_presences/self.nb_organisms
-            #         row_fam.append(str(index[neighbor]))
-            #         row_dist_score.append(str(round(distance_score,4)))
-            #         neighbor_number += 1
-            #     if neighbor_number>0:
-            #         nei_file.write("\t".join([str(item) for sublist in [[index[node_name]],[neighbor_number],row_fam,row_dist_score] for item in sublist])+"\n")
-            #         #logging.getLogger().debug("\t".join([str(item) for sublist in [[[index[node_name]]],[neighbor_number],row_fam,row_dist_score] for item in sublist])+"\n")
-            #     else:
-            #         raise nx.exception.NetworkXError("no all_neighbors in selected organismss")
-            # except nx.exception.NetworkXError as nxe:
-            #     logging.getLogger().warning("The family: "+node_name+" is an isolated family")
-            #     nei_file.write(str(index[node_name])+"\t0\n")
+            row_fam         = []
+            row_dist_score  = []
+            neighbor_number = 0
+            try:
+                for neighbor in nx.all_neighbors(self.neighbors_graph, node_name):
+                    #nb_presences = sum([pre_abs for org, pre_abs in self.neighbors_graph[node_name][neighbor].items() if org not in RESERVED_WORDS])
+                    #self.neighbors_graph[node_name][neighbor]["weight"]= nb_presences
+                    distance_score = self.neighbors_graph[node_name][neighbor]["weight"]/self.nb_organisms
+                    row_fam.append(str(index[neighbor]))
+                    row_dist_score.append(str(round(distance_score,4)))
+                    neighbor_number += 1
+                if neighbor_number>0:
+                    nei_file.write("\t".join([str(item) for sublist in [[index[node_name]],[neighbor_number],row_fam,row_dist_score] for item in sublist])+"\n")
+                    #logging.getLogger().debug("\t".join([str(item) for sublist in [[[index[node_name]]],[neighbor_number],row_fam,row_dist_score] for item in sublist])+"\n")
+                else:
+                    raise nx.exception.NetworkXError("no neighbors in selected organismss")
+            except nx.exception.NetworkXError as nxe:
+                logging.getLogger().warning("The family: "+node_name+" is an isolated family")
+                nei_file.write(str(index[node_name])+"\t0\n")
 
         m_file.write("1 0.333 0.333 ") # 1 to initialize parameter, 0.333 and 0.333 for to give one third of initial portition to each class (last 0.33 is automaticaly determined by substraction)
         m_file.write(" ".join(["1"]*self.nb_organisms)+" ") # persistent binary vector
@@ -1006,6 +1008,16 @@ example:
             shutil.rmtree(self.nem_intermediate_files)
             self.nem_intermediate_files = None
 
+    def identify_communities_in_each_partition(self):
+
+        size_communities=defaultdict(lambda : defaultdict(int))
+        for partition in ["Persistent","Shell", "Cloud"]:
+            subgraph = self.neighbors_graph.subgraph([nodes for nodes,data in self.neighbors_graph.nodes(data=True) if data['partition']==partition])
+            comm = community.best_partition(subgraph)# = nx.algorithms.community.asyn_fluidc(subgraph, 100)
+            for node, id_com in comm.items():
+                self.neighbors_graph.node[node]['community'] = partition+"_"+str(id_com)
+                size_communities[partition][id_com]+=1
+
 if __name__=='__main__':
 #blabla-1
     parser = argparse.ArgumentParser(description='Build a partitioned pangenome graph from annotated genomes and gene families')
@@ -1082,7 +1094,8 @@ Show all messages including debug ones""")
     pan.neighborhood_computation()
     start_partitioning = time.time()
     pan.partition(NEMOUTPUTDIR)
-    
+    start_identify_communities = time.time()
+    pan.identify_communities_in_each_partition()
 
     time_of_writing_output_file = time.time()
     GEXF_GRAPH_FILE  = OUTPUTDIR+"/"+"graph.gexf"
@@ -1100,11 +1113,13 @@ Show all messages including debug ones""")
     pan.csv_matrix(OUTPUTDIR+"/matrix.csv")
 
     logging.getLogger().info(pan)
-    logging.getLogger().info("Execution time of file loading: " +str(round(start_neighborhood_computation-start_loading_file, 2))+" s")
-    logging.getLogger().info("Execution time of neighborhood computation: " +str(round(start_partitioning-start_neighborhood_computation, 2))+" s")
-    logging.getLogger().info("Execution time of partitioning: " +str(round(time_of_writing_output_file-start_partitioning, 2))+" s")
-    logging.getLogger().info("Execution time of writing output files: " +str(round(time.time()-time_of_writing_output_file, 2))+" s")
-    logging.getLogger().info("Total execution time: " +str(round(time.time()-start_loading_file, 2))+" s")
+    logging.getLogger().info("\n\
+    Execution time of file loading: " +str(round(start_neighborhood_computation-start_loading_file, 2))+" s\n"+
+    "Execution time of neighborhood computation: " +str(round(start_partitioning-start_neighborhood_computation, 2))+" s\n"+
+    "Execution time of partitioning: " +str(round(start_identify_communities-start_partitioning, 2))+" s\n"+
+    "Execution time of community identification: " +str(round(time_of_writing_output_file-start_identify_communities, 2))+" s\n"+
+    "Execution time of writing output files: " +str(round(time.time()-time_of_writing_output_file, 2))+" s\n"+
+    "Total execution time: " +str(round(time.time()-start_loading_file, 2))+" s\n")
 
     # print(pan.partitions_by_organisms)
     # partitions_by_organisms_file = open(OUTPUTDIR+"/partitions_by_organisms.txt","w")
@@ -1125,35 +1140,35 @@ Show all messages including debug ones""")
 
     #####################################
 
-    start_size = pan.nb_organisms
+    # start_size = pan.nb_organisms
 
-    with open(OUTPUTDIR+"/stat_evol.txt","w") as evol, open(OUTPUTDIR+"/stat_evol_exact.txt","w") as evol_exact:
-        evol.write("\t".join([str(pan.nb_organisms),
-                                  str(len(pan.partitions["Persistent"])),
-                                  str(len(pan.partitions["Shell"])),
-                                  str(len(pan.partitions["Cloud"])),
-                                  str(pan.pan_size)])+"\n")
-        evol_exact.write("\t".join([str(pan.nb_organisms),
-                                      str(len(pan.partitions["Core_Exact"])),
-                                      str(len(pan.partitions["Accessory"])),
-                                      str(pan.pan_size)])+"\n")
-        pan.delete_pangenome_graph()
-        while pan.nb_organisms>2:
-            if ((pan.nb_organisms%10)==0):
-                pan.neighborhood_computation()
-                pan.partition(OUTPUTDIR+"/"+str(pan.nb_organisms))
-                evol.write("\t".join([str(pan.nb_organisms),
-                                  str(len(pan.partitions["Persistent"])),
-                                  str(len(pan.partitions["Shell"])),
-                                  str(len(pan.partitions["Cloud"])),
-                                  str(pan.pan_size)])+"\n")
-                evol_exact.write("\t".join([str(pan.nb_organisms),
-                                      str(len(pan.partitions["Core_Exact"])),
-                                      str(len(pan.partitions["Accessory"])),
-                                      str(pan.pan_size)])+"\n")
-                evol.flush()
-                evol_exact.flush()
-                pan.nem_intermediate_files = None
-            removed = pan.organisms.pop()
-            pan.annotations.pop(removed, None)
-            pan.nb_organisms-=1           
+    # with open(OUTPUTDIR+"/stat_evol.txt","w") as evol, open(OUTPUTDIR+"/stat_evol_exact.txt","w") as evol_exact:
+    #     evol.write("\t".join([str(pan.nb_organisms),
+    #                               str(len(pan.partitions["Persistent"])),
+    #                               str(len(pan.partitions["Shell"])),
+    #                               str(len(pan.partitions["Cloud"])),
+    #                               str(pan.pan_size)])+"\n")
+    #     evol_exact.write("\t".join([str(pan.nb_organisms),
+    #                                   str(len(pan.partitions["Core_Exact"])),
+    #                                   str(len(pan.partitions["Accessory"])),
+    #                                   str(pan.pan_size)])+"\n")
+    #     pan.delete_pangenome_graph()
+    #     while pan.nb_organisms>2:
+    #         if ((pan.nb_organisms%10)==0):
+    #             pan.neighborhood_computation()
+    #             pan.partition(OUTPUTDIR+"/"+str(pan.nb_organisms))
+    #             evol.write("\t".join([str(pan.nb_organisms),
+    #                               str(len(pan.partitions["Persistent"])),
+    #                               str(len(pan.partitions["Shell"])),
+    #                               str(len(pan.partitions["Cloud"])),
+    #                               str(pan.pan_size)])+"\n")
+    #             evol_exact.write("\t".join([str(pan.nb_organisms),
+    #                                   str(len(pan.partitions["Core_Exact"])),
+    #                                   str(len(pan.partitions["Accessory"])),
+    #                                   str(pan.pan_size)])+"\n")
+    #             evol.flush()
+    #             evol_exact.flush()
+    #             pan.nem_intermediate_files = None
+    #         removed = pan.organisms.pop()
+    #         pan.annotations.pop(removed, None)
+    #         pan.nb_organisms-=1           

@@ -40,6 +40,7 @@ if(nrow(data)>=2){
 	max_c <- max(data$c,na.rm=T)
 	print(max_c)
 	final_state = data[data$c == max_c,]
+	final_state = final_state[!duplicated(final_state), ]
 	print(final_state)
 
 	final_pangenome = final_state[final_state$cluster == "pangenome", "value"]
@@ -53,7 +54,7 @@ if(nrow(data)>=2){
 	print(names(sort(final, decreasing = TRUE)))
 
 	#gamma and kappa are calculated according to the Tettelin et al. 2008 approach
-	median_by_comb <- setDT(data)[,list(med=as.numeric(median(value))),by=c("c","cluster")]
+	median_by_comb <- setDT(data)[,list(med=as.numeric(median(value))), by=c("c","cluster")]
 	print(median_by_comb)
 	colnames(median_by_comb) <- c("comb","cluster","med")
 	regression <- nls(med~kapa*(comb^gama),median_by_comb[median_by_comb$cluster == "pangenome",],start=list(kapa=1000,gama=1))
@@ -94,6 +95,7 @@ if(nrow(data)>=2){
 	max_c <- max(data$c,na.rm=T)
 	print(max_c)
 	final_state = data[data$c == max_c,]
+	final_state = final_state[!duplicated(final_state), ]
 
 	final_pangenome = final_state[final_state$cluster == "pangenome", "value"]
 	final_100_accessory = final_state[final_state$cluster == "100_accessory", "value"]
@@ -145,13 +147,10 @@ head(occurences)
 
 #classification_vector <- unlist(strsplit(readLines(paste0(args[1],"NEM_results/nborg",max_c,"_k3_i0/file.cf")), " "))
 #classification_vector <- unlist(strsplit(readLines("test_evol_2/72_0/NEM_results/nb72_k3i_0/nem_file.cf"), " "))
-	classification = read.table("nem_file.uf", header=FALSE)
-classification_vector <- apply (classification,1, FUN = function(x){
-	if(x[1]==1 && x[3]==0){
-		return(1)
-	} else if (x[1]==0 && x[3]==1){
-		return(3)
-	} else{return(2)}
+classification_vector <- apply (read.table("nem_file.uf", header=FALSE),1, FUN = function(x){
+ret = which(x==max(x))
+if(length(ret)>1){ret=2}
+return(ret)
 })
 
 head(classification_vector)
@@ -175,9 +174,30 @@ plot <- ggplot(data = c) +
 	geom_bar(aes_string(x = "nb_org", fill = "cluster")) +
 #	coord_flip() +
 	scale_fill_manual(name = "partition", values = color_chart, breaks=c("persistant","shell","cloud")) +
-	scale_x_discrete(limits = seq(1, ncol(binary_matrix))) +
+	scale_x_discrete(limits = c(1, ncol(binary_matrix))) +
+	scale_y_continuous(limits = c(1,10000))) +
 	#geom_vline(xintercept = ceiling(0.05*ncol(binary_matrix))+0.5) +
-	geom_vline(xintercept = round(0.95*ncol(binary_matrix))-0.5) +
+	geom_vline(xintercept = round(0*ncol(binary_matrix))-0.5, color = "grey", linetype = "dashed") +
+	geom_vline(xintercept = round(0.05*ncol(binary_matrix))-0.5, color = "grey", linetype = "dashed") +
+	geom_vline(xintercept = round(0.1*ncol(binary_matrix))-0.5, color = "grey", linetype = "dashed") +
+	geom_vline(xintercept = round(0.15*ncol(binary_matrix))-0.5, color = "grey", linetype = "dashed") +
+	geom_vline(xintercept = round(0.2*ncol(binary_matrix))-0.5, color = "grey", linetype = "dashed") +
+	geom_vline(xintercept = round(0.25*ncol(binary_matrix))-0.5, color = "grey", linetype = "dashed") +
+	geom_vline(xintercept = round(0.3*ncol(binary_matrix))-0.5, color = "grey", linetype = "dashed") +
+	geom_vline(xintercept = round(0.35*ncol(binary_matrix))-0.5, color = "grey", linetype = "dashed") +
+	geom_vline(xintercept = round(0.4*ncol(binary_matrix))-0.5, color = "grey", linetype = "dashed") +
+	geom_vline(xintercept = round(0.45*ncol(binary_matrix))-0.5, color = "grey", linetype = "dashed") +
+	geom_vline(xintercept = round(0.5*ncol(binary_matrix))-0.5, color = "grey", linetype = "dashed") +
+	geom_vline(xintercept = round(0.55*ncol(binary_matrix))-0.5, color = "grey", linetype = "dashed") +
+	geom_vline(xintercept = round(0.6*ncol(binary_matrix))-0.5, color = "grey", linetype = "dashed") +
+	geom_vline(xintercept = round(0.65*ncol(binary_matrix))-0.5, color = "grey", linetype = "dashed") +
+	geom_vline(xintercept = round(0.7*ncol(binary_matrix))-0.5, color = "grey", linetype = "dashed") +
+	geom_vline(xintercept = round(0.75*ncol(binary_matrix))-0.5, color = "grey", linetype = "dashed") +
+	geom_vline(xintercept = round(0.8*ncol(binary_matrix))-0.5, color = "grey", linetype = "dashed") +
+	geom_vline(xintercept = round(0.85*ncol(binary_matrix))-0.5, color = "grey", linetype = "dashed") +
+	geom_vline(xintercept = round(0.9*ncol(binary_matrix))-0.5, color = "grey", linetype = "dashed") +
+	geom_vline(xintercept = round(0.95*ncol(binary_matrix))-0.5, color = "grey", linetype = "dashed") +
+	geom_vline(xintercept = round(1*ncol(binary_matrix))-0.5, color = "grey", linetype = "dashed") +
 	xlab("# of organisms in which each familly is present")+
 	ylab("# of families")
 
