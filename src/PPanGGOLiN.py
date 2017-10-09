@@ -21,8 +21,8 @@ import gzip
 import operator
 import numpy as np
 import time
-from mcl.mcl_clustering import networkx_mcl
 import community
+import tempfile
 
 #import forceatlas2 
 
@@ -73,7 +73,7 @@ class PPanGGOLiN:
             .. attribute:: neighbors_graph
 
                 a networkx undirected graph. Node correspond to gene families and edges to chromosomal colocalization beween families. Organisms supporting each edge are stored in edge attribute as weel as the edge weight (number of organism coverinf each edge).
-                Nodes attributes contains the genes name in each organism belong the gene families of the node.
+                Nodes attributes contains the gene identifiers of each organism supporting this node.
 
             .. attribute:: organisms
 
@@ -87,10 +87,18 @@ class PPanGGOLiN:
 
                 a set containing the name of both well assembled and circular contigs (used to circularize the graph) 
 
+            .. attribute:: families_repeted_th
+   
+                a int containing the threshold of the maximum number copy of each families. Families exceeding this threshold are removed and are listed in the next attribute.
+
+            .. attribute:: families_repeted
+
+                a set containing the family identifiers of ones having a maximun number of copy in at least one organism above the families_repeted_th threshold attribute.
+
             .. attribute:: pan_size
 
                 The number of nodes into the graph.
-                .. warning:: this number is not necesserally equal to the number of imported gene families. Indeed, if imported famillies are not present into organism, superfluous will be discard.
+                .. warning:: this number is not necesserally equal to the number of imported gene families. Indeed, if imported families are not present into organism, superfluous will be discard.
 
             .. attribute:: is_partitionned
             
@@ -104,6 +112,7 @@ class PPanGGOLiN:
 
                 a dict provoding the families present in each partion:
                     * partitions["Core_Exact"] contains the list of core families (core exact)
+                    * partitions["Accessory"] contains the list of families not in the core exact
                     * partitions["Persistent"] contains the list of persistent families
                     * partitions["Shell"] contains the list of shell families
                     * partitions["Cloud"] contains the list of cloud families
@@ -112,14 +121,6 @@ class PPanGGOLiN:
 
                 a float providing the Bayesian Information Criterion. This Criterion give an estimation of the quality of the partionning (a low value means a good one)
                 . seealso:: https://en.wikipedia.org/wiki/Bayesian_information_criterion
-
-            .. attribute:: families_repeted_th
-
-                a int specifying the threshold of presence in a single organism above which families are considered as repeted
-
-            .. attribute:: families_repeted
-
-                a list of str storing the repeted families
 
             .. method:: partition(nem_dir_path)
 
@@ -151,15 +152,15 @@ class PPanGGOLiN:
             :param init_from: specified the excepted input (can be "file", "args", "database")
             :param *args: depending on the previous paramter, args can take multiple forms
             :type init_from: str
-            :type *args: list of argument 
+            :type *args: list
 
             :Example:
 
             >>>pan = PPanGGOLiN("file", organisms, gene_families, remove_high_copy_number_families)
-            >>>pan = PPanGGOLiN("args", annotations, organisms, circular_contig, families_repeted)
+            >>>pan = PPanGGOLiN("args", annotations, organisms, circular_contig, families_repeted)# load direclty the main attributes
         """ 
         self.annotations              = dict()
-        self.gene_location            = OrderedDict()
+        #self.gene_location            = OrderedDict()
         self.neighbors_graph          = None
         self.organisms                = OrderedSet()
         self.nb_organisms             = 0
@@ -167,8 +168,8 @@ class PPanGGOLiN:
         self.families_repeted_th      = 0
         self.families_repeted         = set()
         self.pan_size                 = 0
-        self.nem_intermediate_files   = None
         self.is_partitionned          = False
+        self.nem_intermediate_files   = None
         self.partitions               = {}
         self.partitions["Persistent"] = list()
         self.partitions["Shell"]      = list()
@@ -176,7 +177,7 @@ class PPanGGOLiN:
         self.partitions["Core_Exact"] = list()
         self.partitions["Accessory"]  = list()
         self.BIC                      = None # Bayesian Index Criterion
-        self.partitions_by_organisms  = defaultdict(lambda: defaultdict(set))
+        #self.partitions_by_organisms  = defaultdict(lambda: defaultdict(set))
 
         if init_from == "file":
             self.__initialize_from_files(*args)
@@ -194,24 +195,14 @@ class PPanGGOLiN:
 
     def __initialize_from_files(self, organisms_file, families_tsv_file, lim_occurence, infere_singleton = False):
         """ 
-            :param organisms_file: 
-            :param families_tsv_file: 
-            :param lim_occurence: 
+            :param organisms_file: a file listing organims by compute, first column is organism name, second is path to gff file and optionnally other other to provide the name of circular contig
+            :param families_tsv_file: a file listing families. The first element is the family identifier (by convention, we advice to use the identifier of the average gene of the family) and then the next elements are the identifiers of the genes belonging to this family.
+            :param lim_occurence: a int containing the threshold of the maximum number copy of each families. Families exceeding this threshold are removed and are listed in the next attribute.
+            :param infere_singleton: a bool specifying if singleton must be explicitely present in the families_tsv_file (False) or if single gene in gff files must be automatically infered as a singleton family (True)
             :type file: 
             :type file: 
             :type int: 
-
-            :Example:
-
-            >>>pan.__initialize_from_files(organisms_file, families_tsv_file, lim_occurence)
-
-The tsv file provided by progenome containing the gene annotations. --organims is a tab delimited files containg at least 2 mandatory fields by row and as many optional field as circular contig. Each row correspond to an organism to be added to the pangenome.
-Reserved words are : "id", "label", "name", "weight", "partition", "partition_exact"
-The first field is the organinsm name (id should be unique not contain any spaces, " or ' and reserved words).
-The seconde field is the gff file associated to the organism. This path can be abolute or relative. The gff file must contain an id feature for each CDS (id should be unique not contain any spaces, " or ' and reserved words).
-The next fields contain the name of perfectly assemble circular contigs (contig name must should be unique and not contain any spaces, " or ' and reserved words).
-example:
-
+            :type bool: 
         """ 
         logging.getLogger().info("Reading "+families_tsv_file.name+" families file ...")
         families    = dict()
@@ -237,14 +228,16 @@ example:
     def __load_gff(self, gff_file, families, organism, lim_occurence, infere_singleton = False):
         """
             Load the content of a gff file
-            :param gff_file: 
-            :param families: 
-            :param organism: 
-            :param lim_occurence: 
+            :param gff_file: a valid gff file where only feature of the type 'CDS' will be imported as genes. Each 'CDS' feature must have a uniq ID as attribute (afterall called gene id).
+            :param families: a dictionary having the gene as key and the identifier of the associated family as value. Depending on the infere_singleton attribute, singleton must be explicetly present on the dictionary or not
+            :param organism: a str containing the organim name
+            :param lim_occurence: a int containing the threshold of the maximum number copy of each families. Families exceeding this threshold are removed and are listed in the next attribute.
+            :param lim_occurence: a bool specifying if singleton must be explicitely present in the families parameter (False) or if single gene automatically infered as a singleton family (True)
             :type str: 
             :type dict: 
             :type str: 
             :type int: 
+            :type bool: 
             :return: annot: 
             :rtype: dict 
         """ 
@@ -292,7 +285,7 @@ example:
                     product = ""
 
                 annot_row = [protein,"CDS",family,row.start,row.end,row.strand, name, product]
-                self.gene_location[protein] = tuple([organism, row.seqid, len(annot[row.seqid])])
+                #self.gene_location[protein] = tuple([organism, row.seqid, len(annot[row.seqid])])
                 annot[row.seqid].append(annot_row)
 
                 # logging.getLogger().debug(annot[self.gene_location[protein][SEQUENCE]][self.gene_location[protein][INDEX]][GENE])
@@ -306,7 +299,7 @@ example:
             raise KeyError("Redondant organism names was found ("+organism+")")
 
     def __str__(self):
-        """ Return an overview of the object as a string """ 
+        """ Return an overview of the statistics of the pangenome as a formated string """ 
         pan_str ="\n"
         pan_str += "----------- Statistics -----------\n"
         pan_str += "Number of organisms: "+str(self.nb_organisms)+"\n"
@@ -325,8 +318,24 @@ example:
 
         return(pan_str)    
 
-    def __add_gene(self, fam_id, org, gene, name, length, product, multi_copy = None):
-        """ """
+    def __add_gene(self, fam_id, org, gene, name, length, product):#, multi_copy = None
+        """
+            Add gene to the pangenome graph
+            :param fam_id: The family identifier
+            :param org: The organism name
+            :param gene : The gene identifier
+            :param name: The biological name of the gene
+            :param length: The number of nucleotide of the gene
+            :param product: The name of the protein function
+            :param length: The number of nucleotide of the gene
+            :type str: 
+            :type str:
+            :type str: 
+            :type str: 
+            :type str: 
+            :type str: 
+            :type str: 
+        """ 
         self.neighbors_graph.add_node(fam_id)
 
         try: 
@@ -334,266 +343,284 @@ example:
         except KeyError:
             self.neighbors_graph.node[fam_id]["nb_gene"]=1
 
-        try:
-            self.neighbors_graph.node[fam_id][org].add(gene)
-            if multi_copy is not None:
-                multi_copy[fam_id] = max(multi_copy[fam_id],len(self.neighbors_graph.node[fam_id][org]))#count max number of multicopy
-        except KeyError:# the exception is the rule in case of mono copy gene
-            self.neighbors_graph.node[fam_id][org]=set([gene])
-        try:
-            self.neighbors_graph.node[fam_id]["name"].add(name)
-        except KeyError:
-            self.neighbors_graph.node[fam_id]["name"]=set([name])
-        try:
-            self.neighbors_graph.node[fam_id]["length"].add(length)
-        except KeyError:
-            self.neighbors_graph.node[fam_id]["length"]=set([length])
-        try:
-            self.neighbors_graph.node[fam_id]["product"].add(product)
-        except KeyError:
-            self.neighbors_graph.node[fam_id]["product"]=set([product])
-    def __add_link(self, fam_id, fam_nei, org):
-        """  """
-        if not self.neighbors_graph.has_edge(fam_id,fam_nei):
-            self.neighbors_graph.add_edge(fam_id, fam_nei)
-            # logging.getLogger().debug([str(i) for i in [fam_id, fam_nei, org]])
-        try:
-            self.neighbors_graph[fam_id][fam_nei][org]+=1
-        except KeyError:
-            self.neighbors_graph[fam_id][fam_nei][org]=1
+        for attribute in ["name","length","product"]:
             try:
-                self.neighbors_graph[fam_id][fam_nei]["weight"]+=1.0
+                self.neighbors_graph.node[fam_id][attribute].add(locals()[attribute])
             except KeyError:
-                self.neighbors_graph[fam_id][fam_nei]["weight"]=1.0
+                self.neighbors_graph.node[fam_id][attribute]=set([locals()[attribute]])
 
-    def __extract_families_of_genomic_context(self, gene, context_size = 5):
-        ret = list()
+
+
+
+
+        # try:
+        #     self.neighbors_graph.node[fam_id][org].add(gene)
+        #     # if multi_copy is not None:
+        #     #     multi_copy[fam_id] = max(multi_copy[fam_id],len(self.neighbors_graph.node[fam_id][org]))#count max number of multicopy
+        # except KeyError:# the exception is the rule in case of mono copy gene
+        #     self.neighbors_graph.node[fam_id][org]=set([gene])
+        # try:
+        #     self.neighbors_graph.node[fam_id]["name"].add(name)
+        # except KeyError:
+        #     self.neighbors_graph.node[fam_id]["name"]=set([name])
+        # try:
+        #     self.neighbors_graph.node[fam_id]["length"].add(length)
+        # except KeyError:
+        #     self.neighbors_graph.node[fam_id]["length"]=set([length])
+        # try:
+        #     self.neighbors_graph.node[fam_id]["product"].add(product)
+        # except KeyError:
+        #     self.neighbors_graph.node[fam_id]["product"]=set([product])
+    def __add_link(self, fam_id, fam_id_nei, org):
+        """
+            Add line between families of a the pangenome graph
+            :param fam_id: The family identifier the first node (need to be have at least one gene belonging to this family already added to the graph via the method __add_gene())
+            :param fam_id_nei: The family identifier the second node (need to be have at least one gene belonging to this family already added to the graph via the method __add_gene())
+            :param gene : The organism name supporting this link
+            :type str: 
+            :type str:
+            :type str: 
+        """ 
+        if not self.neighbors_graph.has_edge(fam_id,fam_id_nei):
+            self.neighbors_graph.add_edge(fam_id, fam_id_nei)
+            # logging.getLogger().debug([str(i) for i in [fam_id, fam_id_nei, org]])
         try:
-            (organism, sequence, index) = self.gene_location[gene]
+            self.neighbors_graph[fam_id][fam_id_nei][org]+=1
         except KeyError:
-            logging.getLogger().debug("not a gene id: "+str(gene))
+            self.neighbors_graph[fam_id][fam_id_nei][org]=1
+            try:
+                self.neighbors_graph[fam_id][fam_id_nei]["weight"]+=1.0
+            except KeyError:
+                self.neighbors_graph[fam_id][fam_id_nei]["weight"]=1.0
 
-        if sequence not in self.circular_contig: # linear contig
-            min_boundary = index-context_size if (index-context_size)>0 else 0
-            for annot in self.annotations[organism][sequence][min_boundary:(index+context_size+1)]:#python find automatically the max boudary
-                ret.append(annot[FAMILY])
-        else:# circular contig 
-            seq_size      = len(self.annotations[organism][sequence])
-            window_length = (context_size*2+1)
-            if seq_size > window_length:# circular contig larger than window
-                for i in range(index-context_size,index+context_size+1):
-                    ret.append(self.annotations[organism][sequence][i%seq_size][FAMILY])
-            else:# circular contig smaler than window
-                for i in range(seq_size):
-                    ret.append(self.annotations[organism][sequence][i][FAMILY])
-        return tuple(ret)
+    # def __extract_families_of_genomic_context(self, gene, context_size = 5):
+    #     ret = list()
+    #     try:
+    #         (organism, sequence, index) = self.gene_location[gene]
+    #     except KeyError:
+    #         logging.getLogger().debug("not a gene id: "+str(gene))
 
-    def __untangle_multi_copy_families(self, multi_copy, context_size = 5):
-        import editdistance
-        from scipy.cluster.hierarchy import dendrogram, linkage, fcluster
-        from scipy.spatial.distance import squareform, pdist
-        # from matplotlib import pyplot as plt
+    #     if sequence not in self.circular_contig: # linear contig
+    #         min_boundary = index-context_size if (index-context_size)>0 else 0
+    #         for annot in self.annotations[organism][sequence][min_boundary:(index+context_size+1)]:#python find automatically the max boudary
+    #             ret.append(annot[FAMILY])
+    #     else:# circular contig 
+    #         seq_size      = len(self.annotations[organism][sequence])
+    #         window_length = (context_size*2+1)
+    #         if seq_size > window_length:# circular contig larger than window
+    #             for i in range(index-context_size,index+context_size+1):
+    #                 ret.append(self.annotations[organism][sequence][i%seq_size][FAMILY])
+    #         else:# circular contig smaler than window
+    #             for i in range(seq_size):
+    #                 ret.append(self.annotations[organism][sequence][i][FAMILY])
+    #     return tuple(ret)
+    # 
+    # def __untangle_multi_copy_families(self, multi_copy, context_size = 5):
+    #     import editdistance
+    #     from scipy.cluster.hierarchy import dendrogram, linkage, fcluster
+    #     from scipy.spatial.distance import squareform, pdist
+    #     # from matplotlib import pyplot as plt
 
-        result = defaultdict(set)
+    #     result = defaultdict(set)
 
-        def __group_similar_contexts(contexts, context_size, distance_max):
-            def compute_minimal_edit_distance(contexts1, contexts2):
-                reverse_distance = 0
-                distance         = editdistance.eval(contexts1, contexts2)
-                if distance != 0:
-                    reverse_distance = editdistance.eval(contexts1, tuple(reversed(contexts2)))
-                return min(distance, reverse_distance)
-            contexts_keys = [context for context in contexts.keys()]
-            # pdist(np.array(contexts_keys))
+    #     def __group_similar_contexts(contexts, context_size, distance_max):
+    #         def compute_minimal_edit_distance(contexts1, contexts2):
+    #             reverse_distance = 0
+    #             distance         = editdistance.eval(contexts1, contexts2)
+    #             if distance != 0:
+    #                 reverse_distance = editdistance.eval(contexts1, tuple(reversed(contexts2)))
+    #             return min(distance, reverse_distance)
+    #         contexts_keys = [context for context in contexts.keys()]
+    #         # pdist(np.array(contexts_keys))
             
-            if len(contexts_keys)>1:
-                distance_matrix = []
-                for i in range(len(contexts_keys)):
-                    for j in range(i):
-                        distance_matrix.append(compute_minimal_edit_distance(contexts_keys[j], contexts_keys[i]))
-                logging.getLogger().debug(distance_matrix)
-                logging.getLogger().debug(squareform(distance_matrix))
-                hierarchical_linkage = linkage(squareform(distance_matrix), 'single')
-                logging.getLogger().debug(hierarchical_linkage)
-                groups = fcluster(hierarchical_linkage, t = distance_max, criterion = 'distance')
+    #         if len(contexts_keys)>1:
+    #             distance_matrix = []
+    #             for i in range(len(contexts_keys)):
+    #                 for j in range(i):
+    #                     distance_matrix.append(compute_minimal_edit_distance(contexts_keys[j], contexts_keys[i]))
+    #             logging.getLogger().debug(distance_matrix)
+    #             logging.getLogger().debug(squareform(distance_matrix))
+    #             hierarchical_linkage = linkage(squareform(distance_matrix), 'single')
+    #             logging.getLogger().debug(hierarchical_linkage)
+    #             groups = fcluster(hierarchical_linkage, t = distance_max, criterion = 'distance')
 
-                #logging.getLogger().debug("|".join([str(p) for p in partition]))
-                # plt.figure(figsize=(25, 10))
-                # plt.title('Hierarchical Clustering Dendrogram (len), '+str(nb_copy))
-                # plt.xlabel('sample index')
-                # plt.ylabel('distance')
-                # dendrogram(
-                # hierarchical_linkage,
-                # leaf_rotation=90., leaf_font_size=8.,)
-                # plt.show()
+    #             #logging.getLogger().debug("|".join([str(p) for p in partition]))
+    #             # plt.figure(figsize=(25, 10))
+    #             # plt.title('Hierarchical Clustering Dendrogram (len), '+str(nb_copy))
+    #             # plt.xlabel('sample index')
+    #             # plt.ylabel('distance')
+    #             # dendrogram(
+    #             # hierarchical_linkage,
+    #             # leaf_rotation=90., leaf_font_size=8.,)
+    #             # plt.show()
                 
-                for index, group in enumerate(groups):
-                    result[group] |= contexts[contexts_keys[index]]
-            else:
-                result[0] = contexts[contexts_keys[0]]
+    #             for index, group in enumerate(groups):
+    #                 result[group] |= contexts[contexts_keys[index]]
+    #         else:
+    #             result[0] = contexts[contexts_keys[0]]
 
 
-            return result
-                # complete_contexts = [context for context in contexts.keys()]
+    #         return result
+    #             # complete_contexts = [context for context in contexts.keys()]
 
-                # computation_vector     = np.vectorize(compute_minimal_edit_distance)
-                # logging.getLogger().debug(contexts)
-                # logging.getLogger().debug(list(enumerate(complete_contexts)))
-                # distance_matrix        = np.fromfunction(computation_vector, shape=(len(complete_contexts),len(complete_contexts)), dtype=int)
+    #             # computation_vector     = np.vectorize(compute_minimal_edit_distance)
+    #             # logging.getLogger().debug(contexts)
+    #             # logging.getLogger().debug(list(enumerate(complete_contexts)))
+    #             # distance_matrix        = np.fromfunction(computation_vector, shape=(len(complete_contexts),len(complete_contexts)), dtype=int)
                 
-                # logging.getLogger().debug(distance_matrix)
-                # hierarchical_linkage2   = linkage(squareform(distance_matrix), 'single')
-                # all_c = cut_tree(hierarchical_linkage2, height = distance_max)
-                # if len(partition) != len(all_c):
-                #     logging.getLogger().warning(str(len(partition))+" "+str(len(all_c)))
-                    # import time
-                    # plt.figure(figsize=(25, 10))
-                    # plt.title('Hierarchical Clustering Dendrogram (part), '+str(nb_copy))
-                    # plt.xlabel('sample index')
-                    # plt.ylabel('distance')
-                    # txt = str(time.time())
-                    # dendrogram(
-                    # hierarchical_linkage,
-                    # leaf_rotation=90., leaf_font_size=8.,)
-                    # plt.savefig(txt+"part.png")
-                    # plt.close()
+    #             # logging.getLogger().debug(distance_matrix)
+    #             # hierarchical_linkage2   = linkage(squareform(distance_matrix), 'single')
+    #             # all_c = cut_tree(hierarchical_linkage2, height = distance_max)
+    #             # if len(partition) != len(all_c):
+    #             #     logging.getLogger().warning(str(len(partition))+" "+str(len(all_c)))
+    #                 # import time
+    #                 # plt.figure(figsize=(25, 10))
+    #                 # plt.title('Hierarchical Clustering Dendrogram (part), '+str(nb_copy))
+    #                 # plt.xlabel('sample index')
+    #                 # plt.ylabel('distance')
+    #                 # txt = str(time.time())
+    #                 # dendrogram(
+    #                 # hierarchical_linkage,
+    #                 # leaf_rotation=90., leaf_font_size=8.,)
+    #                 # plt.savefig(txt+"part.png")
+    #                 # plt.close()
 
-                    # plt.figure(figsize=(25, 10))
-                    # plt.title('Hierarchical Clustering Dendrogram (all), '+str(nb_copy))
-                    # plt.xlabel('sample index')
-                    # plt.ylabel('distance')
-                    # dendrogram(
-                    # hierarchical_linkage2,
-                    # leaf_rotation=90., leaf_font_size=8.,)
-                    # plt.savefig(txt+"part-all.png")
-                    # plt.close()
+    #                 # plt.figure(figsize=(25, 10))
+    #                 # plt.title('Hierarchical Clustering Dendrogram (all), '+str(nb_copy))
+    #                 # plt.xlabel('sample index')
+    #                 # plt.ylabel('distance')
+    #                 # dendrogram(
+    #                 # hierarchical_linkage2,
+    #                 # leaf_rotation=90., leaf_font_size=8.,)
+    #                 # plt.savefig(txt+"part-all.png")
+    #                 # plt.close()
 
-        # def merge_overlapping_context(data):
-        #     if len(data)>0:
-        #         sets = (set(e) for e in data if e)
-        #         results = [next(sets)]
-        #         for e_set in sets:
-        #             to_update = []
-        #             for i,res in enumerate(results):
-        #                 if not e_set.isdisjoint(res):
-        #                     to_update.insert(0,i)
-        #             if not to_update:
-        #                 results.append(e_set)
-        #             else:
-        #                 last = results[to_update.pop(-1)]
-        #                 for i in to_update:
-        #                     last |= results[i]
-        #                     del results[i]
-        #                 last |= e_set
-        #         return results
-        #     else:
-        #         return []
+    #     # def merge_overlapping_context(data):
+    #     #     if len(data)>0:
+    #     #         sets = (set(e) for e in data if e)
+    #     #         results = [next(sets)]
+    #     #         for e_set in sets:
+    #     #             to_update = []
+    #     #             for i,res in enumerate(results):
+    #     #                 if not e_set.isdisjoint(res):
+    #     #                     to_update.insert(0,i)
+    #     #             if not to_update:
+    #     #                 results.append(e_set)
+    #     #             else:
+    #     #                 last = results[to_update.pop(-1)]
+    #     #                 for i in to_update:
+    #     #                     last |= results[i]
+    #     #                     del results[i]
+    #     #                 last |= e_set
+    #     #         return results
+    #     #     else:
+    #     #         return []
 
-        logging.getLogger().debug(max(multi_copy.values()))
-        logging.getLogger().debug(sum(multi_copy.values()))
-        logging.getLogger().debug(len(multi_copy.values()))
-        logging.getLogger().debug(multi_copy)
-        #while len(resolved)!=len(multi_copy):
-        for fam, nb_copy in sorted(multi_copy.items(), key=operator.itemgetter(1), reverse=True):
-                contexts = defaultdict(set)
-                for org, genes in self.neighbors_graph.node[fam].items():
-                    for gene in genes:
-                        if org not in ["name","length_min","length_max","length_avg","label"]:
-                            contexts[self.__extract_families_of_genomic_context(gene)].add(gene)
+    #     logging.getLogger().debug(max(multi_copy.values()))
+    #     logging.getLogger().debug(sum(multi_copy.values()))
+    #     logging.getLogger().debug(len(multi_copy.values()))
+    #     logging.getLogger().debug(multi_copy)
+    #     #while len(resolved)!=len(multi_copy):
+    #     for fam, nb_copy in sorted(multi_copy.items(), key=operator.itemgetter(1), reverse=True):
+    #             contexts = defaultdict(set)
+    #             for org, genes in self.neighbors_graph.node[fam].items():
+    #                 for gene in genes:
+    #                     if org not in ["name","length_min","length_max","length_avg","label"]:
+    #                         contexts[self.__extract_families_of_genomic_context(gene)].add(gene)
 
-                isolated_genes = None
-                try:
-                    isolated_genes=contexts.pop(tuple())
-                except:
-                    pass
+    #             isolated_genes = None
+    #             try:
+    #                 isolated_genes=contexts.pop(tuple())
+    #             except:
+    #                 pass
 
-                groups = __group_similar_contexts(contexts, context_size, 3)
+    #             groups = __group_similar_contexts(contexts, context_size, 3)
 
-                for id, (group, genes) in enumerate(groups.items()):
-                    new_fam = fam+"#"+str(id)
-                    for gene in genes:
-                        (org, seq, index) = self.gene_location[gene]
+    #             for id, (group, genes) in enumerate(groups.items()):
+    #                 new_fam = fam+"#"+str(id)
+    #                 for gene in genes:
+    #                     (org, seq, index) = self.gene_location[gene]
                         
-                        name  = self.annotations[org][seq][index][NAME]
-                        self.__add_gene(new_fam, org, gene, name,  None)
-                        if seq in self.circular_contig:
-                            next_index = (index+1)%len(self.annotations[org][seq])
-                            prev_index = (index-1)%len(self.annotations[org][seq])
-                            if next_index != index:
-                                new_nei1 = self.annotations[org][seq][(index+1)%len(self.annotations[org][seq])][FAMILY]
-                                self.__add_link(new_fam, new_nei1, org)
-                                new_nei2 = self.annotations[org][seq][(index-1)%len(self.annotations[org][seq])][FAMILY]
-                                self.__add_link(new_fam, new_nei2, org)
-                        else:
-                            new_nei1=None
-                            new_nei2=None
-                            logging.getLogger().debug(str(org)+"|"+str(seq)+"|"+str(index))
-                            try:
-                                new_nei1 = self.annotations[org][seq][(index+1)][FAMILY]
-                                # logging.getLogger().debug("1(len(seq)="+str(len(seq))+")")
-                            except IndexError:
-                                 logging.getLogger().warning("No next neighbors for gene: "+gene+" (new family: "+new_fam+") (len(seq)="+str(len(self.annotations[org][seq]))+")")
-                            if new_nei1 is not None:
-                                self.__add_link(new_fam, new_nei1, org)
-                            try:
-                                new_nei2 = self.annotations[org][seq][(index-1)][FAMILY]
-                                # logging.getLogger().debug("2(len(seq)="+str(len(seq))+")")
-                            except IndexError:
-                                logging.getLogger().warning("No previous neighbors for gene: "+gene+" (new family: "+new_fam+") (len(seq)="+str(len(self.annotations[org][seq]))+")")
-                            if new_nei2 is not None:
-                                logging.getLogger().debug("works "+str(len(self.annotations[org][seq]))+")")
-                                self.__add_link(new_fam, new_nei1, org)
-                        self.annotations[org][seq][index][FAMILY] = new_fam
+    #                     name  = self.annotations[org][seq][index][NAME]
+    #                     self.__add_gene(new_fam, org, gene, name,  None)
+    #                     if seq in self.circular_contig:
+    #                         next_index = (index+1)%len(self.annotations[org][seq])
+    #                         prev_index = (index-1)%len(self.annotations[org][seq])
+    #                         if next_index != index:
+    #                             new_nei1 = self.annotations[org][seq][(index+1)%len(self.annotations[org][seq])][FAMILY]
+    #                             self.__add_link(new_fam, new_nei1, org)
+    #                             new_nei2 = self.annotations[org][seq][(index-1)%len(self.annotations[org][seq])][FAMILY]
+    #                             self.__add_link(new_fam, new_nei2, org)
+    #                     else:
+    #                         new_nei1=None
+    #                         new_nei2=None
+    #                         logging.getLogger().debug(str(org)+"|"+str(seq)+"|"+str(index))
+    #                         try:
+    #                             new_nei1 = self.annotations[org][seq][(index+1)][FAMILY]
+    #                             # logging.getLogger().debug("1(len(seq)="+str(len(seq))+")")
+    #                         except IndexError:
+    #                              logging.getLogger().warning("No next neighbors for gene: "+gene+" (new family: "+new_fam+") (len(seq)="+str(len(self.annotations[org][seq]))+")")
+    #                         if new_nei1 is not None:
+    #                             self.__add_link(new_fam, new_nei1, org)
+    #                         try:
+    #                             new_nei2 = self.annotations[org][seq][(index-1)][FAMILY]
+    #                             # logging.getLogger().debug("2(len(seq)="+str(len(seq))+")")
+    #                         except IndexError:
+    #                             logging.getLogger().warning("No previous neighbors for gene: "+gene+" (new family: "+new_fam+") (len(seq)="+str(len(self.annotations[org][seq]))+")")
+    #                         if new_nei2 is not None:
+    #                             logging.getLogger().debug("works "+str(len(self.annotations[org][seq]))+")")
+    #                             self.__add_link(new_fam, new_nei1, org)
+    #                     self.annotations[org][seq][index][FAMILY] = new_fam
 
-                if isolated_genes is not None:
-                    new_fam = fam+"#"+str(id+1)                    
+    #             if isolated_genes is not None:
+    #                 new_fam = fam+"#"+str(id+1)                    
 
-                self.neighbors_graph.remove_node(fam)
-                # contexts_size[fam]=len(contexts)
-                # logging.getLogger().debug(fam)
-                # logging.getLogger().debug(len(contexts))
-                # logging.getLogger().debug(contexts)
+    #             self.neighbors_graph.remove_node(fam)
+    #             # contexts_size[fam]=len(contexts)
+    #             # logging.getLogger().debug(fam)
+    #             # logging.getLogger().debug(len(contexts))
+    #             # logging.getLogger().debug(contexts)
                 
-                # ovl_contexts = merge_overlapping_context(contexts)
-                # print(ovl_contexts)
+    #             # ovl_contexts = merge_overlapping_context(contexts)
+    #             # print(ovl_contexts)
 
-                # ovl_contexts_size[fam]=len(ovl_contexts)
-                # logging.getLogger().debug(len(ovl_contexts))
-                # logging.getLogger().debug(ovl_contexts)
+    #             # ovl_contexts_size[fam]=len(ovl_contexts)
+    #             # logging.getLogger().debug(len(ovl_contexts))
+    #             # logging.getLogger().debug(ovl_contexts)
 
-                # cpt = 0
-                # for con in ovl_contexts:
-                #     new_fam = fam+"#"+str(cpt)
-                #     for context, genes in contexts.items():
-                #         if len(context & con)>0:
-                #             logging.getLogger().debug(cpt)
-                #             logging.getLogger().debug(context)
-                #             logging.getLogger().debug(genes)
+    #             # cpt = 0
+    #             # for con in ovl_contexts:
+    #             #     new_fam = fam+"#"+str(cpt)
+    #             #     for context, genes in contexts.items():
+    #             #         if len(context & con)>0:
+    #             #             logging.getLogger().debug(cpt)
+    #             #             logging.getLogger().debug(context)
+    #             #             logging.getLogger().debug(genes)
                             
-                #             for gene in genes:
-                #                 logging.getLogger().debug(gene)
-                #                 (org, seq, index) = self.gene_location[gene]
-                #                 name  = self.annotations[org][seq][index][NAME]
-                #                 self.__add_gene(new_fam, org, gene, name,  None)
-                #                 for neighbor in context: 
-                #                     self.__add_link(new_fam, neighbor, org)
-                #                 self.annotations[org][seq][index][FAMILY] = new_fam
-                #     cpt+=1
-                # #resolved.add(context)
-                # logging.getLogger().debug(nx.number_of_nodes(self.neighbors_graph)) 
+    #             #             for gene in genes:
+    #             #                 logging.getLogger().debug(gene)
+    #             #                 (org, seq, index) = self.gene_location[gene]
+    #             #                 name  = self.annotations[org][seq][index][NAME]
+    #             #                 self.__add_gene(new_fam, org, gene, name,  None)
+    #             #                 for neighbor in context: 
+    #             #                     self.__add_link(new_fam, neighbor, org)
+    #             #                 self.annotations[org][seq][index][FAMILY] = new_fam
+    #             #     cpt+=1
+    #             # #resolved.add(context)
+    #             # logging.getLogger().debug(nx.number_of_nodes(self.neighbors_graph)) 
 
-        #         # self.neighbors_graph.remove_node(fam)
-        # logging.getLogger().debug(max(contexts_size.values()))
-        # logging.getLogger().debug(sum(contexts_size.values()))
-        # logging.getLogger().debug(len(contexts_size.values()))
-        # logging.getLogger().debug(max(ovl_contexts_size.values()))
-        # logging.getLogger().debug(sum(ovl_contexts_size.values()))
-        # logging.getLogger().debug(len(ovl_contexts_size.values()))
-        # logging.getLogger().debug(ovl_contexts_size)
-        # logging.getLogger().debug(contexts_size)
+    #     #         # self.neighbors_graph.remove_node(fam)
+    #     # logging.getLogger().debug(max(contexts_size.values()))
+    #     # logging.getLogger().debug(sum(contexts_size.values()))
+    #     # logging.getLogger().debug(len(contexts_size.values()))
+    #     # logging.getLogger().debug(max(ovl_contexts_size.values()))
+    #     # logging.getLogger().debug(sum(ovl_contexts_size.values()))
+    #     # logging.getLogger().debug(len(ovl_contexts_size.values()))
+    #     # logging.getLogger().debug(ovl_contexts_size)
+    #     # logging.getLogger().debug(contexts_size)
     
-    def neighborhood_computation(self, untangle_multi_copy_families = False):
-        """ """
+    def neighborhood_computation(self):#, untangle_multi_copy_families = False
+        """ Use the information already loaded (annotation) to build the pangenome graph """
         if self.neighbors_graph is None:
             self.neighbors_graph = nx.Graph()
         elif self.is_partitionned:
@@ -652,9 +679,15 @@ example:
 
         self.pan_size = nx.number_of_nodes(self.neighbors_graph)
 
-    def partition(self, nem_dir_path):
+    def partition(self, nem_dir_path = tempfile.mkdtemp()):
         """
+            Use the graph topology and the presence or absence of genes from each organism into families to partition the pangenome in three groups ('persistent', 'shell' and 'cloud')
             . seealso:: Read the Mo Dang's thesis to understand NEM and Bernouilli Mixture Model, a summary is available here : http://www.kybernetika.cz/content/1998/4/393/paper.pdf
+            
+            :param nem_dir_path: a str containing a path to store tempory file of the NEM program
+            :type str: 
+
+            .. warning:: please use the function neighborhoodComputation before
         """ 
         if self.neighbors_graph is None:
             logging.getLogger().error("The neighbors_graph is not built, please use the function neighborhood_computation before")
@@ -683,7 +716,6 @@ example:
         nei_file.write("0\n")
         
         index = {node: index+1 for index, node in enumerate(self.neighbors_graph.nodes(data=False))}
-
         org_file.write("\t".join([org for org in self.organisms])+"\n")
         org_file.close()
 
@@ -736,6 +768,7 @@ example:
         MODEL          = "bern" # multivariate Bernoulli mixture model
         PROPORTION     = "pk" #equal proportion :  "p_"     varying proportion : "pk"
         VARIANCE_MODEL = "skd" #one variance per partition and organism : "sdk"      one variance per partition, same in all organisms : "sd_"   one variance per organism, same in all partion : "s_d"    same variance in organisms and partitions : "s__" 
+        NEIGHBOUR_SPEC = "f"# "f" specify to use all neighbors, orther argument is "4" to specify to use only the 4 neighbors with the higher weight (4 because for historic reason due to the 4 pixel neighbors of each pixel)
 
         command = " ".join([NEM_LOCATION, 
                             nem_dir_path+"/nem_file",
@@ -745,6 +778,7 @@ example:
                             "-m", MODEL, PROPORTION, VARIANCE_MODEL,
                             "-s", "m", nem_dir_path+"/nem_file.m",
                             "-b", str(BETA),
+                            "-n ", NEIGHBOUR_SPEC,
                             "-f fuzzy",
                             "-l y -T" if logging.getLogger().getEffectiveLevel() < 20 else ""])
      
@@ -849,7 +883,7 @@ example:
 
                     if key not in RESERVED_WORDS:
                         last_org = key
-                        self.partitions_by_organisms[key][partition[int(nem_class)]].add(self.neighbors_graph.node[node][key])
+                        #self.partitions_by_organisms[key][partition[int(nem_class)]].add(self.neighbors_graph.node[node][key])
                         nb_orgs+=1
 
                 self.neighbors_graph.node[node]["partition"]=partition[int(nem_class)]
@@ -905,13 +939,16 @@ example:
 
 
 
-    def export_to_GEXF(self, graph_output_path, compute_layout = False, compressed=False):
-        """ 
-
-        
-            .. warning:: please use the function neighborhoodComputation before please use the function partition before
-
+    def export_to_GEXF(self, graph_output_path, all_node_attributes = False, compressed=False):
         """
+            Export the Partionned Pangenome Graph Of Linked Neighbors to a GEXF file  
+            :param nem_dir_path: a str containing the path of the GEXF output file
+            :param nem_dir_path: a bool specifying if organisms and genes attributes of each family node must be in the file or not. A GEXF file without this attribute can't be imported again after.
+            :param nem_dir_path: a bool specifying if the file must be compressed in gzip or not
+            :type str: 
+            :type bool: 
+            :type bool: 
+        """ 
 
         if self.neighbors_graph is None:
             logging.getLogger().error("neighbors_graph is not built, please use the function neighborhoodComputation before")
@@ -930,7 +967,13 @@ example:
             nx.write_gexf(self.neighbors_graph, graph_output_path)
 
     def import_from_GEXF(self, path_graph_to_update):
-        """ """
+        """
+            Import an already built Partionned Pangenome Graph Of Linked Neighbors from a GEXF file  
+            :param nem_dir_path: a str containing the path of the GEXF input file (compressed or not)
+            :type str: 
+
+            .. warning:: please import a full GEXF input file having all the attributes
+        """ 
         file = gzip.open(path_graph_to_update.name,"r")
         try:
             file.readline()
@@ -948,8 +991,11 @@ example:
                 self.neighbors_graph.node[node][key]=new_value
                 if key not in RESERVED_WORDS:
                     self.organisms.add(key)
+            if len(self.organisms) == 0:
+                logging.getLogger().error("No attributes containing organisms names found on this node: "+str(node))
         logging.getLogger().debug(self.organisms)
-        self.nb_organisms = self.nb_organisms = len(self.organisms)
+        self.nb_organisms = len(self.organisms)
+
         for source, target, data in self.neighbors_graph.edges(data=True):
             try:
                 del self.neighbors_graph[source][target]['id']
@@ -957,6 +1003,15 @@ example:
                 logging.getLogger().warnings("No previous edge id found in gexf input file for edge: "+source+" <-> "+target)
 
     def csv_matrix(self, path, sep=",", header=True):
+        """
+            Exported the pangenome as a csv_matrix similar to the csv matrix exported by Roary (https://sanger-pathogens.github.io/Roary/)
+            :param nem_dir_path: a str containing the path of the csv out file
+            :param sep: a str containing the separator
+            :param header: a bool specifying if the header must be added to the file or not
+            :type str: 
+            :type str: 
+            :type bool: 
+        """ 
         with open(path,"w") as matrix:
             if header:
                 matrix.write(sep.join(["family",
@@ -987,6 +1042,9 @@ example:
                                        +genes)+"\n")
 
     def delete_pangenome_graph(self):
+        """
+            Delete all the pangenome graph of eventuelly the statistic of the partionning process (including the temporary file)
+        """ 
         self.delete_nem_intermediate_files()
         self.nem_output               = None
         self.neighbors_graph          = None
@@ -1000,16 +1058,21 @@ example:
         self.partitions["Core_Exact"] = list()
         self.partitions["Accessory"]  = list()
         self.BIC                      = None
-        self.partitions_by_organisms  = defaultdict(lambda: defaultdict(set))
+        #self.partitions_by_organisms  = defaultdict(lambda: defaultdict(set))
 
     def delete_nem_intermediate_files(self):
+        """
+            Delete all the tempory files used to partion the pangenome
+        """ 
         logging.getLogger().info("delete "+self.nem_intermediate_files)
         if self.nem_intermediate_files is not None:
             shutil.rmtree(self.nem_intermediate_files)
             self.nem_intermediate_files = None
 
     def identify_communities_in_each_partition(self):
-
+        """
+            Use the Louvain's algorithm to label the nodes by their community in each partition
+        """ 
         size_communities=defaultdict(lambda : defaultdict(int))
         for partition in ["Persistent","Shell", "Cloud"]:
             subgraph = self.neighbors_graph.subgraph([nodes for nodes,data in self.neighbors_graph.nodes(data=True) if data['partition']==partition])
@@ -1019,7 +1082,15 @@ example:
                 size_communities[partition][id_com]+=1
 
 if __name__=='__main__':
-#blabla-1
+"""
+--organims is a tab delimited files containg at least 2 mandatory fields by row and as many optional field as circular contig. Each row correspond to an organism to be added to the pangenome.
+Reserved words are : "id", "label", "name", "weight", "partition", "partition_exact"
+The first field is the organinsm name (id should be unique not contain any spaces, " or ' and reserved words).
+The second field is the gff file associated to the organism. This path can be abolute or relative. The gff file must contain an id feature for each CDS (id should be unique not contain any spaces, " or ' and reserved words).
+The next fields contain the name of perfectly assemble circular contigs (contig name must should be unique and not contain any spaces, " or ' and reserved words).
+example:
+
+"""
     parser = argparse.ArgumentParser(description='Build a partitioned pangenome graph from annotated genomes and gene families')
     parser.add_argument('-?', '--version', action='version', version='0.1')
     parser.add_argument('-o', '--organisms', type=argparse.FileType('r'), nargs=1, help="""
@@ -1035,9 +1106,9 @@ A tab delimited file containg the gene families. Each row contain 2 fields.
 Reserved words are : "id", "label", "name", "weight", "partition", "partition_exact"
 The first field is the family name.
 The second field is the gene name.
-famillies are intended to be grouped by chuncks of row.
+families are intended to be grouped by chuncks of row.
 the families name can be any string but must should be unique and not contain any spaces, " or ' and reserved words
-As a conventation, it is recommanded to use the name of the most reprensative gene of the famillies as the family name.
+As a conventation, it is recommanded to use the name of the most reprensative gene of the families as the family name.
 Gene name can be any string corresponding to the if feature in the gff files. they should be unique and not contain any spaces, " or ' and reserved words.
 example:""",  required=True)
     parser.add_argument('-d', '--output_directory', type=str, nargs=1, default="output.dir", help="""
@@ -1099,7 +1170,6 @@ Show all messages including debug ones""")
 
     time_of_writing_output_file = time.time()
     GEXF_GRAPH_FILE  = OUTPUTDIR+"/"+"graph.gexf"
-    start_partitioning = time.time()
     if options.compress_graph:
         pan.export_to_GEXF(GEXF_GRAPH_FILE+".gz", compressed=True)
     else:
