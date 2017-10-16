@@ -626,7 +626,7 @@ class PPanGGOLiN:
         elif self.is_partitionned:
             raise Exception("The pangenome graph is already built and partionned, please use the function delete pangenome graph before build it again")
 
-        multi_copy = defaultdict(int) if untangle_multi_copy_families else None
+        #multi_copy = defaultdict(int) if untangle_multi_copy_families else None
 
         for organism, annot_contigs in self.annotations.items():
             for contig, contig_annot in annot_contigs.items():
@@ -647,8 +647,8 @@ class PPanGGOLiN:
                                         gene_row[GENE],
                                         gene_row[NAME],
                                         gene_row[END]-gene_row[START],
-                                        gene_row[PRODUCT],
-                                        multi_copy)
+                                        gene_row[PRODUCT])
+                                        #multi_copy)
                         self.neighbors_graph.add_node(family_id_nei)
                         self.__add_link(gene_row[FAMILY],family_id_nei,organism)
                         family_id_nei = gene_row[FAMILY]
@@ -660,8 +660,8 @@ class PPanGGOLiN:
                                     contig_annot[start][GENE],
                                     contig_annot[start][NAME],
                                     contig_annot[start][END]-contig_annot[start][START],
-                                    contig_annot[start][PRODUCT],
-                                    multi_copy)
+                                    contig_annot[start][PRODUCT])
+                                    #multi_copy)
                     self.neighbors_graph.add_node(family_id_nei)
                     self.__add_link(contig_annot[start][FAMILY],family_id_nei,organism)
                 else:#no circularization
@@ -670,12 +670,12 @@ class PPanGGOLiN:
                                     contig_annot[start][GENE],
                                     contig_annot[start][NAME],
                                     contig_annot[start][END]-contig_annot[start][START],
-                                    contig_annot[start][PRODUCT],
-                                    multi_copy)
+                                    contig_annot[start][PRODUCT])
+                                    #multi_copy)
 
-        if multi_copy is not None and len(multi_copy)>0:
-            logging.getLogger().info("Untangleling ...")
-            self.__untangle_multi_copy_families(multi_copy)
+        # if multi_copy is not None and len(multi_copy)>0:
+        #     logging.getLogger().info("Untangleling ...")
+        #     self.__untangle_multi_copy_families(multi_copy)
 
         self.pan_size = nx.number_of_nodes(self.neighbors_graph)
 
@@ -1121,6 +1121,11 @@ If a gene id found in a gff file is absent of the gene families file, the single
 if this argument is not set, the program will raise KeyError exception if a gene id found in a gff file is absent of the gene families file.""")
     parser.add_argument("-u", "--update", default = None, type=argparse.FileType('r'), nargs=1, help="""
 Pangenome Graph to be updated (in gexf format)""")
+    parser.add_argument("-b", "--beta_smoothing", default = 1, """
+Coeficient of smoothing all the partionning based on the Markov Random Feild leveraging the weigthed pangenome graph. 0 means no smoothing, 1 normal smoothing, 2 hard smoothing and 3 very hard smoothing (it is not recommended to use a greatest value than 3) (intermediate float value are allowed) 
+
+""")
+
     parser.add_argument("-i", "--delete_nem_intermediate_files", default=False, action="store_true", help="""
 Delete intermediate files used by NEM""")
     parser.add_argument("-c", "--compress_graph", default=False, action="store_true", help="""
@@ -1139,6 +1144,10 @@ Show all messages including debug ones""")
         level = logging.DEBUG
 
     logging.basicConfig(stream=sys.stdout, level = level, format = '\n%(asctime)s %(filename)s:l%(lineno)d %(levelname)s\t%(message)s', datefmt='%H:%M:%S')
+
+    logging.getLogger().info("Command: "+" ".join([arg in sys.argv]))
+    logging.getLogger().info("Python version: "+sys.version)
+    logging.getLogger().info("Networkx version: "+nx.__version__)
 
     OUTPUTDIR       = options.output_directory[0]
     NEMOUTPUTDIR    = OUTPUTDIR+"/NEM_results/"
