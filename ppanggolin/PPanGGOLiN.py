@@ -1146,7 +1146,7 @@ Show all messages including debug ones""")
 
     logging.basicConfig(stream=sys.stdout, level = level, format = '\n%(asctime)s %(filename)s:l%(lineno)d %(levelname)s\t%(message)s', datefmt='%H:%M:%S')
 
-    logging.getLogger().info("Command: "+" ".join([arg in sys.argv]))
+    logging.getLogger().info("Command: "+" ".join([arg for arg in sys.argv]))
     logging.getLogger().info("Python version: "+sys.version)
     logging.getLogger().info("Networkx version: "+nx.__version__)
 
