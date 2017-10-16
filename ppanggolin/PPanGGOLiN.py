@@ -214,7 +214,7 @@ class PPanGGOLiN:
 
         self.circular_contig = []
 
-        logging.getLogger().info("Reading "+organisms_file.name+" families file ...")
+        logging.getLogger().info("Reading "+organisms_file.name+" list of organism files ...")
 
         for line in organisms_file:
             elements = line.split()
@@ -1174,6 +1174,7 @@ Show all messages including debug ones""")
     start_neighborhood_computation = time.time()
     pan.neighborhood_computation()
     start_partitioning = time.time()
+    print(options.beta_smoothing[0])
     pan.partition(NEMOUTPUTDIR, beta = options.beta_smoothing[0])
     start_identify_communities = time.time()
     pan.identify_communities_in_each_partition()
