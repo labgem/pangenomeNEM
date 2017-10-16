@@ -765,7 +765,7 @@ class PPanGGOLiN:
 
         K              = 3 # number of partitions
         ALGO           = "nem" #fuzzy classification by mean field approximation
-        BETA           = beta # coeficient of spatial smoothing to apply, 0 is equivalent to EM for mixture model
+        BETA           = float(beta) # coeficient of spatial smoothing to apply, 0 is equivalent to EM for mixture model
         ITERMAX        = 100 # number of iteration max 
         MODEL          = "bern" # multivariate Bernoulli mixture model
         PROPORTION     = "pk" #equal proportion :  "p_"     varying proportion : "pk"
