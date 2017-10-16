@@ -679,7 +679,7 @@ class PPanGGOLiN:
 
         self.pan_size = nx.number_of_nodes(self.neighbors_graph)
 
-    def partition(self, beta = 1.00, nem_dir_path = tempfile.mkdtemp()):
+    def partition(self, nem_dir_path = tempfile.mkdtemp(), beta = 1.00):
         """
             Use the graph topology and the presence or absence of genes from each organism into families to partition the pangenome in three groups ('persistent', 'shell' and 'cloud')
             . seealso:: Read the Mo Dang's thesis to understand NEM and Bernouilli Mixture Model, a summary is available here : http://www.kybernetika.cz/content/1998/4/393/paper.pdf
@@ -765,7 +765,7 @@ class PPanGGOLiN:
 
         K              = 3 # number of partitions
         ALGO           = "nem" #fuzzy classification by mean field approximation
-        BETA           = float(beta) # coeficient of spatial smoothing to apply, 0 is equivalent to EM for mixture model
+        BETA           = beta # coeficient of spatial smoothing to apply, 0 is equivalent to EM for mixture model
         ITERMAX        = 100 # number of iteration max 
         MODEL          = "bern" # multivariate Bernoulli mixture model
         PROPORTION     = "pk" #equal proportion :  "p_"     varying proportion : "pk"
