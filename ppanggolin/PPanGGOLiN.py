@@ -679,13 +679,15 @@ class PPanGGOLiN:
 
         self.pan_size = nx.number_of_nodes(self.neighbors_graph)
 
-    def partition(self, nem_dir_path = tempfile.mkdtemp()):
+    def partition(self, beta = 1.00, nem_dir_path = tempfile.mkdtemp()):
         """
             Use the graph topology and the presence or absence of genes from each organism into families to partition the pangenome in three groups ('persistent', 'shell' and 'cloud')
             . seealso:: Read the Mo Dang's thesis to understand NEM and Bernouilli Mixture Model, a summary is available here : http://www.kybernetika.cz/content/1998/4/393/paper.pdf
             
             :param nem_dir_path: a str containing a path to store tempory file of the NEM program
+            :param beta: a float containing the spatial coefficient of smothing of the clustering results using the weighted graph topology (0.00 turn off the spatial clustering)
             :type str: 
+            :type float: 
 
             .. warning:: please use the function neighborhoodComputation before
         """ 
@@ -763,7 +765,7 @@ class PPanGGOLiN:
 
         K              = 3 # number of partitions
         ALGO           = "nem" #fuzzy classification by mean field approximation
-        BETA           = 0 # coeficient of spatial smoothing to apply, 0 is equivalent to EM for mixture model
+        BETA           = beta # coeficient of spatial smoothing to apply, 0 is equivalent to EM for mixture model
         ITERMAX        = 100 # number of iteration max 
         MODEL          = "bern" # multivariate Bernoulli mixture model
         PROPORTION     = "pk" #equal proportion :  "p_"     varying proportion : "pk"
@@ -1121,9 +1123,8 @@ If a gene id found in a gff file is absent of the gene families file, the single
 if this argument is not set, the program will raise KeyError exception if a gene id found in a gff file is absent of the gene families file.""")
     parser.add_argument("-u", "--update", default = None, type=argparse.FileType('r'), nargs=1, help="""
 Pangenome Graph to be updated (in gexf format)""")
-    parser.add_argument("-b", "--beta_smoothing", default = 1, """
+    parser.add_argument("-b", "--beta_smoothing", default = 1.00, type=str, nargs=1, help = """
 Coeficient of smoothing all the partionning based on the Markov Random Feild leveraging the weigthed pangenome graph. 0 means no smoothing, 1 normal smoothing, 2 hard smoothing and 3 very hard smoothing (it is not recommended to use a greatest value than 3) (intermediate float value are allowed) 
-
 """)
 
     parser.add_argument("-i", "--delete_nem_intermediate_files", default=False, action="store_true", help="""
@@ -1173,7 +1174,7 @@ Show all messages including debug ones""")
     start_neighborhood_computation = time.time()
     pan.neighborhood_computation()
     start_partitioning = time.time()
-    pan.partition(NEMOUTPUTDIR)
+    pan.partition(NEMOUTPUTDIR, beta = options.beta_smoothing[0])
     start_identify_communities = time.time()
     pan.identify_communities_in_each_partition()
 
