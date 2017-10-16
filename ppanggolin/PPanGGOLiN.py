@@ -26,7 +26,7 @@ import tempfile
 
 #import forceatlas2 
 
-NEM_LOCATION  = "../NEM/nem_exe"
+NEM_LOCATION  = os.path.dirname(os.path.abspath(__file__))+"/../NEM/nem_exe"
 (GENE, TYPE, FAMILY, START, END, STRAND, NAME, PRODUCT) = range(0, 8)#data index in annotation
 #(ORGANISM, SEQUENCE, INDEX) = range(0, 3)# index for annotation in gene_location
 
