@@ -712,10 +712,7 @@ class PPanGGOLiN:
         str_file.write("S\t"+str(self.pan_size)+"\t"+str(self.nb_organisms)+"\n")
         str_file.close()
 
-        #if use_neighborhood:
-        #    nei_file.write("1\n")
-        #else:
-        nei_file.write("0\n")
+        nei_file.write("1\n")#to enable weigthed partionning
         
         index = {node: index+1 for index, node in enumerate(self.neighbors_graph.nodes(data=False))}
         org_file.write(" ".join([org for org in self.organisms])+"\n")
@@ -735,7 +732,7 @@ class PPanGGOLiN:
                 for neighbor in nx.all_neighbors(self.neighbors_graph, node_name):
                     #nb_presences = sum([pre_abs for org, pre_abs in self.neighbors_graph[node_name][neighbor].items() if org not in RESERVED_WORDS])
                     #self.neighbors_graph[node_name][neighbor]["weight"]= nb_presences
-                    distance_score = self.neighbors_graph[node_name][neighbor]["weight"]#/self.nb_organisms
+                    distance_score = self.neighbors_graph[node_name][neighbor]["weight"]/self.nb_organisms
                     row_fam.append(str(index[neighbor]))
                     row_dist_score.append(str(round(distance_score,4)))
                     neighbor_number += 1
@@ -748,7 +745,7 @@ class PPanGGOLiN:
                 logging.getLogger().warning("The family: "+node_name+" is an isolated family")
                 nei_file.write(str(index[node_name])+"\t0\n")
 
-        m_file.write("1 0.333 0.333 ") # 1 to initialize parameter, 0.333 and 0.333 for to give one third of initial portition to each class (last 0.33 is automaticaly determined by substraction)
+        m_file.write("1 0.33333 0.33333 ") # 1 to initialize parameter, 0.333 and 0.333 for to give one third of initial portition to each class (last 0.33 is automaticaly determined by substraction)
         m_file.write(" ".join(["1"]*self.nb_organisms)+" ") # persistent binary vector
         m_file.write(" ".join(["1"]*self.nb_organisms)+" ") # shell binary vector (1 ou 0, whatever because dispersion will be of 0.5)
         m_file.write(" ".join(["0"]*self.nb_organisms)+" ") # cloud binary vector
@@ -762,6 +759,10 @@ class PPanGGOLiN:
         m_file.close()
 
         logging.getLogger().info("Running NEM...")
+        weighted_degree = sum(self.neighbors_graph.degree(weight="weight").values())/nx.number_of_edges(self.neighbors_graph)
+        logging.getLogger().debug("weighted_degree: "+str(weighted_degree))
+        logging.getLogger().debug("org/weighted_degree: "+str(self.nb_organisms/weighted_degree))    
+        #weighted_degree = sum(self.neighbors_graph.degree(weight="weight").values())/nx.number_of_edges(self.neighbors_graph)
 
         K              = 3 # number of partitions
         ALGO           = "nem" #fuzzy classification by mean field approximation
@@ -778,11 +779,11 @@ class PPanGGOLiN:
                             "-a", ALGO,
                             "-i", str(ITERMAX),
                             "-m", MODEL, PROPORTION, VARIANCE_MODEL,
-                            "-s", "m", nem_dir_path+"/nem_file.m",
+                            "-s", "r",# nem_dir_path+"/nem_file.m",
                             "-b", str(BETA),
-                            "-n ", NEIGHBOUR_SPEC,
+                            "-n", NEIGHBOUR_SPEC,
                             "-f fuzzy",
-                            "-l y -T" if logging.getLogger().getEffectiveLevel() < 20 else ""])
+                            "-l y"  ])
      
         logging.getLogger().info(command)
 
@@ -1113,7 +1114,7 @@ the families name can be any string but must should be unique and not contain an
 As a conventation, it is recommanded to use the name of the most reprensative gene of the families as the family name.
 Gene name can be any string corresponding to the if feature in the gff files. they should be unique and not contain any spaces, " or ' and reserved words.
 example:""",  required=True)
-    parser.add_argument('-d', '--output_directory', type=str, nargs=1, default="output.dir", help="""
+    parser.add_argument('-d', '--output_directory', type=str, nargs=1, default=["output.dir"], help="""
 The output directory""")
     parser.add_argument('-r', '--remove_high_copy_number_families', type=int, nargs=1, default=[-1], help="""
 Remove families having a number of copy of one families above or equal to this threshold in at least one organism (0 or negative value keep all families whatever their occurence). 
@@ -1123,10 +1124,9 @@ If a gene id found in a gff file is absent of the gene families file, the single
 if this argument is not set, the program will raise KeyError exception if a gene id found in a gff file is absent of the gene families file.""")
     parser.add_argument("-u", "--update", default = None, type=argparse.FileType('r'), nargs=1, help="""
 Pangenome Graph to be updated (in gexf format)""")
-    parser.add_argument("-b", "--beta_smoothing", default = 1.00, type=str, nargs=1, help = """
+    parser.add_argument("-b", "--beta_smoothing", default = [1.00], type=float, nargs=1, help = """
 Coeficient of smoothing all the partionning based on the Markov Random Feild leveraging the weigthed pangenome graph. 0 means no smoothing, 1 normal smoothing, 2 hard smoothing and 3 very hard smoothing (it is not recommended to use a greatest value than 3) (intermediate float value are allowed) 
 """)
-
     parser.add_argument("-i", "--delete_nem_intermediate_files", default=False, action="store_true", help="""
 Delete intermediate files used by NEM""")
     parser.add_argument("-c", "--compress_graph", default=False, action="store_true", help="""
@@ -1174,7 +1174,7 @@ Show all messages including debug ones""")
     start_neighborhood_computation = time.time()
     pan.neighborhood_computation()
     start_partitioning = time.time()
-    print(options.beta_smoothing[0])
+    
     pan.partition(NEMOUTPUTDIR, beta = options.beta_smoothing[0])
     start_identify_communities = time.time()
     pan.identify_communities_in_each_partition()
