@@ -779,7 +779,7 @@ class PPanGGOLiN:
                             "-a", ALGO,
                             "-i", str(ITERMAX),
                             "-m", MODEL, PROPORTION, VARIANCE_MODEL,
-                            "-s", "r",# nem_dir_path+"/nem_file.m",
+                            "-s m "+ nem_dir_path+"/nem_file.m",
                             "-b", str(BETA),
                             "-n", NEIGHBOUR_SPEC,
                             "-f fuzzy",
