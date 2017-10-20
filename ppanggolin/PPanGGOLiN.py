@@ -759,9 +759,9 @@ class PPanGGOLiN:
         m_file.close()
 
         logging.getLogger().info("Running NEM...")
-        weighted_degree = sum(self.neighbors_graph.degree(weight="weight").values())/nx.number_of_edges(self.neighbors_graph)
-        logging.getLogger().debug("weighted_degree: "+str(weighted_degree))
-        logging.getLogger().debug("org/weighted_degree: "+str(self.nb_organisms/weighted_degree))    
+        # weighted_degree = sum(list(self.neighbors_graph.degree(weight="weight")).values())/nx.number_of_edges(self.neighbors_graph)
+        # logging.getLogger().debug("weighted_degree: "+str(weighted_degree))
+        # logging.getLogger().debug("org/weighted_degree: "+str(self.nb_organisms/weighted_degree))    
         #weighted_degree = sum(self.neighbors_graph.degree(weight="weight").values())/nx.number_of_edges(self.neighbors_graph)
 
         K              = 3 # number of partitions
