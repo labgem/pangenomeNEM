@@ -749,9 +749,9 @@ class PPanGGOLiN:
         m_file.write(" ".join(["1"]*self.nb_organisms)+" ") # persistent binary vector
         m_file.write(" ".join(["1"]*self.nb_organisms)+" ") # shell binary vector (1 ou 0, whatever because dispersion will be of 0.5)
         m_file.write(" ".join(["0"]*self.nb_organisms)+" ") # cloud binary vector
-        m_file.write(" ".join(["0.01"]*self.nb_organisms)+" ") # persistent dispersition vector (low)
+        m_file.write(" ".join(["0.1"]*self.nb_organisms)+" ") # persistent dispersition vector (low)
         m_file.write(" ".join(["0.5"]*self.nb_organisms)+" ") # shell dispersition vector (high)
-        m_file.write(" ".join(["0.01"]*self.nb_organisms)) # cloud dispersition vector (low)
+        m_file.write(" ".join(["0.1"]*self.nb_organisms)) # cloud dispersition vector (low)
 
         index_file.close()
         nei_file.close()
