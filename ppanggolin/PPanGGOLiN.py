@@ -349,15 +349,11 @@ class PPanGGOLiN:
             self.neighbors_graph.node[fam_id][org] = set([gene])
 
         for attribute in ["name","length","product"]:
-            print(locals()[attribute])
             try:
                 self.neighbors_graph.node[fam_id][attribute].add(locals()[attribute])
             except KeyError:
                 self.neighbors_graph.node[fam_id][attribute]=set([locals()[attribute]])
 
-
-
-        exit()
 
 
 
