@@ -962,12 +962,12 @@ class PPanGGOLiN:
         elif not self.is_partitionned:
             logging.getLogger().warnings("the pangenome graph is not partionned, please use the function partition before")
         else:
-            if compute_layout:
-                from fa2l import force_atlas2_layout
-                logging.getLogger().info("Compute Force Atlas layout")
-                positions = force_atlas2_layout(self.neighbors_graph,None, iterations=1000, edge_weight_influence=0.7, jitter_tolerance = 20, barnes_hut_theta=1.2)
-                print(positions)
-                exit()
+            # if compute_layout:
+            #     from fa2l import force_atlas2_layout
+            #     logging.getLogger().info("Compute Force Atlas layout")
+            #     positions = force_atlas2_layout(self.neighbors_graph,None, iterations=1000, edge_weight_influence=0.7, jitter_tolerance = 20, barnes_hut_theta=1.2)
+            #     print(positions)
+            #     exit()
             logging.getLogger().info("Writing GEXF file")
             if compressed:
                 graph_output_path = gzip.open(graph_output_path,"w")
