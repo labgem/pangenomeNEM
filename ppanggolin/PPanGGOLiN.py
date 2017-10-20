@@ -343,12 +343,19 @@ class PPanGGOLiN:
         except KeyError:
             self.neighbors_graph.node[fam_id]["nb_gene"]=1
 
+        try:
+            self.neighbors_graph.node[fam_id][org].add(gene)
+        except KeyError::
+            self.neighbors_graph.node[fam_id][org] = set([gene])
+
         for attribute in ["name","length","product"]:
             print(locals()[attribute])
             try:
                 self.neighbors_graph.node[fam_id][attribute].add(locals()[attribute])
             except KeyError:
                 self.neighbors_graph.node[fam_id][attribute]=set([locals()[attribute]])
+
+
 
         exit()
 
