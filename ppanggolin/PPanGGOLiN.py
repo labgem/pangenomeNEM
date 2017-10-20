@@ -345,7 +345,7 @@ class PPanGGOLiN:
 
         try:
             self.neighbors_graph.node[fam_id][org].add(gene)
-        except KeyError::
+        except KeyError:
             self.neighbors_graph.node[fam_id][org] = set([gene])
 
         for attribute in ["name","length","product"]:
