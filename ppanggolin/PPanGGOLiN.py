@@ -1094,7 +1094,7 @@ class PPanGGOLiN:
         """ 
         size_communities=defaultdict(lambda : defaultdict(int))
         for partition in ["Persistent","Shell", "Cloud"]:
-            
+            subgraph = self.neighbors_graph.subgraph([nodes for nodes,data in self.neighbors_graph.nodes(data=True) if data['partition']==partition])
             comm = community.best_partition(subgraph)# = nx.algorithms.community.asyn_fluidc(subgraph, 100)
             for node, id_com in comm.items():
                 self.neighbors_graph.node[node]['community'] = partition+"_"+str(id_com)
