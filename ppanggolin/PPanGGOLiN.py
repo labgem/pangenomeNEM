@@ -785,7 +785,7 @@ class PPanGGOLiN:
                             "-i", str(ITERMAX),
                             "-m", MODEL, PROPORTION, VARIANCE_MODEL,
                             "-s m "+ nem_dir_path+"/nem_file.m",
-                            "-B heu_d -n f -l y -H 0.30 "+str(float(self.nb_organisms))" 0.8 0.5 0.02"#"-b", str(BETA),
+                            "-B heu_d -n f -l y -H 0.30 "+str(float(self.nb_organisms))+" 0.8 0.5 0.02",#"-b", str(BETA),
                             "-n", NEIGHBOUR_SPEC,
                             "-c", CONVERGENCE_TH,
                             "-f fuzzy",
