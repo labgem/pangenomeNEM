@@ -292,7 +292,7 @@ class PPanGGOLiN:
 
             if (lim_occurence > 0):
                 fam_to_remove =[fam for fam, occ in cpt_fam_occ.items() if occ > lim_occurence]
-                logging.getLogger().info("highly repeted families found (>"+str(lim_occurence)+" in "+organism+"): "+" ".join(fam_to_remove))
+                logging.getLogger().debug("highly repeted families found (>"+str(lim_occurence)+" in "+organism+"): "+" ".join(fam_to_remove))
                 self.families_repeted = self.families_repeted.union(set(fam_to_remove))
 
             return(annot)
@@ -646,6 +646,9 @@ class PPanGGOLiN:
                 for index, gene_row in enumerate(contig_annot[start+1:]):
                     logging.getLogger().debug(gene_row)
                     if gene_row[FAMILY] not in self.families_repeted:
+                        if gene_row[FAMILY] == "5121":
+                            logging.getLogger().info(self.families_repeted)
+                            exit()
                         self.__add_gene(gene_row[FAMILY],
                                         organism,
                                         gene_row[GENE],
@@ -1124,7 +1127,7 @@ example:""",  required=True)
 The output directory""")
     parser.add_argument('-ff', '--force', action="store_true", help="""
 Force overwriting existing output directory""")
-    parser.add_argument('-r', '--remove_high_copy_number_families', type=int, nargs=1, default=[-1], help="""
+    parser.add_argument('-r', '--remove_high_copy_number_families', type=int, nargs=1, default=[0], help="""
 Remove families having a number of copy of one families above or equal to this threshold in at least one organism (0 or negative value keep all families whatever their occurence). 
 When -u is set, only work on new organisms added""")
     parser.add_argument('-s', '--infere_singleton', default=False, action="store_true", help="""
