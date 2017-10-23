@@ -343,6 +343,9 @@ class PPanGGOLiN:
         except KeyError:
             self.neighbors_graph.node[fam_id]["nb_gene"]=1
 
+
+        if gene == "YEPE.1017.00015.i0002_04379":
+            logging.getLogger().info("ici : "+" ".join([str(i) for i in [fam_id, org, gene, name, length, product]]))
         try:
             self.neighbors_graph.node[fam_id][org].add(gene)
         except KeyError:
