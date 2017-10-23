@@ -776,7 +776,7 @@ class PPanGGOLiN:
         PROPORTION     = "pk" #equal proportion :  "p_"     varying proportion : "pk"
         VARIANCE_MODEL = "sk_" #one variance per partition and organism : "sdk"      one variance per partition, same in all organisms : "sd_"   one variance per organism, same in all partion : "s_d"    same variance in organisms and partitions : "s__" 
         NEIGHBOUR_SPEC = "f"# "f" specify to use all neighbors, orther argument is "4" to specify to use only the 4 neighbors with the higher weight (4 because for historic reason due to the 4 pixel neighbors of each pixel)
-        CONVERGENCE_TH = "clas  0.000001"
+        CONVERGENCE_TH = "clas 0.000001"
 
         command = " ".join([NEM_LOCATION, 
                             nem_dir_path+"/nem_file",
