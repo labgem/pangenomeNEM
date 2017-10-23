@@ -385,6 +385,19 @@ class PPanGGOLiN:
             :type str:
             :type str: 
         """ 
+
+        if fam_id == "5121":
+            logging.getLogger().info("fam_id")
+            logging.getLogger().info(self.families_repeted)
+            exit()
+
+
+        if fam_id_nei == "5121":
+            logging.getLogger().info("fam_id_nei")
+            logging.getLogger().info(self.families_repeted)
+            exit()
+
+
         if not self.neighbors_graph.has_edge(fam_id,fam_id_nei):
             self.neighbors_graph.add_edge(fam_id, fam_id_nei)
             # logging.getLogger().debug([str(i) for i in [fam_id, fam_id_nei, org]])
@@ -646,9 +659,7 @@ class PPanGGOLiN:
                 for index, gene_row in enumerate(contig_annot[start+1:]):
                     logging.getLogger().debug(gene_row)
                     if gene_row[FAMILY] not in self.families_repeted:
-                        if gene_row[FAMILY] == "5121":
-                            logging.getLogger().info(self.families_repeted)
-                            exit()
+
                         self.__add_gene(gene_row[FAMILY],
                                         organism,
                                         gene_row[GENE],
@@ -661,24 +672,24 @@ class PPanGGOLiN:
                         family_id_nei = gene_row[FAMILY]
                         at_least_2_families = True
                 
-                # if contig in self.circular_contig and at_least_2_families:#circularization
-                #     self.__add_gene(contig_annot[start][FAMILY],
-                #                     organism,
-                #                     contig_annot[start][GENE],
-                #                     contig_annot[start][NAME],
-                #                     contig_annot[start][END]-contig_annot[start][START],
-                #                     contig_annot[start][PRODUCT])
-                #                     #multi_copy)
-                #     self.neighbors_graph.add_node(family_id_nei)
-                #     self.__add_link(contig_annot[start][FAMILY],family_id_nei,organism)
-                # else:#no circularization
-                #     self.__add_gene(contig_annot[start][FAMILY],
-                #                     organism,
-                #                     contig_annot[start][GENE],
-                #                     contig_annot[start][NAME],
-                #                     contig_annot[start][END]-contig_annot[start][START],
-                #                     contig_annot[start][PRODUCT])
-                #                     #multi_copy)
+                if contig in self.circular_contig and at_least_2_families:#circularization
+                    self.__add_gene(contig_annot[start][FAMILY],
+                                    organism,
+                                    contig_annot[start][GENE],
+                                    contig_annot[start][NAME],
+                                    contig_annot[start][END]-contig_annot[start][START],
+                                    contig_annot[start][PRODUCT])
+                                    #multi_copy)
+                    self.neighbors_graph.add_node(family_id_nei)
+                    self.__add_link(contig_annot[start][FAMILY],family_id_nei,organism)
+                else:#no circularization
+                    self.__add_gene(contig_annot[start][FAMILY],
+                                    organism,
+                                    contig_annot[start][GENE],
+                                    contig_annot[start][NAME],
+                                    contig_annot[start][END]-contig_annot[start][START],
+                                    contig_annot[start][PRODUCT])
+                                    #multi_copy)
 
         # if multi_copy is not None and len(multi_copy)>0:
         #     logging.getLogger().info("Untangleling ...")
