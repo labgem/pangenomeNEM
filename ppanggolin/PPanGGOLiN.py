@@ -784,13 +784,21 @@ class PPanGGOLiN:
 
         K              = 3 # number of partitions
         ALGO           = "ncem" #fuzzy classification by mean field approximation
-        BETA           = beta # coeficient of spatial smoothing to apply, 0 is equivalent to EM for mixture model
         ITERMAX        = 100 # number of iteration max 
         MODEL          = "bern" # multivariate Bernoulli mixture model
         PROPORTION     = "pk" #equal proportion :  "p_"     varying proportion : "pk"
         VARIANCE_MODEL = "sk_" #one variance per partition and organism : "sdk"      one variance per partition, same in all organisms : "sd_"   one variance per organism, same in all partion : "s_d"    same variance in organisms and partitions : "s__" 
         NEIGHBOUR_SPEC = "f"# "f" specify to use all neighbors, orther argument is "4" to specify to use only the 4 neighbors with the higher weight (4 because for historic reason due to the 4 pixel neighbors of each pixel)
-        CONVERGENCE_TH = "clas 0.000001"
+        CONVERGENCE_TH = "clas "+str(0.000001)
+
+        HEURISTIC      = "heu_d"# "psgrad" = pseudo-likelihood gradient ascent, "heu_d" = heuristic using drop of fuzzy within cluster inertia, "heu_l" = heuristic using drop of mixture likelihood
+        STEP_HEURISTIC = 0.25 # step of beta increase
+        BETA_MAX       = float(self.nb_organisms) #maximal value of beta to test,
+        DDROP          = 0.8 #threshold of allowed D drop (higher = less detection)
+        DLOSS          = 0.5 #threshold of allowed D loss (higher = less detection)
+        LLOSS          = 0.02 #threshold of allowed L loss (higher = less detection)
+        
+        BETA = ["-B",HEURISTIC,"-H",STEP_HEURISTIC,BETA_MAX,DDROP,DLOSS,LLOSS] if beta < 0.00 else ["-b "+str(BETA)]
 
         command = " ".join([NEM_LOCATION, 
                             nem_dir_path+"/nem_file",
@@ -799,11 +807,11 @@ class PPanGGOLiN:
                             "-i", str(ITERMAX),
                             "-m", MODEL, PROPORTION, VARIANCE_MODEL,
                             "-s m "+ nem_dir_path+"/nem_file.m",
-                            "-B heu_d -n f -l y -H 0.30 "+str(float(self.nb_organisms))+" 0.8 0.5 0.02",#"-b", str(BETA),
+                            *BETA,
                             "-n", NEIGHBOUR_SPEC,
                             "-c", CONVERGENCE_TH,
                             "-f fuzzy",
-                            "-l y"  ])
+                            "-l y"])
      
         logging.getLogger().info(command)
 
@@ -1146,7 +1154,7 @@ If a gene id found in a gff file is absent of the gene families file, the single
 if this argument is not set, the program will raise KeyError exception if a gene id found in a gff file is absent of the gene families file.""")
     parser.add_argument("-u", "--update", default = None, type=argparse.FileType('r'), nargs=1, help="""
 Pangenome Graph to be updated (in gexf format)""")
-    parser.add_argument("-b", "--beta_smoothing", default = [1.00], type=float, nargs=1, help = """
+    parser.add_argument("-b", "--beta_smoothing", default = [-1.00], type=float, nargs=1, help = """
 Coeficient of smoothing all the partionning based on the Markov Random Feild leveraging the weigthed pangenome graph. 0 means no smoothing, 1 normal smoothing, 2 hard smoothing and 3 very hard smoothing (it is not recommended to use a greatest value than 3) (intermediate float value are allowed) 
 """)
     parser.add_argument("-i", "--delete_nem_intermediate_files", default=False, action="store_true", help="""
