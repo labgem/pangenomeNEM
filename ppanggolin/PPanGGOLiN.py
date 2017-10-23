@@ -1181,7 +1181,7 @@ class PPanGGOLiN:
             DLOSS          = 0.5 #threshold of allowed D loss (higher = less detection)
             LLOSS          = 0.02 #threshold of allowed L loss (higher = less detection)
             
-            BETA = ["-B",HEURISTIC,"-H",str(STEP_HEURISTIC),str(BETA_MAX),str(DDROP),str(DLOSS),str(LLOSS)] if beta < 0.00 else ["-b "+str(BETA)]
+            BETA = ["-B",HEURISTIC,"-H",str(STEP_HEURISTIC),str(BETA_MAX),str(DDROP),str(DLOSS),str(LLOSS)] if beta < 0.00 else ["-b "+str(beta)]
 
             command = " ".join([NEM_LOCATION, 
                                 nem_dir_path+"/nem_file",
