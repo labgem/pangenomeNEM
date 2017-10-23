@@ -776,6 +776,7 @@ class PPanGGOLiN:
         PROPORTION     = "pk" #equal proportion :  "p_"     varying proportion : "pk"
         VARIANCE_MODEL = "sk_" #one variance per partition and organism : "sdk"      one variance per partition, same in all organisms : "sd_"   one variance per organism, same in all partion : "s_d"    same variance in organisms and partitions : "s__" 
         NEIGHBOUR_SPEC = "f"# "f" specify to use all neighbors, orther argument is "4" to specify to use only the 4 neighbors with the higher weight (4 because for historic reason due to the 4 pixel neighbors of each pixel)
+        CONVERGENCE_TH = "clas  0.000001"
 
         command = " ".join([NEM_LOCATION, 
                             nem_dir_path+"/nem_file",
@@ -784,8 +785,9 @@ class PPanGGOLiN:
                             "-i", str(ITERMAX),
                             "-m", MODEL, PROPORTION, VARIANCE_MODEL,
                             "-s m "+ nem_dir_path+"/nem_file.m",
-                            "-b", str(BETA),
+                            "-B heu_d -n f -l y -H 0.30 "+str(float(self.nb_organisms))" 0.8 0.5 0.02"#"-b", str(BETA),
                             "-n", NEIGHBOUR_SPEC,
+                            "-c", CONVERGENCE_TH,
                             "-f fuzzy",
                             "-l y"  ])
      
@@ -1120,6 +1122,8 @@ Gene name can be any string corresponding to the if feature in the gff files. th
 example:""",  required=True)
     parser.add_argument('-d', '--output_directory', type=str, nargs=1, default=["output.dir"], help="""
 The output directory""")
+    parser.add_argument('-f', '--force', action="store_true", help="""
+Force overwriting existing output directory""")
     parser.add_argument('-r', '--remove_high_copy_number_families', type=int, nargs=1, default=[-1], help="""
 Remove families having a number of copy of one families above or equal to this threshold in at least one organism (0 or negative value keep all families whatever their occurence). 
 When -u is set, only work on new organisms added""")
@@ -1160,7 +1164,7 @@ Show all messages including debug ones""")
     for directory in [OUTPUTDIR, NEMOUTPUTDIR, FIGUREOUTPUTDIR]:
         if not os.path.exists(directory):
             os.makedirs(directory)
-        else:
+        elif not option.force:
             logging.getLogger().error(directory+" already exist")
             exit()
 
