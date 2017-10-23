@@ -1122,7 +1122,7 @@ Gene name can be any string corresponding to the if feature in the gff files. th
 example:""",  required=True)
     parser.add_argument('-d', '--output_directory', type=str, nargs=1, default=["output.dir"], help="""
 The output directory""")
-    parser.add_argument('-f', '--force', action="store_true", help="""
+    parser.add_argument('-ff', '--force', action="store_true", help="""
 Force overwriting existing output directory""")
     parser.add_argument('-r', '--remove_high_copy_number_families', type=int, nargs=1, default=[-1], help="""
 Remove families having a number of copy of one families above or equal to this threshold in at least one organism (0 or negative value keep all families whatever their occurence). 
