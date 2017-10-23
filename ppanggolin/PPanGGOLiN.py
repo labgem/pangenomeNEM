@@ -1115,7 +1115,6 @@ class PPanGGOLiN:
         org_file   = open(nem_dir_path+"/column_org_file", "w")
         nei_file   = open(nem_dir_path+"/nem_file.nei", "w")
         dat_file   = open(nem_dir_path+"/nem_file.dat", "w")
-        m_file     = open(nem_dir_path+"/nem_file.m", "w")
 
         str_file.write("S\t"+str(nx.number_of_nodes(subgraph))+"\t"+str(self.nb_organisms)+"\n")
         str_file.close()
@@ -1156,7 +1155,6 @@ class PPanGGOLiN:
         index_file.close()
         nei_file.close()
         dat_file.close()
-        m_file.close()
 
         for k in k_range:
 
