@@ -386,18 +386,6 @@ class PPanGGOLiN:
             :type str: 
         """ 
 
-        if fam_id == "5121":
-            logging.getLogger().info("fam_id")
-            logging.getLogger().info(self.families_repeted)
-            exit()
-
-
-        if fam_id_nei == "5121":
-            logging.getLogger().info("fam_id_nei")
-            logging.getLogger().info(self.families_repeted)
-            exit()
-
-
         if not self.neighbors_graph.has_edge(fam_id,fam_id_nei):
             self.neighbors_graph.add_edge(fam_id, fam_id_nei)
             # logging.getLogger().debug([str(i) for i in [fam_id, fam_id_nei, org]])
@@ -1155,7 +1143,7 @@ if this argument is not set, the program will raise KeyError exception if a gene
     parser.add_argument("-u", "--update", default = None, type=argparse.FileType('r'), nargs=1, help="""
 Pangenome Graph to be updated (in gexf format)""")
     parser.add_argument("-b", "--beta_smoothing", default = [-1.00], type=float, nargs=1, help = """
-Coeficient of smoothing all the partionning based on the Markov Random Feild leveraging the weigthed pangenome graph. 0 means no smoothing, 1 normal smoothing, 2 hard smoothing and 3 very hard smoothing (it is not recommended to use a greatest value than 3) (intermediate float value are allowed) 
+Coeficient of smoothing all the partionning based on the Markov Random Feild leveraging the weigthed pangenome graph. A positive float, 0.0 means to discard spatial smoothing and -1 to find beta automaticaly (increase the computation time) 
 """)
     parser.add_argument("-i", "--delete_nem_intermediate_files", default=False, action="store_true", help="""
 Delete intermediate files used by NEM""")
