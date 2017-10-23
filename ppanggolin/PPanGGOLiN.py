@@ -769,7 +769,7 @@ class PPanGGOLiN:
         #weighted_degree = sum(self.neighbors_graph.degree(weight="weight").values())/nx.number_of_edges(self.neighbors_graph)
 
         K              = 3 # number of partitions
-        ALGO           = "nem" #fuzzy classification by mean field approximation
+        ALGO           = "ncem" #fuzzy classification by mean field approximation
         BETA           = beta # coeficient of spatial smoothing to apply, 0 is equivalent to EM for mixture model
         ITERMAX        = 100 # number of iteration max 
         MODEL          = "bern" # multivariate Bernoulli mixture model
