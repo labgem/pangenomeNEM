@@ -292,7 +292,7 @@ class PPanGGOLiN:
 
             if (lim_occurence > 0):
                 fam_to_remove =[fam for fam, occ in cpt_fam_occ.items() if occ > lim_occurence]
-                logging.getLogger().info("highly repeted families found (>"+lim_occurence+" in "+organism+"): "+" ".join(fam_to_remove))
+                logging.getLogger().info("highly repeted families found (>"+str(lim_occurence)+" in "+organism+"): "+" ".join(fam_to_remove))
                 self.families_repeted = self.families_repeted.union(set(fam_to_remove))
 
             return(annot)
