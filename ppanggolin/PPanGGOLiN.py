@@ -193,7 +193,7 @@ class PPanGGOLiN:
             raise ValueError("init_from parameter is required")
         self.nb_organisms = len(self.organisms)
 
-    def __initialize_from_files(self, organisms_file, families_tsv_file, lim_occurence, infere_singleton = False):
+    def __initialize_from_files(self, organisms_file, families_tsv_file, lim_occurence = 0, infere_singleton = False):
         """ 
             :param organisms_file: a file listing organims by compute, first column is organism name, second is path to gff file and optionnally other other to provide the name of circular contig
             :param families_tsv_file: a file listing families. The first element is the family identifier (by convention, we advice to use the identifier of the average gene of the family) and then the next elements are the identifiers of the genes belonging to this family.
@@ -225,7 +225,7 @@ class PPanGGOLiN:
 
         self.circular_contig = set(self.circular_contig)
 
-    def __load_gff(self, gff_file, families, organism, lim_occurence, infere_singleton = False):
+    def __load_gff(self, gff_file, families, organism, lim_occurence = 0, infere_singleton = False):
         """
             Load the content of a gff file
             :param gff_file: a valid gff file where only feature of the type 'CDS' will be imported as genes. Each 'CDS' feature must have a uniq ID as attribute (afterall called gene id).
@@ -290,8 +290,9 @@ class PPanGGOLiN:
 
                 # logging.getLogger().debug(annot[self.gene_location[protein][SEQUENCE]][self.gene_location[protein][INDEX]][GENE])
 
-            if (lim_occurence >0):
+            if (lim_occurence > 0):
                 fam_to_remove =[fam for fam, occ in cpt_fam_occ.items() if occ > lim_occurence]
+                logging.getLogger().info("highly repeted families found (>"+lim_occurence+" in "+organism"): "+" ".join(fam_to_remove))
                 self.families_repeted = self.families_repeted.union(set(fam_to_remove))
 
             return(annot)
