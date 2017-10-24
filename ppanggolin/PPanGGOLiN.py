@@ -1223,7 +1223,7 @@ class PPanGGOLiN:
                     max_prob = max([float(el) for el in elements])
                     classes = [pos for pos, prob in enumerate(elements) if prob == max_prob]
 
-                    self.neighbors_graph.node[index_inv[node]]["subshell"]=str(classes[0])
+                    self.neighbors_graph.node[index_inv[i]]["subshell"]=str(classes[0])
 
 if __name__=='__main__':
     """
