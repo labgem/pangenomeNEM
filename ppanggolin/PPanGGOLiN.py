@@ -1214,9 +1214,9 @@ class PPanGGOLiN:
                 
                 parameter = parameter_nem_file.readlines()
                 M = float(parameter[6].split()[3]) # M is markov ps-like
-                self.BIC = -2 * M - (K * self.nb_organisms * 2 + K - 1) * math.log(self.pan_size)
+                BIC = -2 * M - (k * self.nb_organisms * 2 + k - 1) * math.log(len(self.partitions["Shell"]))
 
-                logging.getLogger().info("The Bayesian Criterion Index of the partionning for "+str(k)+" is "+str(self.BIC))
+                logging.getLogger().info("The Bayesian Criterion Index of the partionning for "+str(k)+" is "+str(BIC))
 
                 for i, line in enumerate(classification_nem_file):
                     elements = [float(el) for el in line.split()]
