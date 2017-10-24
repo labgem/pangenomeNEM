@@ -1217,12 +1217,12 @@ class PPanGGOLiN:
 
             logging.getLogger().info("The Bayesian Criterion Index of the partionning for "+str(k)+" is "+str(self.BIC))
 
-            # for i, line in enumerate(classification_nem_file):
-            #     elements = [float(el) for el in line.split()]
-            #     max_prob = max([float(el) for el in elements])
-            #     classes = [pos for pos, prob in enumerate(elements) if prob == max_prob]
+            for i, line in enumerate(classification_nem_file):
+                elements = [float(el) for el in line.split()]
+                max_prob = max([float(el) for el in elements])
+                classes = [pos for pos, prob in enumerate(elements) if prob == max_prob]
 
-            #     self.neighbors_graph.node[node]["subshell"]=str(classes[0])
+                self.neighbors_graph.node[node]["subshell"]=str(classes[0])
 
 if __name__=='__main__':
     """
