@@ -1122,6 +1122,7 @@ class PPanGGOLiN:
         nei_file.write("1\n")#to enable weigthed partionning
         
         index = {node: index+1 for index, node in enumerate(subgraph.nodes(data=False))}
+        index_inv = {i: node for node, i in index.items()}
         org_file.write(" ".join([org for org in self.organisms])+"\n")
         org_file.close()
 
@@ -1203,26 +1204,26 @@ class PPanGGOLiN:
             logging.getLogger().debug(out)
             logging.getLogger().debug(err)
 
-        if os.path.isfile(nem_dir_path+"/nem_file.uf"):
-            logging.getLogger().info("Reading NEM results...")
-        else:
-            logging.getLogger().error("No NEM output file found")
-        
-        with open(nem_dir_path+"/nem_file.uf","r") as classification_nem_file, open(nem_dir_path+"/nem_file.mf","r") as parameter_nem_file:
-            classification = []
+            if os.path.isfile(nem_dir_path+"/nem_file.uf"):
+                logging.getLogger().info("Reading NEM results...")
+            else:
+                logging.getLogger().error("No NEM output file found")
             
-            parameter = parameter_nem_file.readlines()
-            M = float(parameter[6].split()[3]) # M is markov ps-like
-            self.BIC = -2 * M - (K * self.nb_organisms * 2 + K - 1) * math.log(self.pan_size)
+            with open(nem_dir_path+"/nem_file.uf","r") as classification_nem_file, open(nem_dir_path+"/nem_file.mf","r") as parameter_nem_file:
+                classification = []
+                
+                parameter = parameter_nem_file.readlines()
+                M = float(parameter[6].split()[3]) # M is markov ps-like
+                self.BIC = -2 * M - (K * self.nb_organisms * 2 + K - 1) * math.log(self.pan_size)
 
-            logging.getLogger().info("The Bayesian Criterion Index of the partionning for "+str(k)+" is "+str(self.BIC))
+                logging.getLogger().info("The Bayesian Criterion Index of the partionning for "+str(k)+" is "+str(self.BIC))
 
-            for i, line in enumerate(classification_nem_file):
-                elements = [float(el) for el in line.split()]
-                max_prob = max([float(el) for el in elements])
-                classes = [pos for pos, prob in enumerate(elements) if prob == max_prob]
+                for i, line in enumerate(classification_nem_file):
+                    elements = [float(el) for el in line.split()]
+                    max_prob = max([float(el) for el in elements])
+                    classes = [pos for pos, prob in enumerate(elements) if prob == max_prob]
 
-                self.neighbors_graph.node[node]["subshell"]=str(classes[0])
+                    self.neighbors_graph.node[index_inv[node]]["subshell"]=str(classes[0])
 
 if __name__=='__main__':
     """
