@@ -1175,7 +1175,7 @@ class PPanGGOLiN:
             CONVERGENCE_TH = "clas "+str(0.000001)
 
             HEURISTIC      = "heu_d"# "psgrad" = pseudo-likelihood gradient ascent, "heu_d" = heuristic using drop of fuzzy within cluster inertia, "heu_l" = heuristic using drop of mixture likelihood
-            STEP_HEURISTIC = 0.25 # step of beta increase
+            STEP_HEURISTIC = 1 # step of beta increase
             BETA_MAX       = float(self.nb_organisms) #maximal value of beta to test,
             DDROP          = 0.8 #threshold of allowed D drop (higher = less detection)
             DLOSS          = 0.5 #threshold of allowed D loss (higher = less detection)
@@ -1189,7 +1189,7 @@ class PPanGGOLiN:
                                 "-a", ALGO,
                                 "-i", str(ITERMAX),
                                 "-m", MODEL, PROPORTION, VARIANCE_MODEL,
-                                "-s r 10",
+                                "-s r 5",
                                 *BETA,
                                 "-n", NEIGHBOUR_SPEC,
                                 "-c", CONVERGENCE_TH,
@@ -1321,6 +1321,8 @@ Show all messages including debug ones""")
     pan.partition(NEMOUTPUTDIR, beta = options.beta_smoothing[0])
     start_identify_communities = time.time()
     pan.identify_communities_in_each_partition()
+    pan.identify_shell_subpaths()
+
 
     time_of_writing_output_file = time.time()
     GEXF_GRAPH_FILE  = OUTPUTDIR+"/"+"graph.gexf"
@@ -1335,8 +1337,6 @@ Show all messages including debug ones""")
         file.close()
 
     pan.csv_matrix(OUTPUTDIR+"/matrix.csv")
-
-    pan.identify_shell_subpaths()
 
     logging.getLogger().info(pan)
     logging.getLogger().info("\n\
