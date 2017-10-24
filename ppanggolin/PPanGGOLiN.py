@@ -1100,7 +1100,7 @@ class PPanGGOLiN:
                 self.neighbors_graph.node[node]['community'] = partition+"_"+str(id_com)
                 size_communities[partition][id_com]+=1
 
-    def identify_shell_subpaths(self, k_range = range(2,10),nem_dir_path = tempfile.mkdtemp()):
+    def identify_shell_subpaths(self, k_range = [9],nem_dir_path = tempfile.mkdtemp()):
         
         subgraph = self.neighbors_graph.subgraph([nodes for nodes,data in self.neighbors_graph.nodes(data=True) if data['partition']=='Shell'])
 
@@ -1165,7 +1165,6 @@ class PPanGGOLiN:
             #weighted_degree = sum(self.neighbors_graph.degree(weight="weight").values())/nx.number_of_edges(self.neighbors_graph)
 
 
-            K              = 3 # number of partitions
             ALGO           = "ncem" #fuzzy classification by mean field approximation
             ITERMAX        = 100 # number of iteration max 
             MODEL          = "bern" # multivariate Bernoulli mixture model
@@ -1185,11 +1184,11 @@ class PPanGGOLiN:
 
             command = " ".join([NEM_LOCATION, 
                                 nem_dir_path+"/nem_file",
-                                str(K),
+                                str(k),
                                 "-a", ALGO,
                                 "-i", str(ITERMAX),
                                 "-m", MODEL, PROPORTION, VARIANCE_MODEL,
-                                "-s m "+ nem_dir_path+"/nem_file.m",
+                                "-s r 10",
                                 *BETA,
                                 "-n", NEIGHBOUR_SPEC,
                                 "-c", CONVERGENCE_TH,
@@ -1198,128 +1197,32 @@ class PPanGGOLiN:
          
             logging.getLogger().info(command)
 
-            #proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-            #(out,err) = proc.communicate()
-            #logging.getLogger().debug(out)
-        #     logging.getLogger().debug(err)
+            (out,err) = proc.communicate()
+            logging.getLogger().debug(out)
+            logging.getLogger().debug(err)
 
-        # if os.path.isfile(nem_dir_path+"/nem_file.uf"):
-        #     logging.getLogger().info("Reading NEM results...")
-        # else:
-        #     logging.getLogger().error("No NEM output file found")
+        if os.path.isfile(nem_dir_path+"/nem_file.uf"):
+            logging.getLogger().info("Reading NEM results...")
+        else:
+            logging.getLogger().error("No NEM output file found")
         
-        # with open(nem_dir_path+"/nem_file.uf","r") as classification_nem_file, open(nem_dir_path+"/nem_file.mf","r") as parameter_nem_file:
-        #     classification = []
-        #     for i, line in enumerate(classification_nem_file):
-        #         elements = [float(el) for el in line.split()]
-        #         max_prob = max([float(el) for el in elements])
-        #         classes = [pos for pos, prob in enumerate(elements) if prob == max_prob]
-        #         logging.getLogger().debug(classes)
-        #         logging.getLogger().debug(i)
-
-        #         if (len(classes)>1):
-        #             classification.append(2)#shell
-        #         else:
-        #             if classes[0] == 0:
-        #                 classification.append(1)#persistent
-        #             elif classes[0] == 2:
-        #                 classification.append(3)#cloud
-        #             else:
-        #                 classification.append(2)#shell
-
-        #     parameter = parameter_nem_file.readlines()
-        #     M = float(parameter[6].split()[3]) # M is markov ps-like
-        #     self.BIC = -2 * M - (K * self.nb_organisms * 2 + K - 1) * math.log(self.pan_size)
-
-        #     logging.getLogger().info("The Bayesian Criterion Index of the partionning is "+str(self.BIC))
-
-        #     sum_mu_k = []
-        #     sum_epsilon_k = []
-        #     proportion = []
+        with open(nem_dir_path+"/nem_file.uf","r") as classification_nem_file, open(nem_dir_path+"/nem_file.mf","r") as parameter_nem_file:
+            classification = []
             
-        #     for k, line in enumerate(parameter[-3:]):
-        #         logging.getLogger().debug(line)
-        #         vector = line.split()
-        #         mu_k = [bool(int(mu_kj)) for mu_kj in vector[0:self.nb_organisms]]
-        #         logging.getLogger().debug(mu_k)
-        #         logging.getLogger().debug(len(mu_k))
+            parameter = parameter_nem_file.readlines()
+            M = float(parameter[6].split()[3]) # M is markov ps-like
+            self.BIC = -2 * M - (K * self.nb_organisms * 2 + K - 1) * math.log(self.pan_size)
 
-        #         epsilon_k = [float(epsilon_kj) for epsilon_kj in vector[self.nb_organisms+1:]]
-        #         logging.getLogger().debug(epsilon_k)
-        #         logging.getLogger().debug(len(epsilon_k))
-        #         proportion = float(vector[self.nb_organisms])
-        #         logging.getLogger().debug(proportion)
-        #         sum_mu_k.append(sum(mu_k))
-        #         logging.getLogger().debug(sum(mu_k))
-        #         sum_epsilon_k.append(sum(epsilon_k))
-        #         logging.getLogger().debug(sum(epsilon_k))
+            logging.getLogger().info("The Bayesian Criterion Index of the partionning for "+str(k)+" is "+str(self.BIC))
 
-        #     #cloud is defined by a sum of mu_k near of 0 and a low sum of epsilon
-        #     #shell is defined by an higher sum of epsilon_k
-        #     #persistent is defined by a sum of mu near of nb_organism and a low sum of epsilon
+            # for i, line in enumerate(classification_nem_file):
+            #     elements = [float(el) for el in line.split()]
+            #     max_prob = max([float(el) for el in elements])
+            #     classes = [pos for pos, prob in enumerate(elements) if prob == max_prob]
 
-        #     max_mu_k     = max(sum_mu_k)
-        #     persistent_k = sum_mu_k.index(max_mu_k)
-
-        #     max_epsilon_k = max(sum_epsilon_k)
-        #     shell_k       = sum_epsilon_k.index(max_epsilon_k)
-
-        #     cloud_k = set([0,1,2]) - set([persistent_k, shell_k])
-        #     cloud_k = list(cloud_k)[0]
-
-        #     logging.getLogger().debug(sum_mu_k)
-        #     logging.getLogger().debug(sum_epsilon_k)
-
-        #     logging.getLogger().debug(persistent_k)
-        #     logging.getLogger().debug(shell_k)
-        #     logging.getLogger().debug(cloud_k)
-
-        #     partition                 = {}
-        #     partition[persistent_k+1] = "Persistent"
-        #     partition[shell_k+1]      = "Shell"
-        #     partition[cloud_k+1]      = "Cloud"
-
-        #     logging.getLogger().debug(partition)
-        #     #logging.getLogger().debug(index.keys())
-        #     for node, nem_class in zip(self.neighbors_graph.nodes(), classification):
-        #         nb_orgs=0
-        #         for key in list(self.neighbors_graph.node[node].keys()):
-        #             try:
-        #                 self.neighbors_graph.node[node][key]="|".join(self.neighbors_graph.node[node][key])
-        #             except TypeError:
-        #                 if key == "length":
-        #                     l = list(self.neighbors_graph.node[node][key])
-        #                     self.neighbors_graph.node[node]["length_avg"] = float(np.mean(l))
-        #                     self.neighbors_graph.node[node]["length_med"] = float(np.median(l))
-        #                     self.neighbors_graph.node[node]["length_min"] = min(l)
-        #                     self.neighbors_graph.node[node]["length_max"] = max(l)
-        #                     del self.neighbors_graph.node[node]["length"]
-
-        #             if key not in RESERVED_WORDS:
-        #                 last_org = key
-        #                 #self.partitions_by_organisms[key][partition[int(nem_class)]].add(self.neighbors_graph.node[node][key])
-        #                 nb_orgs+=1
-
-        #         self.neighbors_graph.node[node]["partition"]=partition[int(nem_class)]
-        #         self.partitions[partition[int(nem_class)]].append(node)
-
-        #         if nb_orgs >= self.nb_organisms:
-        #             self.partitions["Core_Exact"].append(node)
-        #             self.neighbors_graph.node[node]["partition_exact"]="Core_Exact"
-        #         else:
-        #             self.partitions["Accessory"].append(node)
-        #             self.neighbors_graph.node[node]["partition_exact"]="Accessory"
-
-        # if len(self.families_repeted)>0:
-        #     logging.getLogger().info("Discarded families are:\n"+"\n".join(self.families_repeted))
-        # else:
-        #     logging.getLogger().info("No families have been Discarded")
-
-        # logging.getLogger().debug(nx.number_of_edges(self.neighbors_graph))
-
-        # self.is_partitionned=True
-
+            #     self.neighbors_graph.node[node]["subshell"]=str(classes[0])
 
 if __name__=='__main__':
     """
