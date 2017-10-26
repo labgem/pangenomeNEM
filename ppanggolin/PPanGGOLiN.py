@@ -856,8 +856,9 @@ class PPanGGOLiN:
         """
             Delete all the tempory files used to partion the pangenome
         """ 
-        logging.getLogger().info("delete "+self.nem_intermediate_files)
+        
         if self.nem_intermediate_files is not None:
+            logging.getLogger().info("delete "+self.nem_intermediate_files)
             shutil.rmtree(self.nem_intermediate_files)
             self.nem_intermediate_files = None
 
