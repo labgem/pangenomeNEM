@@ -835,7 +835,7 @@ class PPanGGOLiN:
                 sum_epsilon_k = []
                 proportion = []
                 
-                for k, line in enumerate(parameter[-3:]):
+                for k, line in enumerate(parameter_nem_file[-3:]):
                     logging.getLogger().debug(line)
                     vector = line.split()
                     mu_k = [bool(int(mu_kj)) for mu_kj in vector[0:self.nb_organisms]]
