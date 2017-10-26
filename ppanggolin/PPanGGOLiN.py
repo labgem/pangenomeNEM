@@ -223,7 +223,7 @@ class PPanGGOLiN:
                 self.circular_contig_size.update({contig_id: 0 for contig_id in elements[2:len(elements)]})# size of the circular contig is initialized to zero (waiting to read the gff files to fill the dictionnaries with the correct values)
             self.annotations[elements[0]] = self.__load_gff(elements[ORGANISM_GFF_FILE], families, elements[ORGANISM_ID], lim_occurence, infere_singleton)
 
-        check_circular_contigs = {contig: size for contig, size in circular_contig_size.items() if size == 0 }
+        check_circular_contigs = {contig: size for contig, size in self.circular_contig_size.items() if size == 0 }
         if len(check_circular_contigs) > 0:
             logging.getLogger().error("""
                 The following identifiers of circular contigs in the file listing organisms have not been found in any region feature of the gff files: """+"\t".join(check_circular_contigs.keys()))
