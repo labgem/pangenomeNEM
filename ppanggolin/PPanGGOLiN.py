@@ -220,10 +220,10 @@ class PPanGGOLiN:
         for line in organisms_file:
             elements = line.split()
             if len(elements)>2:
-                self.circular_contig_size.update({contig_id: 0 for contig_id in elements[2:len(elements)]})# size of the circular contig is initialized to zero (waiting to read the gff files to fill the dictionnaries with the correct values)
+                self.circular_contig_size.update({contig_id: None for contig_id in elements[2:len(elements)]})# size of the circular contig is initialized to None (waiting to read the gff files to fill the dictionnaries with the correct values)
             self.annotations[elements[0]] = self.__load_gff(elements[ORGANISM_GFF_FILE], families, elements[ORGANISM_ID], lim_occurence, infere_singleton, already_sorted)
 
-        check_circular_contigs = {contig: size for contig, size in self.circular_contig_size.items() if size == 0 }
+        check_circular_contigs = {contig: size for contig, size in self.circular_contig_size.items() if size == None }
         if len(check_circular_contigs) > 0:
             logging.getLogger().error("""
                 The following identifiers of circular contigs in the file listing organisms have not been found in any region feature of the gff files: """+"\t".join(check_circular_contigs.keys()))
@@ -424,10 +424,7 @@ class PPanGGOLiN:
                                         gene_row[END]-gene_row[START],
                                         gene_row[PRODUCT])
                         self.neighbors_graph.add_node(family_id_nei)
-                        self.__add_link(gene_row[FAMILY],family_id_nei,organism, gene_row[START] - end_family_nei)
-                        if gene_row[START] - end_family_nei < 0:
-                            logging.getLogger().debug(gene_row)
-                            exit() 
+                        self.__add_link(gene_row[FAMILY],family_id_nei,organism, gene_row[START] - end_family_nei) 
                         family_id_nei  = gene_row[FAMILY]
                         end_family_nei = gene_row[END]
                         at_least_2_families = True
