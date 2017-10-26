@@ -886,7 +886,7 @@ class PPanGGOLiN:
                     elements = [float(el) for el in line.split()]
                     max_prob = max([float(el) for el in elements])
                     positions_max_prob = [pos for pos, prob in enumerate(elements) if prob == max_prob]
-                    logging.getLogger().debug(classes)
+                    logging.getLogger().debug(positions_max_prob)
                     logging.getLogger().debug(i)
 
                     if (len(positions_max_prob)>1):
@@ -1295,6 +1295,8 @@ Coeficient of smoothing all the partionning based on the Markov Random Feild lev
 Delete intermediate files used by NEM""")
     parser.add_argument("-c", "--compress_graph", default=False, action="store_true", help="""
 Compress (using gzip) the file containing the partionned pangenome graph""")
+    parser.add_argument("-ss", "--subpartition_shell", default = 0, type=int, nargs=1, help = """
+Subpartition the shell genome in n subpartition, n can be ajusted automatically if n = -1, 0 desactivate shell genome subpartitioning""")
     parser.add_argument("-v", "--verbose", default=True, action="store_true", help="""
 Show information message, otherwise only errors and warnings will be displayed""")
     parser.add_argument("-vv", "--verbose_debug", default=False, action="store_true", help="""
@@ -1342,7 +1344,7 @@ Show all messages including debug ones""")
     pan.partition(NEMOUTPUTDIR, beta = options.beta_smoothing[0])
     start_identify_communities = time.time()
     pan.identify_communities_in_each_partition()
-    pan.identify_shell_subpaths()
+    #pan.identify_shell_subpaths()
 
 
     time_of_writing_output_file = time.time()
@@ -1387,35 +1389,35 @@ Show all messages including debug ones""")
 
     #####################################
 
-    # start_size = pan.nb_organisms
+    start_size = pan.nb_organisms
 
-    # with open(OUTPUTDIR+"/stat_evol.txt","w") as evol, open(OUTPUTDIR+"/stat_evol_exact.txt","w") as evol_exact:
-    #     evol.write("\t".join([str(pan.nb_organisms),
-    #                               str(len(pan.partitions["Persistent"])),
-    #                               str(len(pan.partitions["Shell"])),
-    #                               str(len(pan.partitions["Cloud"])),
-    #                               str(pan.pan_size)])+"\n")
-    #     evol_exact.write("\t".join([str(pan.nb_organisms),
-    #                                   str(len(pan.partitions["Core_Exact"])),
-    #                                   str(len(pan.partitions["Accessory"])),
-    #                                   str(pan.pan_size)])+"\n")
-    #     pan.delete_pangenome_graph()
-    #     while pan.nb_organisms>2:
-    #         if ((pan.nb_organisms%10)==0):
-    #             pan.neighborhood_computation()
-    #             pan.partition(OUTPUTDIR+"/"+str(pan.nb_organisms))
-    #             evol.write("\t".join([str(pan.nb_organisms),
-    #                               str(len(pan.partitions["Persistent"])),
-    #                               str(len(pan.partitions["Shell"])),
-    #                               str(len(pan.partitions["Cloud"])),
-    #                               str(pan.pan_size)])+"\n")
-    #             evol_exact.write("\t".join([str(pan.nb_organisms),
-    #                                   str(len(pan.partitions["Core_Exact"])),
-    #                                   str(len(pan.partitions["Accessory"])),
-    #                                   str(pan.pan_size)])+"\n")
-    #             evol.flush()
-    #             evol_exact.flush()
-    #             pan.nem_intermediate_files = None
-    #         removed = pan.organisms.pop()
-    #         pan.annotations.pop(removed, None)
-    #         pan.nb_organisms-=1           
+    with open(OUTPUTDIR+"/stat_evol.txt","w") as evol, open(OUTPUTDIR+"/stat_evol_exact.txt","w") as evol_exact:
+        evol.write("\t".join([str(pan.nb_organisms),
+                                  str(len(pan.partitions["Persistent"])),
+                                  str(len(pan.partitions["Shell"])),
+                                  str(len(pan.partitions["Cloud"])),
+                                  str(pan.pan_size)])+"\n")
+        evol_exact.write("\t".join([str(pan.nb_organisms),
+                                      str(len(pan.partitions["Core_Exact"])),
+                                      str(len(pan.partitions["Accessory"])),
+                                      str(pan.pan_size)])+"\n")
+        pan.delete_pangenome_graph()
+        while pan.nb_organisms>2:
+            #if ((pan.nb_organisms%10)==0):
+            pan.neighborhood_computation()
+            pan.partition(OUTPUTDIR+"/"+str(pan.nb_organisms))
+            evol.write("\t".join([str(pan.nb_organisms),
+                              str(len(pan.partitions["Persistent"])),
+                              str(len(pan.partitions["Shell"])),
+                              str(len(pan.partitions["Cloud"])),
+                              str(pan.pan_size)])+"\n")
+            evol_exact.write("\t".join([str(pan.nb_organisms),
+                                  str(len(pan.partitions["Core_Exact"])),
+                                  str(len(pan.partitions["Accessory"])),
+                                  str(pan.pan_size)])+"\n")
+            evol.flush()
+            evol_exact.flush()
+            pan.nem_intermediate_files = None
+            removed = pan.organisms.pop()
+            pan.annotations.pop(removed, None)
+            pan.nb_organisms-=1           
