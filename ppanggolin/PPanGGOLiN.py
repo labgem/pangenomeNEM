@@ -220,11 +220,11 @@ class PPanGGOLiN:
         for line in organisms_file:
             elements = line.split()
 
-            self.organisms.add(ORGANISM_ID)
+            self.organisms.add(elements[ORGANISM_ID])
             if len(elements)>2:
                 self.circular_contig_size.update({contig_id: 0 for contig_id in elements[2:len(elements)]})# size of the circular contig is initialized to zero (waiting to read the gff files to fill the dictionnaries with the correct values)
 
-            self.annotations[elements[0]] = self.__load_gff(elements[ORGANISM_GFF_FILE], families, ORGANISM_ID, lim_occurence, infere_singleton)
+            self.annotations[elements[0]] = self.__load_gff(elements[ORGANISM_GFF_FILE], families, elements[ORGANISM_ID], lim_occurence, infere_singleton)
 
         check_circular_contigs = {contig: size for contig, size in circular_contig_size.items() if size == 0 }
         if len(check_circular_contigs) > 0:
