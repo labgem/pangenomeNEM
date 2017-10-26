@@ -424,7 +424,7 @@ class PPanGGOLiN:
                                         gene_row[END]-gene_row[START],
                                         gene_row[PRODUCT])
                         self.neighbors_graph.add_node(family_id_nei)
-                        self.__add_link(gene_row[FAMILY],family_id_nei,organism, gene_row[START] - end_family_nei) 
+                        self.__add_link(gene_row[FAMILY],family_id_nei,organism, gene_row[START] - end_family_nei)
                         family_id_nei  = gene_row[FAMILY]
                         end_family_nei = gene_row[END]
                         at_least_2_families = True
@@ -1158,7 +1158,7 @@ Accelerate loadding of gff files if there are sorted by start point for each con
                                       str(len(pan.partitions["Accessory"])),
                                       str(pan.pan_size)])+"\n")
         pan.delete_pangenome_graph()
-        while pan.nb_organisms>2:
+        while pan.nb_organisms>4:
             #if ((pan.nb_organisms%10)==0):
             pan.neighborhood_computation()
             pan.partition(OUTPUTDIR+"/"+str(pan.nb_organisms))
