@@ -827,7 +827,7 @@ class PPanGGOLiN:
         else:
             logging.getLogger().error("No NEM output file found")
 
-        classification = "Undefined" * self.pan_size
+        classification = ["Undefined"] * self.pan_size
         try:
             with open(nem_dir_path+"/nem_file.uf","r") as classification_nem_file, open(nem_dir_path+"/nem_file.mf","r") as parameter_nem_file:
 
