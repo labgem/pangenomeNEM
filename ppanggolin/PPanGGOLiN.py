@@ -683,6 +683,7 @@ class PPanGGOLiN:
                 self.neighbors_graph.node[node]["partition_exact"]="Accessory"
 
         for node_i, node_j, data in self.neighbors_graph.edges(data = True):
+            print(data["length"])
             self.neighbors_graph[node_i][node_j]["length_avg"] = float(np.mean(data["length"]))
             self.neighbors_graph[node_i][node_j]["length_med"] = float(np.median(data["length"]))
             self.neighbors_graph[node_i][node_j]["length_min"] = min(data["length"])
