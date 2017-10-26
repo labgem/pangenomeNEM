@@ -362,33 +362,13 @@ class PPanGGOLiN:
             except KeyError:
                 self.neighbors_graph.node[fam_id][attribute]=set([locals()[attribute]])
 
-
-
-
-        # try:
-        #     self.neighbors_graph.node[fam_id][org].add(gene)
-        #     # if multi_copy is not None:
-        #     #     multi_copy[fam_id] = max(multi_copy[fam_id],len(self.neighbors_graph.node[fam_id][org]))#count max number of multicopy
-        # except KeyError:# the exception is the rule in case of mono copy gene
-        #     self.neighbors_graph.node[fam_id][org]=set([gene])
-        # try:
-        #     self.neighbors_graph.node[fam_id]["name"].add(name)
-        # except KeyError:
-        #     self.neighbors_graph.node[fam_id]["name"]=set([name])
-        # try:
-        #     self.neighbors_graph.node[fam_id]["length"].add(length)
-        # except KeyError:
-        #     self.neighbors_graph.node[fam_id]["length"]=set([length])
-        # try:
-        #     self.neighbors_graph.node[fam_id]["product"].add(product)
-        # except KeyError:
-        #     self.neighbors_graph.node[fam_id]["product"]=set([product])
     def __add_link(self, fam_id, fam_id_nei, org, length):
         """
             Add line between families of a the pangenome graph
             :param fam_id: The family identifier the first node (need to be have at least one gene belonging to this family already added to the graph via the method __add_gene())
             :param fam_id_nei: The family identifier the second node (need to be have at least one gene belonging to this family already added to the graph via the method __add_gene())
-            :param gene : The organism name supporting this link
+            :param org : The identifier of the organism supporting this link
+            :param length : The distance in number of base between the genes adding this link
             :type str: 
             :type str:
             :type str: 
@@ -406,236 +386,10 @@ class PPanGGOLiN:
             except KeyError:
                 self.neighbors_graph[fam_id][fam_id_nei]["weight"]=1.0
         try:
-            self.neighbors_graph.node[fam_id][fam_id_nei]["length"].add(length)
+            self.neighbors_graph[fam_id][fam_id_nei]["length"].add(length)
         except KeyError:
-            self.neighbors_graph.node[fam_id][fam_id_nei]["length"]=set([length])
+            self.neighbors_graph[fam_id][fam_id_nei]["length"]=set([length])
 
-    # def __extract_families_of_genomic_context(self, gene, context_size = 5):
-    #     ret = list()
-    #     try:
-    #         (organism, sequence, index) = self.gene_location[gene]
-    #     except KeyError:
-    #         logging.getLogger().debug("not a gene id: "+str(gene))
-
-    #     if sequence not in self.circular_contig: # linear contig
-    #         min_boundary = index-context_size if (index-context_size)>0 else 0
-    #         for annot in self.annotations[organism][sequence][min_boundary:(index+context_size+1)]:#python find automatically the max boudary
-    #             ret.append(annot[FAMILY])
-    #     else:# circular contig 
-    #         seq_size      = len(self.annotations[organism][sequence])
-    #         window_length = (context_size*2+1)
-    #         if seq_size > window_length:# circular contig larger than window
-    #             for i in range(index-context_size,index+context_size+1):
-    #                 ret.append(self.annotations[organism][sequence][i%seq_size][FAMILY])
-    #         else:# circular contig smaler than window
-    #             for i in range(seq_size):
-    #                 ret.append(self.annotations[organism][sequence][i][FAMILY])
-    #     return tuple(ret)
-    # 
-    # def __untangle_multi_copy_families(self, multi_copy, context_size = 5):
-    #     import editdistance
-    #     from scipy.cluster.hierarchy import dendrogram, linkage, fcluster
-    #     from scipy.spatial.distance import squareform, pdist
-    #     # from matplotlib import pyplot as plt
-
-    #     result = defaultdict(set)
-
-    #     def __group_similar_contexts(contexts, context_size, distance_max):
-    #         def compute_minimal_edit_distance(contexts1, contexts2):
-    #             reverse_distance = 0
-    #             distance         = editdistance.eval(contexts1, contexts2)
-    #             if distance != 0:
-    #                 reverse_distance = editdistance.eval(contexts1, tuple(reversed(contexts2)))
-    #             return min(distance, reverse_distance)
-    #         contexts_keys = [context for context in contexts.keys()]
-    #         # pdist(np.array(contexts_keys))
-            
-    #         if len(contexts_keys)>1:
-    #             distance_matrix = []
-    #             for i in range(len(contexts_keys)):
-    #                 for j in range(i):
-    #                     distance_matrix.append(compute_minimal_edit_distance(contexts_keys[j], contexts_keys[i]))
-    #             logging.getLogger().debug(distance_matrix)
-    #             logging.getLogger().debug(squareform(distance_matrix))
-    #             hierarchical_linkage = linkage(squareform(distance_matrix), 'single')
-    #             logging.getLogger().debug(hierarchical_linkage)
-    #             groups = fcluster(hierarchical_linkage, t = distance_max, criterion = 'distance')
-
-    #             #logging.getLogger().debug("|".join([str(p) for p in partition]))
-    #             # plt.figure(figsize=(25, 10))
-    #             # plt.title('Hierarchical Clustering Dendrogram (len), '+str(nb_copy))
-    #             # plt.xlabel('sample index')
-    #             # plt.ylabel('distance')
-    #             # dendrogram(
-    #             # hierarchical_linkage,
-    #             # leaf_rotation=90., leaf_font_size=8.,)
-    #             # plt.show()
-                
-    #             for index, group in enumerate(groups):
-    #                 result[group] |= contexts[contexts_keys[index]]
-    #         else:
-    #             result[0] = contexts[contexts_keys[0]]
-
-
-    #         return result
-    #             # complete_contexts = [context for context in contexts.keys()]
-
-    #             # computation_vector     = np.vectorize(compute_minimal_edit_distance)
-    #             # logging.getLogger().debug(contexts)
-    #             # logging.getLogger().debug(list(enumerate(complete_contexts)))
-    #             # distance_matrix        = np.fromfunction(computation_vector, shape=(len(complete_contexts),len(complete_contexts)), dtype=int)
-                
-    #             # logging.getLogger().debug(distance_matrix)
-    #             # hierarchical_linkage2   = linkage(squareform(distance_matrix), 'single')
-    #             # all_c = cut_tree(hierarchical_linkage2, height = distance_max)
-    #             # if len(partition) != len(all_c):
-    #             #     logging.getLogger().warning(str(len(partition))+" "+str(len(all_c)))
-    #                 # import time
-    #                 # plt.figure(figsize=(25, 10))
-    #                 # plt.title('Hierarchical Clustering Dendrogram (part), '+str(nb_copy))
-    #                 # plt.xlabel('sample index')
-    #                 # plt.ylabel('distance')
-    #                 # txt = str(time.time())
-    #                 # dendrogram(
-    #                 # hierarchical_linkage,
-    #                 # leaf_rotation=90., leaf_font_size=8.,)
-    #                 # plt.savefig(txt+"part.png")
-    #                 # plt.close()
-
-    #                 # plt.figure(figsize=(25, 10))
-    #                 # plt.title('Hierarchical Clustering Dendrogram (all), '+str(nb_copy))
-    #                 # plt.xlabel('sample index')
-    #                 # plt.ylabel('distance')
-    #                 # dendrogram(
-    #                 # hierarchical_linkage2,
-    #                 # leaf_rotation=90., leaf_font_size=8.,)
-    #                 # plt.savefig(txt+"part-all.png")
-    #                 # plt.close()
-
-    #     # def merge_overlapping_context(data):
-    #     #     if len(data)>0:
-    #     #         sets = (set(e) for e in data if e)
-    #     #         results = [next(sets)]
-    #     #         for e_set in sets:
-    #     #             to_update = []
-    #     #             for i,res in enumerate(results):
-    #     #                 if not e_set.isdisjoint(res):
-    #     #                     to_update.insert(0,i)
-    #     #             if not to_update:
-    #     #                 results.append(e_set)
-    #     #             else:
-    #     #                 last = results[to_update.pop(-1)]
-    #     #                 for i in to_update:
-    #     #                     last |= results[i]
-    #     #                     del results[i]
-    #     #                 last |= e_set
-    #     #         return results
-    #     #     else:
-    #     #         return []
-
-    #     logging.getLogger().debug(max(multi_copy.values()))
-    #     logging.getLogger().debug(sum(multi_copy.values()))
-    #     logging.getLogger().debug(len(multi_copy.values()))
-    #     logging.getLogger().debug(multi_copy)
-    #     #while len(resolved)!=len(multi_copy):
-    #     for fam, nb_copy in sorted(multi_copy.items(), key=operator.itemgetter(1), reverse=True):
-    #             contexts = defaultdict(set)
-    #             for org, genes in self.neighbors_graph.node[fam].items():
-    #                 for gene in genes:
-    #                     if org not in ["name","length_min","length_max","length_avg","label"]:
-    #                         contexts[self.__extract_families_of_genomic_context(gene)].add(gene)
-
-    #             isolated_genes = None
-    #             try:
-    #                 isolated_genes=contexts.pop(tuple())
-    #             except:
-    #                 pass
-
-    #             groups = __group_similar_contexts(contexts, context_size, 3)
-
-    #             for id, (group, genes) in enumerate(groups.items()):
-    #                 new_fam = fam+"#"+str(id)
-    #                 for gene in genes:
-    #                     (org, seq, index) = self.gene_location[gene]
-                        
-    #                     name  = self.annotations[org][seq][index][NAME]
-    #                     self.__add_gene(new_fam, org, gene, name,  None)
-    #                     if seq in self.circular_contig:
-    #                         next_index = (index+1)%len(self.annotations[org][seq])
-    #                         prev_index = (index-1)%len(self.annotations[org][seq])
-    #                         if next_index != index:
-    #                             new_nei1 = self.annotations[org][seq][(index+1)%len(self.annotations[org][seq])][FAMILY]
-    #                             self.__add_link(new_fam, new_nei1, org)
-    #                             new_nei2 = self.annotations[org][seq][(index-1)%len(self.annotations[org][seq])][FAMILY]
-    #                             self.__add_link(new_fam, new_nei2, org)
-    #                     else:
-    #                         new_nei1=None
-    #                         new_nei2=None
-    #                         logging.getLogger().debug(str(org)+"|"+str(seq)+"|"+str(index))
-    #                         try:
-    #                             new_nei1 = self.annotations[org][seq][(index+1)][FAMILY]
-    #                             # logging.getLogger().debug("1(len(seq)="+str(len(seq))+")")
-    #                         except IndexError:
-    #                              logging.getLogger().warning("No next neighbors for gene: "+gene+" (new family: "+new_fam+") (len(seq)="+str(len(self.annotations[org][seq]))+")")
-    #                         if new_nei1 is not None:
-    #                             self.__add_link(new_fam, new_nei1, org)
-    #                         try:
-    #                             new_nei2 = self.annotations[org][seq][(index-1)][FAMILY]
-    #                             # logging.getLogger().debug("2(len(seq)="+str(len(seq))+")")
-    #                         except IndexError:
-    #                             logging.getLogger().warning("No previous neighbors for gene: "+gene+" (new family: "+new_fam+") (len(seq)="+str(len(self.annotations[org][seq]))+")")
-    #                         if new_nei2 is not None:
-    #                             logging.getLogger().debug("works "+str(len(self.annotations[org][seq]))+")")
-    #                             self.__add_link(new_fam, new_nei1, org)
-    #                     self.annotations[org][seq][index][FAMILY] = new_fam
-
-    #             if isolated_genes is not None:
-    #                 new_fam = fam+"#"+str(id+1)                    
-
-    #             self.neighbors_graph.remove_node(fam)
-    #             # contexts_size[fam]=len(contexts)
-    #             # logging.getLogger().debug(fam)
-    #             # logging.getLogger().debug(len(contexts))
-    #             # logging.getLogger().debug(contexts)
-                
-    #             # ovl_contexts = merge_overlapping_context(contexts)
-    #             # print(ovl_contexts)
-
-    #             # ovl_contexts_size[fam]=len(ovl_contexts)
-    #             # logging.getLogger().debug(len(ovl_contexts))
-    #             # logging.getLogger().debug(ovl_contexts)
-
-    #             # cpt = 0
-    #             # for con in ovl_contexts:
-    #             #     new_fam = fam+"#"+str(cpt)
-    #             #     for context, genes in contexts.items():
-    #             #         if len(context & con)>0:
-    #             #             logging.getLogger().debug(cpt)
-    #             #             logging.getLogger().debug(context)
-    #             #             logging.getLogger().debug(genes)
-                            
-    #             #             for gene in genes:
-    #             #                 logging.getLogger().debug(gene)
-    #             #                 (org, seq, index) = self.gene_location[gene]
-    #             #                 name  = self.annotations[org][seq][index][NAME]
-    #             #                 self.__add_gene(new_fam, org, gene, name,  None)
-    #             #                 for neighbor in context: 
-    #             #                     self.__add_link(new_fam, neighbor, org)
-    #             #                 self.annotations[org][seq][index][FAMILY] = new_fam
-    #             #     cpt+=1
-    #             # #resolved.add(context)
-    #             # logging.getLogger().debug(nx.number_of_nodes(self.neighbors_graph)) 
-
-    #     #         # self.neighbors_graph.remove_node(fam)
-    #     # logging.getLogger().debug(max(contexts_size.values()))
-    #     # logging.getLogger().debug(sum(contexts_size.values()))
-    #     # logging.getLogger().debug(len(contexts_size.values()))
-    #     # logging.getLogger().debug(max(ovl_contexts_size.values()))
-    #     # logging.getLogger().debug(sum(ovl_contexts_size.values()))
-    #     # logging.getLogger().debug(len(ovl_contexts_size.values()))
-    #     # logging.getLogger().debug(ovl_contexts_size)
-    #     # logging.getLogger().debug(contexts_size)
-    
     def neighborhood_computation(self):#, untangle_multi_copy_families = False
         """ Use the information already loaded (annotation) to build the pangenome graph """
         if self.neighbors_graph is None:
@@ -897,7 +651,7 @@ class PPanGGOLiN:
                 logging.getLogger().debug(partition)
                 #logging.getLogger().debug(index.keys())
         except FileNotFoundError:
-            logging.getLogger().warning("The number of organisms is to low to partition the pangenome graph in persistent, shell, cloud partition, traditional partitions only (Core and Accessory genome) will be provided")
+            logging.getLogger().warning("The number of organisms is too low to partition the pangenome graph in persistent, shell, cloud partition, traditional partitions only (Core and Accessory genome) will be provided")
 
         for node, nem_class in zip(self.neighbors_graph.nodes(), classification):
             nb_orgs=0
