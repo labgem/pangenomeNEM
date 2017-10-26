@@ -28,6 +28,7 @@ import tempfile
 
 NEM_LOCATION  = os.path.dirname(os.path.abspath(__file__))+"/../NEM/nem_exe"
 (GENE, TYPE, FAMILY, START, END, STRAND, NAME, PRODUCT) = range(0, 8)#data index in annotation
+(ORGANISM_ID, ORGANISM_GFF_FILE) = range(0, 2)#data index in the file listing organisms 
 #(ORGANISM, SEQUENCE, INDEX) = range(0, 3)# index for annotation in gene_location
 
 RESERVED_WORDS = set(["id", "label", "name", "weight", "partition", "partition_exact", "length", "length_min", "length_max", "length_avg", "length_avg", "product", 'nb_gene', 'community'])
@@ -83,9 +84,9 @@ class PPanGGOLiN:
 
                 a int giving the number of imported organisms 
 
-            .. attribute:: circular_contig
+            .. attribute:: circular_contig_size
 
-                a set containing the name of both well assembled and circular contigs (used to circularize the graph) 
+                a dict containing the size of the contigs (contigs identifiers as keys) which are both well assembled and circular contigs (used to circularize the graph). The contigs wich are not circular are not in this dictionnaries.
 
             .. attribute:: families_repeted_th
    
@@ -157,14 +158,14 @@ class PPanGGOLiN:
             :Example:
 
             >>>pan = PPanGGOLiN("file", organisms, gene_families, remove_high_copy_number_families)
-            >>>pan = PPanGGOLiN("args", annotations, organisms, circular_contig, families_repeted)# load direclty the main attributes
+            >>>pan = PPanGGOLiN("args", annotations, organisms, circular_contig_size, families_repeted)# load direclty the main attributes
         """ 
         self.annotations              = dict()
         #self.gene_location            = OrderedDict()
         self.neighbors_graph          = None
         self.organisms                = OrderedSet()
         self.nb_organisms             = 0
-        self.circular_contig          = set()
+        self.circular_contig_size     = dict()
         self.families_repeted_th      = 0
         self.families_repeted         = set()
         self.pan_size                 = 0
@@ -184,7 +185,7 @@ class PPanGGOLiN:
         elif init_from == "args":
             (self.annotations,
              self.organisms,
-             self.circular_contig,
+             self.circular_contig_size,
              self.families_repeted) = args 
         elif init_from == "database":
             logging.getLogger().error("database is not yet implemented")
@@ -212,19 +213,24 @@ class PPanGGOLiN:
             for gene in elements[1:]:
                 families[gene]=elements[0]
 
-        self.circular_contig = []
+        self.circular_contig_size = {}
 
         logging.getLogger().info("Reading "+organisms_file.name+" list of organism files ...")
 
         for line in organisms_file:
             elements = line.split()
-            self.annotations[elements[0]] = self.__load_gff(elements[1], families, elements[0], lim_occurence, infere_singleton)
-            self.organisms.add(elements[0])
+
+            self.organisms.add(ORGANISM_ID)
             if len(elements)>2:
-                self.circular_contig += elements[2:len(elements)]
+                self.circular_contig_size.update({contig_id: 0 for contig_id in elements[2:len(elements)]})# size of the circular contig is initialized to zero (waiting to read the gff files to fill the dictionnaries with the correct values)
 
-        self.circular_contig = set(self.circular_contig)
+            self.annotations[elements[0]] = self.__load_gff(elements[ORGANISM_GFF_FILE], families, ORGANISM_ID, lim_occurence, infere_singleton)
 
+        check_circular_contigs = {contig: size for contig, size in circular_contig_size.items() if size == 0 }
+        if len(check_circular_contigs) > 0:
+            logging.getLogger().error("""
+                The following identifiers of circular contigs in the file listing organisms have not been found in any region feature of the gff files: """+"\t".join(check_circular_contigs.keys()))
+            exit()
     def __load_gff(self, gff_file, families, organism, lim_occurence = 0, infere_singleton = False):
         """
             Load the content of a gff file
@@ -252,43 +258,47 @@ class PPanGGOLiN:
             ctp_prev = 1
             cpt_fam_occ = defaultdict(int)
 
-            for row in db_gff.all_features(featuretype='CDS', order_by=('seqid','start')):
-                # logging.getLogger().debug(row)
-                protein = row.id
-                try:
-                    family = families[protein]
-                except KeyError:
-                    if infere_singleton:
-                        families[protein] = protein
-                        family           = families[protein]
-                        logging.getLogger().info("infered singleton: "+protein)
-                    else:
-                        raise KeyError("Unknown families:"+protein, ", check your families file or run again the program using the option to infere singleton")
-
-                # if family == prev:
-                #     family = family+"-"+str(ctp_prev)
-
-                cpt_fam_occ[family]+=1
-                prev = families[protein]
-
-                try:
-                    name = row.attributes['Name'].pop()
-                except:
+            for row in db_gff.all_features(featuretype=['region','CDS'], order_by=('seqid','start')):
+                if row.feature == 'region':
+                    if row.seqid in self.circular_contig_size:
+                        self.circular_contig_size = row.end
+                else:
+                    # logging.getLogger().debug(row)
+                    protein = row.id
                     try:
-                        name = row.attributes['gene'].pop()
+                        family = families[protein]
+                    except KeyError:
+                        if infere_singleton:
+                            families[protein] = protein
+                            family           = families[protein]
+                            logging.getLogger().info("infered singleton: "+protein)
+                        else:
+                            raise KeyError("Unknown families:"+protein, ", check your families file or run again the program using the option to infere singleton")
+
+                    # if family == prev:
+                    #     family = family+"-"+str(ctp_prev)
+
+                    cpt_fam_occ[family]+=1
+                    prev = families[protein]
+
+                    try:
+                        name = row.attributes['Name'].pop()
                     except:
-                        name = ""
+                        try:
+                            name = row.attributes['gene'].pop()
+                        except:
+                            name = ""
 
-                try:
-                    product = row.attributes['product'].pop()
-                except:
-                    product = ""
+                    try:
+                        product = row.attributes['product'].pop()
+                    except:
+                        product = ""
 
-                annot_row = [protein,"CDS",family,row.start,row.end,row.strand, name, product]
-                #self.gene_location[protein] = tuple([organism, row.seqid, len(annot[row.seqid])])
-                annot[row.seqid].append(annot_row)
+                    annot_row = [protein,"CDS",family,row.start,row.end,row.strand, name, product]
+                    #self.gene_location[protein] = tuple([organism, row.seqid, len(annot[row.seqid])])
+                    annot[row.seqid].append(annot_row)
 
-                # logging.getLogger().debug(annot[self.gene_location[protein][SEQUENCE]][self.gene_location[protein][INDEX]][GENE])
+                    # logging.getLogger().debug(annot[self.gene_location[protein][SEQUENCE]][self.gene_location[protein][INDEX]][GENE])
 
             if (lim_occurence > 0):
                 fam_to_remove =[fam for fam, occ in cpt_fam_occ.items() if occ > lim_occurence]
@@ -375,7 +385,7 @@ class PPanGGOLiN:
         #     self.neighbors_graph.node[fam_id]["product"].add(product)
         # except KeyError:
         #     self.neighbors_graph.node[fam_id]["product"]=set([product])
-    def __add_link(self, fam_id, fam_id_nei, org):
+    def __add_link(self, fam_id, fam_id_nei, org, length):
         """
             Add line between families of a the pangenome graph
             :param fam_id: The family identifier the first node (need to be have at least one gene belonging to this family already added to the graph via the method __add_gene())
@@ -397,6 +407,10 @@ class PPanGGOLiN:
                 self.neighbors_graph[fam_id][fam_id_nei]["weight"]+=1.0
             except KeyError:
                 self.neighbors_graph[fam_id][fam_id_nei]["weight"]=1.0
+        try:
+            self.neighbors_graph.node[fam_id]["length"].add(length)
+        except KeyError:
+            self.neighbors_graph.node[fam_id]["length"]=set([length])
 
     # def __extract_families_of_genomic_context(self, gene, context_size = 5):
     #     ret = list()
@@ -642,7 +656,8 @@ class PPanGGOLiN:
                 if start == len(contig_annot):
                     continue
 
-                family_id_nei = contig_annot[start][FAMILY]
+                family_id_nei  = contig_annot[start][FAMILY]
+                end_family_nei = contig_annot[start][END]
                 logging.getLogger().debug(contig_annot[start])
                 for index, gene_row in enumerate(contig_annot[start+1:]):
                     logging.getLogger().debug(gene_row)
@@ -656,11 +671,12 @@ class PPanGGOLiN:
                                         gene_row[PRODUCT])
                                         #multi_copy)
                         self.neighbors_graph.add_node(family_id_nei)
-                        self.__add_link(gene_row[FAMILY],family_id_nei,organism)
-                        family_id_nei = gene_row[FAMILY]
+                        self.__add_link(gene_row[FAMILY],family_id_nei,organism, end_family_nei-gene_row[STRAT])
+                        family_id_nei  = gene_row[FAMILY]
+                        end_family_nei = gene_row[END]
                         at_least_2_families = True
                 
-                if contig in self.circular_contig and at_least_2_families:#circularization
+                if contig in self.circular_contig_size and at_least_2_families:#circularization
                     self.__add_gene(contig_annot[start][FAMILY],
                                     organism,
                                     contig_annot[start][GENE],
@@ -669,7 +685,7 @@ class PPanGGOLiN:
                                     contig_annot[start][PRODUCT])
                                     #multi_copy)
                     self.neighbors_graph.add_node(family_id_nei)
-                    self.__add_link(contig_annot[start][FAMILY],family_id_nei,organism)
+                    self.__add_link(contig_annot[start][FAMILY],family_id_nei,organism, (self.circular_contig_size - end_family_nei) + contig_annot[start][START])
                 else:#no circularization
                     self.__add_gene(contig_annot[start][FAMILY],
                                     organism,
@@ -812,108 +828,114 @@ class PPanGGOLiN:
             logging.getLogger().info("Reading NEM results...")
         else:
             logging.getLogger().error("No NEM output file found")
-        
-        with open(nem_dir_path+"/nem_file.uf","r") as classification_nem_file, open(nem_dir_path+"/nem_file.mf","r") as parameter_nem_file:
-            classification = []
-            for i, line in enumerate(classification_nem_file):
-                elements = [float(el) for el in line.split()]
-                max_prob = max([float(el) for el in elements])
-                classes = [pos for pos, prob in enumerate(elements) if prob == max_prob]
-                logging.getLogger().debug(classes)
-                logging.getLogger().debug(i)
 
-                if (len(classes)>1):
-                    classification.append(2)#shell
-                else:
-                    if classes[0] == 0:
-                        classification.append(1)#persistent
-                    elif classes[0] == 2:
-                        classification.append(3)#cloud
+        classification = "Undefined" * self.pan_size
+        try:
+            with open(nem_dir_path+"/nem_file.uf","r") as classification_nem_file, open(nem_dir_path+"/nem_file.mf","r") as parameter_nem_file:
+
+                sum_mu_k = []
+                sum_epsilon_k = []
+                proportion = []
+                
+                for k, line in enumerate(parameter[-3:]):
+                    logging.getLogger().debug(line)
+                    vector = line.split()
+                    mu_k = [bool(int(mu_kj)) for mu_kj in vector[0:self.nb_organisms]]
+                    logging.getLogger().debug(mu_k)
+                    logging.getLogger().debug(len(mu_k))
+
+                    epsilon_k = [float(epsilon_kj) for epsilon_kj in vector[self.nb_organisms+1:]]
+                    logging.getLogger().debug(epsilon_k)
+                    logging.getLogger().debug(len(epsilon_k))
+                    proportion = float(vector[self.nb_organisms])
+                    logging.getLogger().debug(proportion)
+                    sum_mu_k.append(sum(mu_k))
+                    logging.getLogger().debug(sum(mu_k))
+                    sum_epsilon_k.append(sum(epsilon_k))
+                    logging.getLogger().debug(sum(epsilon_k))
+
+                #cloud is defined by a sum of mu_k near of 0 and a low sum of epsilon
+                #shell is defined by an higher sum of epsilon_k
+                #persistent is defined by a sum of mu near of nb_organism and a low sum of epsilon
+
+                max_mu_k     = max(sum_mu_k)
+                persistent_k = sum_mu_k.index(max_mu_k)
+
+                max_epsilon_k = max(sum_epsilon_k)
+                shell_k       = sum_epsilon_k.index(max_epsilon_k)
+
+                cloud_k = set([0,1,2]) - set([persistent_k, shell_k])
+                cloud_k = list(cloud_k)[0]
+
+                logging.getLogger().debug(sum_mu_k)
+                logging.getLogger().debug(sum_epsilon_k)
+
+                logging.getLogger().debug(persistent_k)
+                logging.getLogger().debug(shell_k)
+                logging.getLogger().debug(cloud_k)
+
+                partition                 = {}
+                partition[persistent_k] = "Persistent"
+                partition[shell_k]      = "Shell"
+                partition[cloud_k]      = "Cloud"
+
+                for i, line in enumerate(classification_nem_file):
+                    elements = [float(el) for el in line.split()]
+                    max_prob = max([float(el) for el in elements])
+                    positions_max_prob = [pos for pos, prob in enumerate(elements) if prob == max_prob]
+                    logging.getLogger().debug(classes)
+                    logging.getLogger().debug(i)
+
+                    if (len(positions_max_prob)>1):
+                        classification[i]="Shell"# in case of doubt (equiprobable partition), gene families is attributed to shell
                     else:
-                        classification.append(2)#shell
+                        classification[i] = partition[positions_max_prob.pop()]
 
-            parameter = parameter_nem_file.readlines()
-            M = float(parameter[6].split()[3]) # M is markov ps-like
-            self.BIC = -2 * M - (K * self.nb_organisms * 2 + K - 1) * math.log(self.pan_size)
+                parameter = parameter_nem_file.readlines()
 
-            logging.getLogger().info("The Bayesian Criterion Index of the partionning is "+str(self.BIC))
+                M = float(parameter[6].split()[3]) # M is markov ps-like
+                self.BIC = -2 * M - (K * self.nb_organisms * 2 + K - 1) * math.log(self.pan_size)
 
-            sum_mu_k = []
-            sum_epsilon_k = []
-            proportion = []
-            
-            for k, line in enumerate(parameter[-3:]):
-                logging.getLogger().debug(line)
-                vector = line.split()
-                mu_k = [bool(int(mu_kj)) for mu_kj in vector[0:self.nb_organisms]]
-                logging.getLogger().debug(mu_k)
-                logging.getLogger().debug(len(mu_k))
+                logging.getLogger().info("The Bayesian Criterion Index of the partionning is "+str(self.BIC))
+                logging.getLogger().debug(partition)
+                #logging.getLogger().debug(index.keys())
+        except FileNotFoundError:
+            logging.getLogger().warning("The number of organisms is to low to partition the pangenome graph in persistent, shell, cloud partition, traditional partitions only (Core and Accessory genome) will be provided")
 
-                epsilon_k = [float(epsilon_kj) for epsilon_kj in vector[self.nb_organisms+1:]]
-                logging.getLogger().debug(epsilon_k)
-                logging.getLogger().debug(len(epsilon_k))
-                proportion = float(vector[self.nb_organisms])
-                logging.getLogger().debug(proportion)
-                sum_mu_k.append(sum(mu_k))
-                logging.getLogger().debug(sum(mu_k))
-                sum_epsilon_k.append(sum(epsilon_k))
-                logging.getLogger().debug(sum(epsilon_k))
+        for node, nem_class in zip(self.neighbors_graph.nodes(), classification):
+            nb_orgs=0
+            for key in list(self.neighbors_graph.node[node].keys()):
+                try:
+                    self.neighbors_graph.node[node][key]="|".join(self.neighbors_graph.node[node][key])
+                except TypeError:
+                    if key == "length":
+                        l = list(self.neighbors_graph.node[node][key])
+                        self.neighbors_graph.node[node]["length_avg"] = float(np.mean(l))
+                        self.neighbors_graph.node[node]["length_med"] = float(np.median(l))
+                        self.neighbors_graph.node[node]["length_min"] = min(l)
+                        self.neighbors_graph.node[node]["length_max"] = max(l)
+                        del self.neighbors_graph.node[node]["length"]
 
-            #cloud is defined by a sum of mu_k near of 0 and a low sum of epsilon
-            #shell is defined by an higher sum of epsilon_k
-            #persistent is defined by a sum of mu near of nb_organism and a low sum of epsilon
+                if key not in RESERVED_WORDS:
+                    last_org = key
+                    #self.partitions_by_organisms[key][partition[int(nem_class)]].add(self.neighbors_graph.node[node][key])
+                    nb_orgs+=1
 
-            max_mu_k     = max(sum_mu_k)
-            persistent_k = sum_mu_k.index(max_mu_k)
+            self.neighbors_graph.node[node]["partition"]=nem_class
+            self.partitions[nem_class].append(node)
 
-            max_epsilon_k = max(sum_epsilon_k)
-            shell_k       = sum_epsilon_k.index(max_epsilon_k)
+            if nb_orgs >= self.nb_organisms:
+                self.partitions["Core_Exact"].append(node)
+                self.neighbors_graph.node[node]["partition_exact"]="Core_Exact"
+            else:
+                self.partitions["Accessory"].append(node)
+                self.neighbors_graph.node[node]["partition_exact"]="Accessory"
 
-            cloud_k = set([0,1,2]) - set([persistent_k, shell_k])
-            cloud_k = list(cloud_k)[0]
-
-            logging.getLogger().debug(sum_mu_k)
-            logging.getLogger().debug(sum_epsilon_k)
-
-            logging.getLogger().debug(persistent_k)
-            logging.getLogger().debug(shell_k)
-            logging.getLogger().debug(cloud_k)
-
-            partition                 = {}
-            partition[persistent_k+1] = "Persistent"
-            partition[shell_k+1]      = "Shell"
-            partition[cloud_k+1]      = "Cloud"
-
-            logging.getLogger().debug(partition)
-            #logging.getLogger().debug(index.keys())
-            for node, nem_class in zip(self.neighbors_graph.nodes(), classification):
-                nb_orgs=0
-                for key in list(self.neighbors_graph.node[node].keys()):
-                    try:
-                        self.neighbors_graph.node[node][key]="|".join(self.neighbors_graph.node[node][key])
-                    except TypeError:
-                        if key == "length":
-                            l = list(self.neighbors_graph.node[node][key])
-                            self.neighbors_graph.node[node]["length_avg"] = float(np.mean(l))
-                            self.neighbors_graph.node[node]["length_med"] = float(np.median(l))
-                            self.neighbors_graph.node[node]["length_min"] = min(l)
-                            self.neighbors_graph.node[node]["length_max"] = max(l)
-                            del self.neighbors_graph.node[node]["length"]
-
-                    if key not in RESERVED_WORDS:
-                        last_org = key
-                        #self.partitions_by_organisms[key][partition[int(nem_class)]].add(self.neighbors_graph.node[node][key])
-                        nb_orgs+=1
-
-                self.neighbors_graph.node[node]["partition"]=partition[int(nem_class)]
-                self.partitions[partition[int(nem_class)]].append(node)
-
-                if nb_orgs >= self.nb_organisms:
-                    self.partitions["Core_Exact"].append(node)
-                    self.neighbors_graph.node[node]["partition_exact"]="Core_Exact"
-                else:
-                    self.partitions["Accessory"].append(node)
-                    self.neighbors_graph.node[node]["partition_exact"]="Accessory"
+        for node_i, node_j, data in self.neighbors_graph.edges(data = True):
+            self.neighbors_graph[node_i][node_j]["length_avg"] = float(np.mean(data["length"]))
+            self.neighbors_graph[node_i][node_j]["length_med"] = float(np.median(data["length"]))
+            self.neighbors_graph[node_i][node_j]["length_min"] = min(data["length"])
+            self.neighbors_graph[node_i][node_j]["length_max"] = max(data["length"])
 
         if len(self.families_repeted)>0:
             logging.getLogger().info("Discarded families are:\n"+"\n".join(self.families_repeted))
@@ -921,6 +943,7 @@ class PPanGGOLiN:
             logging.getLogger().info("No families have been Discarded")
 
         logging.getLogger().debug(nx.number_of_edges(self.neighbors_graph))
+
 
         self.is_partitionned=True
 
@@ -1100,7 +1123,7 @@ class PPanGGOLiN:
                 self.neighbors_graph.node[node]['community'] = partition+"_"+str(id_com)
                 size_communities[partition][id_com]+=1
 
-    def identify_shell_subpaths(self, k_range = [9],nem_dir_path = tempfile.mkdtemp()):
+    def identify_shell_subpaths(self, k_range = range(2,10),nem_dir_path = tempfile.mkdtemp()):
         
         subgraph = self.neighbors_graph.subgraph([nodes for nodes,data in self.neighbors_graph.nodes(data=True) if data['partition']=='Shell'])
 
@@ -1224,6 +1247,7 @@ class PPanGGOLiN:
                     classes = [pos for pos, prob in enumerate(elements) if prob == max_prob]
 
                     self.neighbors_graph.node[index_inv[i+1]]["subshell"]=str(classes[0])
+
 
 if __name__=='__main__':
     """
