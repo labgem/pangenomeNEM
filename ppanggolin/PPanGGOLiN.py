@@ -406,9 +406,9 @@ class PPanGGOLiN:
             except KeyError:
                 self.neighbors_graph[fam_id][fam_id_nei]["weight"]=1.0
         try:
-            self.neighbors_graph.node[fam_id]["length"].add(length)
+            self.neighbors_graph.node[fam_id][fam_id_nei]["length"].add(length)
         except KeyError:
-            self.neighbors_graph.node[fam_id]["length"]=set([length])
+            self.neighbors_graph.node[fam_id][fam_id_nei]["length"]=set([length])
 
     # def __extract_families_of_genomic_context(self, gene, context_size = 5):
     #     ret = list()
