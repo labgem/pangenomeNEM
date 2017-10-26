@@ -425,6 +425,9 @@ class PPanGGOLiN:
                                         gene_row[PRODUCT])
                         self.neighbors_graph.add_node(family_id_nei)
                         self.__add_link(gene_row[FAMILY],family_id_nei,organism, gene_row[START] - end_family_nei)
+                        if gene_row[START] - end_family_nei < 0:
+                            logging.getLogger().debug(gene_row)
+                            exit() 
                         family_id_nei  = gene_row[FAMILY]
                         end_family_nei = gene_row[END]
                         at_least_2_families = True
@@ -543,7 +546,7 @@ class PPanGGOLiN:
         CONVERGENCE_TH = "clas "+str(0.000001)
 
         HEURISTIC      = "heu_d"# "psgrad" = pseudo-likelihood gradient ascent, "heu_d" = heuristic using drop of fuzzy within cluster inertia, "heu_l" = heuristic using drop of mixture likelihood
-        STEP_HEURISTIC = 0.25 # step of beta increase
+        STEP_HEURISTIC = 0.5 # step of beta increase
         BETA_MAX       = float(self.nb_organisms) #maximal value of beta to test,
         DDROP          = 0.8 #threshold of allowed D drop (higher = less detection)
         DLOSS          = 0.5 #threshold of allowed D loss (higher = less detection)
@@ -1176,4 +1179,5 @@ Accelerate loadding of gff files if there are sorted by start point for each con
             pan.nem_intermediate_files = None
             removed = pan.organisms.pop()
             pan.annotations.pop(removed, None)
-            pan.nb_organisms-=1           
+            pan.nb_organisms-=1
+            pan.delete_pangenome_graph()
