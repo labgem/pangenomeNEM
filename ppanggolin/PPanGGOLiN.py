@@ -194,7 +194,7 @@ class PPanGGOLiN:
             raise ValueError("init_from parameter is required")
         self.nb_organisms = len(self.organisms)
 
-    def __initialize_from_files(self, organisms_file, families_tsv_file, lim_occurence = 0, infere_singleton = False):
+    def __initialize_from_files(self, organisms_file, families_tsv_file, lim_occurence = 0, infere_singleton = False, already_sorted = False):
         """ 
             :param organisms_file: a file listing organims by compute, first column is organism name, second is path to gff file and optionnally other other to provide the name of circular contig
             :param families_tsv_file: a file listing families. The first element is the family identifier (by convention, we advice to use the identifier of the average gene of the family) and then the next elements are the identifiers of the genes belonging to this family.
@@ -221,14 +221,14 @@ class PPanGGOLiN:
             elements = line.split()
             if len(elements)>2:
                 self.circular_contig_size.update({contig_id: 0 for contig_id in elements[2:len(elements)]})# size of the circular contig is initialized to zero (waiting to read the gff files to fill the dictionnaries with the correct values)
-            self.annotations[elements[0]] = self.__load_gff(elements[ORGANISM_GFF_FILE], families, elements[ORGANISM_ID], lim_occurence, infere_singleton)
+            self.annotations[elements[0]] = self.__load_gff(elements[ORGANISM_GFF_FILE], families, elements[ORGANISM_ID], lim_occurence, infere_singleton, already_sorted)
 
         check_circular_contigs = {contig: size for contig, size in self.circular_contig_size.items() if size == 0 }
         if len(check_circular_contigs) > 0:
             logging.getLogger().error("""
                 The following identifiers of circular contigs in the file listing organisms have not been found in any region feature of the gff files: """+"\t".join(check_circular_contigs.keys()))
             exit()
-    def __load_gff(self, gff_file, families, organism, lim_occurence = 0, infere_singleton = False):
+    def __load_gff(self, gff_file, families, organism, lim_occurence = 0, infere_singleton = False, already_sorted = False):
         """
             Load the content of a gff file
             :param gff_file: a valid gff file where only feature of the type 'CDS' will be imported as genes. Each 'CDS' feature must have a uniq ID as attribute (afterall called gene id).
@@ -249,14 +249,16 @@ class PPanGGOLiN:
 
         if organism not in self.organisms:
             self.organisms.add(organism)
-            db_gff = gffutils.create_db(gff_file, ':memory:')
+            db_gff = gffutils.create_db(gff_file, ':memory:', force_gff = True, keep_order = True if not already_sorted else False)
             annot = defaultdict(list)
 
             # prev = None
             ctp_prev = 1
             cpt_fam_occ = defaultdict(int)
 
-            for row in db_gff.all_features(featuretype=('region','CDS'), order_by=('seqid','start')):
+            for row in db_gff.all_features(featuretype=('region','CDS'),
+                                           order_by=('seqid','start') if not already_sorted else None,
+                                           ):
                 if row.featuretype == 'region':
                     if row.seqid in self.circular_contig_size:
                         self.circular_contig_size = row.end
@@ -421,9 +423,8 @@ class PPanGGOLiN:
                                         gene_row[NAME],
                                         gene_row[END]-gene_row[START],
                                         gene_row[PRODUCT])
-                                        #multi_copy)
                         self.neighbors_graph.add_node(family_id_nei)
-                        self.__add_link(gene_row[FAMILY],family_id_nei,organism, end_family_nei-gene_row[START])
+                        self.__add_link(gene_row[FAMILY],family_id_nei,organism, gene_row[START] - end_family_nei)
                         family_id_nei  = gene_row[FAMILY]
                         end_family_nei = gene_row[END]
                         at_least_2_families = True
@@ -435,7 +436,6 @@ class PPanGGOLiN:
                                     contig_annot[start][NAME],
                                     contig_annot[start][END]-contig_annot[start][START],
                                     contig_annot[start][PRODUCT])
-                                    #multi_copy)
                     self.neighbors_graph.add_node(family_id_nei)
                     self.__add_link(contig_annot[start][FAMILY],family_id_nei,organism, (self.circular_contig_size - end_family_nei) + contig_annot[start][START])
                 else:#no circularization
@@ -445,11 +445,6 @@ class PPanGGOLiN:
                                     contig_annot[start][NAME],
                                     contig_annot[start][END]-contig_annot[start][START],
                                     contig_annot[start][PRODUCT])
-                                    #multi_copy)
-
-        # if multi_copy is not None and len(multi_copy)>0:
-        #     logging.getLogger().info("Untangleling ...")
-        #     self.__untangle_multi_copy_families(multi_copy)
 
         self.pan_size = nx.number_of_nodes(self.neighbors_graph)
 
@@ -1059,6 +1054,8 @@ Subpartition the shell genome in n subpartition, n can be ajusted automatically 
 Show information message, otherwise only errors and warnings will be displayed""")
     parser.add_argument("-vv", "--verbose_debug", default=False, action="store_true", help="""
 Show all messages including debug ones""")
+    parser.add_argument("-as", "--already_sorted", default=False, action="store_true", help="""
+Accelerate loadding of gff files if there are sorted by start point for each contig""")
 
     options = parser.parse_args()
 
@@ -1090,7 +1087,8 @@ Show all messages including debug ones""")
                      options.organisms[0],
                      options.gene_families[0],
                      options.remove_high_copy_number_families[0],
-                     options.infere_singleton)
+                     options.infere_singleton,
+                     options.already_sorted)
 
     if options.update is not None:
         pan.import_from_GEXF(options.update[0])
