@@ -256,8 +256,8 @@ class PPanGGOLiN:
             ctp_prev = 1
             cpt_fam_occ = defaultdict(int)
 
-            for row in db_gff.all_features(featuretype=['region','CDS'], order_by=('seqid','start')):
-                if row.feature == 'region':
+            for row in db_gff.all_features(featuretype=('region','CDS'), order_by=('seqid','start')):
+                if row.featuretype == 'region':
                     if row.seqid in self.circular_contig_size:
                         self.circular_contig_size = row.end
                 else:
