@@ -690,6 +690,8 @@ class PPanGGOLiN:
             self.neighbors_graph[node_i][node_j]["length_min"] = min(l)
             self.neighbors_graph[node_i][node_j]["length_max"] = max(l)
 
+            del self.neighbors_graph[node_i][node_j]["length"]
+
         if len(self.families_repeted)>0:
             logging.getLogger().info("Discarded families are:\n"+"\n".join(self.families_repeted))
         else:
