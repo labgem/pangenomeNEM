@@ -684,10 +684,11 @@ class PPanGGOLiN:
 
         for node_i, node_j, data in self.neighbors_graph.edges(data = True):
             print(data["length"])
-            self.neighbors_graph[node_i][node_j]["length_avg"] = float(np.mean(data["length"]))
-            self.neighbors_graph[node_i][node_j]["length_med"] = float(np.median(data["length"]))
-            self.neighbors_graph[node_i][node_j]["length_min"] = min(data["length"])
-            self.neighbors_graph[node_i][node_j]["length_max"] = max(data["length"])
+            l = list(data["length"])
+            self.neighbors_graph[node_i][node_j]["length_avg"] = float(np.mean(l))
+            self.neighbors_graph[node_i][node_j]["length_med"] = float(np.median(l))
+            self.neighbors_graph[node_i][node_j]["length_min"] = min(l)
+            self.neighbors_graph[node_i][node_j]["length_max"] = max(l)
 
         if len(self.families_repeted)>0:
             logging.getLogger().info("Discarded families are:\n"+"\n".join(self.families_repeted))
