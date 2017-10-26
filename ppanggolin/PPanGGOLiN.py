@@ -834,8 +834,13 @@ class PPanGGOLiN:
                 sum_mu_k = []
                 sum_epsilon_k = []
                 proportion = []
-                
-                for k, line in enumerate(parameter_nem_file[-3:]):
+
+                parameter = parameter_nem_file.readlines()
+                M = float(parameter[6].split()[3]) # M is markov ps-like
+                self.BIC = -2 * M - (K * self.nb_organisms * 2 + K - 1) * math.log(self.pan_size)
+                logging.getLogger().info("The Bayesian Criterion Index of the partionning is "+str(self.BIC))
+
+                for k, line in enumerate(parameter[-3:]):
                     logging.getLogger().debug(line)
                     vector = line.split()
                     mu_k = [bool(int(mu_kj)) for mu_kj in vector[0:self.nb_organisms]]
@@ -889,12 +894,6 @@ class PPanGGOLiN:
                     else:
                         classification[i] = partition[positions_max_prob.pop()]
 
-                parameter = parameter_nem_file.readlines()
-
-                M = float(parameter[6].split()[3]) # M is markov ps-like
-                self.BIC = -2 * M - (K * self.nb_organisms * 2 + K - 1) * math.log(self.pan_size)
-
-                logging.getLogger().info("The Bayesian Criterion Index of the partionning is "+str(self.BIC))
                 logging.getLogger().debug(partition)
                 #logging.getLogger().debug(index.keys())
         except FileNotFoundError:
