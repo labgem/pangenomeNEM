@@ -669,7 +669,7 @@ class PPanGGOLiN:
                                         gene_row[PRODUCT])
                                         #multi_copy)
                         self.neighbors_graph.add_node(family_id_nei)
-                        self.__add_link(gene_row[FAMILY],family_id_nei,organism, end_family_nei-gene_row[STRAT])
+                        self.__add_link(gene_row[FAMILY],family_id_nei,organism, end_family_nei-gene_row[START])
                         family_id_nei  = gene_row[FAMILY]
                         end_family_nei = gene_row[END]
                         at_least_2_families = True
