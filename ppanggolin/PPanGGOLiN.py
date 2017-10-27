@@ -533,7 +533,7 @@ class PPanGGOLiN:
         # logging.getLogger().debug("org/weighted_degree: "+str(self.nb_organisms/weighted_degree))    
         #weighted_degree = sum(self.neighbors_graph.degree(weight="weight").values())/nx.number_of_edges(self.neighbors_graph)
 
-        K              = 3 # number of partitions
+        Q              = 3 # number of partitions
         ALGO           = "ncem" #fuzzy classification by mean field approximation
         ITERMAX        = 100 # number of iteration max 
         MODEL          = "bern" # multivariate Bernoulli mixture model
@@ -553,7 +553,7 @@ class PPanGGOLiN:
 
         command = " ".join([NEM_LOCATION, 
                             nem_dir_path+"/nem_file",
-                            str(K),
+                            str(Q),
                             "-a", ALGO,
                             "-i", str(ITERMAX),
                             "-m", MODEL, PROPORTION, VARIANCE_MODEL,
@@ -1045,6 +1045,9 @@ Pangenome Graph to be updated (in gexf format)""")
     parser.add_argument("-b", "--beta_smoothing", default = [-1.00], type=float, nargs=1, help = """
 Coeficient of smoothing all the partionning based on the Markov Random Feild leveraging the weigthed pangenome graph. A positive float, 0.0 means to discard spatial smoothing and -1 to find beta automaticaly (increase the computation time) 
 """)
+    parser.add_argument("-fd", "--free_dispersion", default = False, action="store_true", help = """
+If False (default) the dispersion aroud the centroid binary vector of each partition is fixed for all the column of the matrix, if True the dispersion aroud the centroid binary can be variable for each organisms.
+""")
     parser.add_argument("-i", "--delete_nem_intermediate_files", default=False, action="store_true", help="""
 Delete intermediate files used by NEM""")
     parser.add_argument("-c", "--compress_graph", default=False, action="store_true", help="""
@@ -1162,7 +1165,7 @@ Accelerate loadding of gff files if there are sorted by start point for each con
         while pan.nb_organisms>4:
             #if ((pan.nb_organisms%10)==0):
             pan.neighborhood_computation()
-            pan.partition(OUTPUTDIR+"/"+str(pan.nb_organisms))
+            pan.partition(OUTPUTDIR+"/"+str(pan.nb_organisms),options.beta_smoothing[0])
             evol.write("\t".join([str(pan.nb_organisms),
                               str(len(pan.partitions["Persistent"])),
                               str(len(pan.partitions["Shell"])),
