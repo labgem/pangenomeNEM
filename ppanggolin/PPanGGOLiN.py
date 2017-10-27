@@ -586,7 +586,7 @@ class PPanGGOLiN:
 
                 parameter = parameter_nem_file.readlines()
                 M = float(parameter[6].split()[3]) # M is markov ps-like
-                self.BIC = -2 * M - (K * self.nb_organisms * 2 + K - 1) * math.log(self.pan_size)
+                self.BIC = -2 * M - (Q * self.nb_organisms * 2 + Q - 1) * math.log(self.pan_size)
                 logging.getLogger().info("The Bayesian Criterion Index of the partionning is "+str(self.BIC))
 
                 for k, line in enumerate(parameter[-3:]):
