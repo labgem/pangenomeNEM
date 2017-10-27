@@ -1031,7 +1031,7 @@ library("reshape2")
 if(!require("ggrepel")) {{ install.packages("ggrepel", dep = TRUE) }}
 library("ggrepel")
 
-color_chart = c(pangenome="black", "100_accessory"="#EB37ED", "100_core" ="#FF2828","95_accessory"="#fde2fd", "95_core" ="#fbc7c7", shell = "#00D860", persistant="#F7A507", cloud = "#79DEFF")
+color_chart = c(pangenome="black", "100_accessory"="#EB37ED", "100_core" ="#FF2828","95_accessory"="#fde2fd", "95_core" ="#fbc7c7", shell = "#00D860", persistent="#F7A507", cloud = "#79DEFF")
 
 binary_matrix         <- read.table("{nem_dir}/nem_file.dat", header=FALSE)
 occurences            <- rowSums(binary_matrix)
@@ -1051,13 +1051,13 @@ means <- means[order(means$mean),]
 
 classification_vector[classification_vector == means[1,"cluster"]] <- "cloud"
 classification_vector[classification_vector == means[2,"cluster"]] <- "shell"
-classification_vector[classification_vector == means[3,"cluster"]] <- "persistant"
+classification_vector[classification_vector == means[3,"cluster"]] <- "persistent"
 
 c = data.frame(nb_org = occurences, cluster = classification_vector)
 
 plot <- ggplot(data = c) + 
     geom_bar(aes_string(x = "nb_org", fill = "cluster")) +
-    scale_fill_manual(name = "partition", values = color_chart, breaks=c("persistant","shell","cloud")) +
+    scale_fill_manual(name = "partition", values = color_chart, breaks=c("persistent","shell","cloud")) +
     scale_x_discrete(limits = seq(1, ncol(binary_matrix))) +
     xlab("# of organisms in which each familly is present")+
     ylab("# of families")
@@ -1073,8 +1073,8 @@ binary_matrix           <- data.frame(binary_matrix,"NEM partitions" = classific
 
 binary_matrix[occurences == nb_org, "Former partitions"] <- "100_core"
 binary_matrix[occurences != nb_org, "Former partitions"] <- "100_accessory"
-binary_matrix = binary_matrix[order(match(binary_matrix$"NEM partitions",c("persistant", "shell", "cloud")),
-                                    match(binary_matrix$"Former partitions",c("100_core", "100_accessory") )),
+binary_matrix = binary_matrix[order(match(binary_matrix$"NEM partitions",c("persistent", "shell", "cloud")),
+                                    match(binary_matrix$"Former partitions",c("100_core", "100_accessory")),
                                     -binary_matrix$occurences),
                               colnames(binary_matrix) != "occurences"]
 
@@ -1084,7 +1084,7 @@ data = melt(binary_matrix, id.vars=c("familles"))
 print(head(data))
 colnames(data) = c("fam","org","value")
 
-data$value <- factor(data$value, levels = c(TRUE,FALSE,"persistant", "shell", "cloud", "100_core", "100_accessory"), labels = c("presence","absence","persistant", "shell", "cloud", "100_core", "100_accessory"))
+data$value <- factor(data$value, levels = c(TRUE,FALSE,"persistent", "shell", "cloud", "100_core", "100_accessory"), labels = c("presence","absence","persistent", "shell", "cloud", "100_core", "100_accessory"))
 
 plot <- ggplot(data = data)+
         geom_raster(aes_string(x="org",y="fam", fill="value"))+
@@ -1241,7 +1241,7 @@ Generate Rscript able to draw plots and run it.""")
     "Execution time of writing output files: " +str(round(time.time()-time_of_writing_output_file, 2))+" s\n"+
     "Total execution time: " +str(round(time.time()-start_loading_file, 2))+" s\n")
 
-    pan.plot_Rscript(OUTPUTDIR+"/generate_plots.R", "Ushaped_plot.pdf", "Presence_absence_matrix_plot.pdf", run_script = True)
+    pan.plot_Rscript(OUTPUTDIR+"/generate_plots.R", OUTPUTDIR+"/Ushaped_plot.pdf", OUTPUTDIR+"/Presence_absence_matrix_plot.pdf", run_script = options.plot)
 
     # print(pan.partitions_by_organisms)
     # partitions_by_organisms_file = open(OUTPUTDIR+"/partitions_by_organisms.txt","w")
