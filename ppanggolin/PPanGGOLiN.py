@@ -810,6 +810,7 @@ class PPanGGOLiN:
             :type str: 
             :type bool: 
         """ 
+        logging.getLogger().info("Writing csv matrix")
         with open(path,"w") as matrix:
             if header:
                 matrix.write(sep.join(["family",
@@ -1018,10 +1019,10 @@ class PPanGGOLiN:
 #!/usr/bin/env R
 options(show.error.locations = TRUE)
 
-if(!require("packrat")) {{ install.packages("packrat", dep = TRUE) }}
-library("packrat")
+# if(!require("packrat")) {{ install.packages("packrat", dep = TRUE) }}
+# library("packrat")
 
-packrat::init()
+# packrat::init()
 
 if(!require("ggplot2")) {{ install.packages("ggplot2", dep = TRUE) }}
 library("ggplot2")
@@ -1065,7 +1066,7 @@ ggsave("{outpdf_Ushape}", device = "pdf", height= (par("din")[2]*1.5),plot)
 
 ############################################################
 
-organism_names          <- unlist(strsplit(readLines("{nem_dir}/column_org_file")))
+organism_names          <- unlist(strsplit(readLines("{nem_dir}/column_org_file")," "))
 colnames(binary_matrix) <- organism_names
 nb_org                  <- ncol(binary_matrix)
 binary_matrix           <- data.frame(binary_matrix,"NEM partitions" = classification_vector, occurences = occurences, check.names=FALSE)
@@ -1095,10 +1096,10 @@ ggsave("{outpdf_matrix}", device = "pdf", plot)
         """.format(nem_dir       = self.nem_intermediate_files,
                    outpdf_Ushape = outpdf_Ushape,
                    outpdf_matrix = outpdf_matrix)
-
+        logging.getLogger().info("Writing R script generating plot")
         with open(script_outfile,"w") as script_file:
             script_file.write(rscript)
-
+        logging.getLogger().info("Running R script generating plot")
         if run_script:
             proc = subprocess.Popen("Rscript "+script_outfile, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
