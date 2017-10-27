@@ -1084,7 +1084,7 @@ data = melt(binary_matrix, id.vars=c("familles"))
 print(head(data))
 colnames(data) = c("fam","org","value")
 
-data$value <- factor(data$value, levels = c(TRUE,FALSE,"persistent", "shell", "cloud", "100_core", "100_accessory"), labels = c("presence","absence","persistent", "shell", "cloud", "100_core", "100_accessory"))
+data$value <- factor(data$value, levels = c(1,0,"persistent", "shell", "cloud", "100_core", "100_accessory"), labels = c("presence","absence","persistent", "shell", "cloud", "100_core", "100_accessory"))
 
 plot <- ggplot(data = data)+
         geom_raster(aes_string(x="org",y="fam", fill="value"))+
