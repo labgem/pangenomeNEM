@@ -1103,7 +1103,6 @@ Accelerate loadding of gff files if there are sorted by start point for each con
     pan.neighborhood_computation()
     start_partitioning = time.time()
     
-    free_dispersion
     pan.partition(nem_dir_path = NEMOUTPUTDIR, beta = options.beta_smoothing[0], free_dispersion = options.free_dispersion)
     start_identify_communities = time.time()
     pan.identify_communities_in_each_partition()
