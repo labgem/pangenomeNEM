@@ -392,8 +392,11 @@ class PPanGGOLiN:
         except KeyError:
             self.neighbors_graph[fam_id][fam_id_nei]["length"]=set([length])
 
-    def neighborhood_computation(self):#, untangle_multi_copy_families = False
-        """ Use the information already loaded (annotation) to build the pangenome graph """
+    def neighborhood_computation(self, light = False):#, untangle_multi_copy_families = False
+        """ Use the information already loaded (annotation) to build the pangenome graph
+            :param light: a bool specifying is the annotation attribute must be detroyed at each step to save memory
+            :type bool: 
+        """ 
         if self.neighbors_graph is None:
             self.neighbors_graph = nx.Graph()
         elif self.is_partitionned:
@@ -401,8 +404,8 @@ class PPanGGOLiN:
 
         #multi_copy = defaultdict(int) if untangle_multi_copy_families else None
 
-        for organism, annot_contigs in self.annotations.items():
-            for contig, contig_annot in annot_contigs.items():
+        for organism in list(self.annotations.items()):
+            for contig, contig_annot in self.annotations[organism].items():
                 at_least_2_families = False
                 start = 0
                 while (start < len(contig_annot) and contig_annot[start][FAMILY] in self.families_repeted):
@@ -445,7 +448,8 @@ class PPanGGOLiN:
                                     contig_annot[start][NAME],
                                     contig_annot[start][END]-contig_annot[start][START],
                                     contig_annot[start][PRODUCT])
-
+            if light:
+                del self.annotations[organism]
         self.pan_size = nx.number_of_nodes(self.neighbors_graph)
 
     def partition(self, nem_dir_path = tempfile.mkdtemp(), beta = 1.00, free_dispersion = False):
@@ -1002,6 +1006,108 @@ class PPanGGOLiN:
                     self.neighbors_graph.node[index_inv[i+1]]["subshell"]=str(classes[0])
 
 
+    def plot_Rscript(self, script_outfile, outpdf_Ushape, outpdf_matrix, run_script = True):
+        """
+        run r script
+        required the following package to be intaled 
+        """
+
+# check if nem intermedaire file are 
+
+        rscript = """
+#!/usr/bin/env R
+options(show.error.locations = TRUE)
+
+if(!require("packrat")) { install.packages("packrat", dep = TRUE)}
+library("packrat")
+
+packrat::init()
+
+if(!require("ggplot2")) { install.packages("ggplot2", dep = TRUE)}
+library("ggplot2")
+if(!require("reshape2")) { install.packages("reshape2", dep = TRUE)}
+library("reshape2")
+if(!require("ggrepel")) { install.packages("ggrepel", dep = TRUE)}
+library("ggrepel")
+
+color_chart = c(pangenome="black", "100_accessory"="#EB37ED", "100_core" ="#FF2828","95_accessory"="#fde2fd", "95_core" ="#fbc7c7", shell = "#00D860", persistant="#F7A507", cloud = "#79DEFF")
+
+binary_matrix         <- read.table("{nem_dir}/nem_file.dat", header=FALSE)
+occurences            <- rowSums(binary_matrix)
+classification_vector <- apply (read.table("{nem_dir}/nem_file.uf", header=FALSE),1, FUN = function(x){
+ret = which(x==max(x))
+if(length(ret)>1){ret=2}
+return(ret)
+})
+
+means <- data.frame(cluster = c("1","2","3"), mean = rep(NA,3))
+
+means[means$cluster == "1","mean"] <- mean(occurences[classification_vector == "1"])
+means[means$cluster == "2","mean"] <- mean(occurences[classification_vector == "2"])
+means[means$cluster == "3","mean"] <- mean(occurences[classification_vector == "3"])
+
+means <- means[order(means$mean),]
+
+classification_vector[classification_vector == means[1,"cluster"]] <- "cloud"
+classification_vector[classification_vector == means[2,"cluster"]] <- "shell"
+classification_vector[classification_vector == means[3,"cluster"]] <- "persistant"
+
+c = data.frame(nb_org = occurences, cluster = classification_vector)
+
+plot <- ggplot(data = c) + 
+    geom_bar(aes_string(x = "nb_org", fill = "cluster")) +
+    scale_fill_manual(name = "partition", values = color_chart, breaks=c("persistant","shell","cloud")) +
+    scale_x_discrete(limits = seq(1, ncol(binary_matrix))) +
+    xlab("# of organisms in which each familly is present")+
+    ylab("# of families")
+
+ggsave("{outpdf_Ushape}", device = "pdf", height= (par("din")[2]*1.5),plot)
+
+############################################################
+
+organism_names          <- unlist(strsplit(readLines("{out}/column_org_file")))
+colnames(binary_matrix) <- organism_names
+nb_org                  <- ncol(binary_matrix)
+binary_matrix           <- data.frame(binary_matrix,"NEM partitions" = classification_vector, occurences = occurences, check.names=FALSE)
+
+binary_matrix[occurences == nb_org, "Former partitions"] <- "100_core"
+binary_matrix[occurences != nb_org, "Former partitions"] <- "100_accessory"
+binary_matrix = binary_matrix[order(match(binary_matrix$"NEM partitions",c("persistant", "shell", "cloud")),
+                                    match(binary_matrix$"Former partitions",c("100_core", "100_accessory") )),
+                                    -binary_matrix$occurences),
+                              colnames(binary_matrix) != "occurences"]
+
+binary_matrix$familles <- seq(1,nrow(binary_matrix))
+data = melt(binary_matrix, id.vars=c("familles"))
+
+print(head(data))
+colnames(data) = c("fam","org","value")
+
+data$value <- factor(data$value, levels = c(TRUE,FALSE,"persistant", "shell", "cloud", "100_core", "100_accessory"), labels = c("presence","absence","persistant", "shell", "cloud", "100_core", "100_accessory"))
+
+plot <- ggplot(data = data)+
+        geom_raster(aes_string(x="org",y="fam", fill="value"))+
+        scale_fill_manual(values = c("presence"="green","absence"="grey80",color_chart)) +
+        theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5), panel.border = element_blank(), panel.background = element_blank())
+
+ggsave("{outpdf_matrix}", device = "pdf", plot)
+
+        """.format(nem_dir       = self.nem_intermediate_files,
+                   outpdf_Ushape = outpdf_Ushape,
+                   outpdf_matrix = outpdf_matrix)
+
+        with open(script_outfile,"w") as script_file:
+            script_file.write(rscript)
+
+        if run_script:
+            proc = subprocess.Popen("Rscript "+script_outfile, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+            (out,err) = proc.communicate()
+            logging.getLogger().debug(out)
+            logging.getLogger().debug(err)
+
+#an exeception occurs during execution of the Rsciript, The R script has been save here and can be relauch by the user 
+
 if __name__=='__main__':
     """
     --organims is a tab delimited files containg at least 2 mandatory fields by row and as many optional field as circular contig. Each row correspond to an organism to be added to the pangenome.
@@ -1022,7 +1128,7 @@ The second field is the gff file associated to the organism. This path can be ab
 The next fields contain the name of perfectly assembled circular contigs.
 Contig names should be unique and not contain any spaces, quote, double quote and reserved words.
 example:""", required=True)
-    parser.add_argument('-f', '--gene_families', type=argparse.FileType('r'), nargs=1, help="""
+    parser.add_argument('-gf', '--gene_families', type=argparse.FileType('r'), nargs=1, help="""
 A tab delimited file containg the gene families. Each row contain 2 fields.
 Reserved words are : "id", "label", "name", "weight", "partition", "partition_exact"
 The first field is the family name.
@@ -1034,7 +1140,7 @@ Gene name can be any string corresponding to the if feature in the gff files. th
 example:""",  required=True)
     parser.add_argument('-d', '--output_directory', type=str, nargs=1, default=["output.dir"], help="""
 The output directory""")
-    parser.add_argument('-ff', '--force', action="store_true", help="""
+    parser.add_argument('-f', '--force', action="store_true", help="""
 Force overwriting existing output directory""")
     parser.add_argument('-r', '--remove_high_copy_number_families', type=int, nargs=1, default=[0], help="""
 Remove families having a number of copy of one families above or equal to this threshold in at least one organism (0 or negative value keep all families whatever their occurence). 
@@ -1050,8 +1156,8 @@ Coeficient of smoothing all the partionning based on the Markov Random Feild lev
     parser.add_argument("-fd", "--free_dispersion", default = False, action="store_true", help = """
 Specify if the dispersion around the centroid vector of each paritition is the same for all the organisms or if the dispersion is free
 """)
-    parser.add_argument("-i", "--delete_nem_intermediate_files", default=False, action="store_true", help="""
-Delete intermediate files used by NEM""")
+    parser.add_argument("-di", "--delete_nem_intermediate_files", default=False, action="store_true", help="""
+Delete intermediate files used by NEM. Do not delete these files if you can the gerate plot latter using the generated Rscript""")
     parser.add_argument("-c", "--compress_graph", default=False, action="store_true", help="""
 Compress (using gzip) the file containing the partionned pangenome graph""")
     parser.add_argument("-ss", "--subpartition_shell", default = 0, type=int, nargs=1, help = """
@@ -1062,6 +1168,8 @@ Show information message, otherwise only errors and warnings will be displayed""
 Show all messages including debug ones""")
     parser.add_argument("-as", "--already_sorted", default=False, action="store_true", help="""
 Accelerate loadding of gff files if there are sorted by start point for each contig""")
+    parser.add_argument("-p", "--plots", default=False, action="store_true", help="""
+Generate Rscript able to draw plots and run it.""")
 
     options = parser.parse_args()
 
@@ -1132,6 +1240,8 @@ Accelerate loadding of gff files if there are sorted by start point for each con
     "Execution time of writing output files: " +str(round(time.time()-time_of_writing_output_file, 2))+" s\n"+
     "Total execution time: " +str(round(time.time()-start_loading_file, 2))+" s\n")
 
+    pan.plot_Rscript(script_outfile, outpdf_Ushape, outpdf_matrix, run_script = True)
+
     # print(pan.partitions_by_organisms)
     # partitions_by_organisms_file = open(OUTPUTDIR+"/partitions_by_organisms.txt","w")
     # exact_by_organisms_file = open(OUTPUTDIR+"/exacte_by_organisms.txt","w")
@@ -1148,7 +1258,7 @@ Accelerate loadding of gff files if there are sorted by start point for each con
         pan.delete_pangenome_graph()
 
     logging.getLogger().info("Finished !")
-
+    exit()
     #####################################
 
     start_size = pan.nb_organisms
