@@ -1065,7 +1065,7 @@ ggsave("{outpdf_Ushape}", device = "pdf", height= (par("din")[2]*1.5),plot)
 
 ############################################################
 
-organism_names          <- unlist(strsplit(readLines("{out}/column_org_file")))
+organism_names          <- unlist(strsplit(readLines("{nem_dir}/column_org_file")))
 colnames(binary_matrix) <- organism_names
 nb_org                  <- ncol(binary_matrix)
 binary_matrix           <- data.frame(binary_matrix,"NEM partitions" = classification_vector, occurences = occurences, check.names=FALSE)
