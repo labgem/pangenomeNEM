@@ -448,15 +448,17 @@ class PPanGGOLiN:
 
         self.pan_size = nx.number_of_nodes(self.neighbors_graph)
 
-    def partition(self, nem_dir_path = tempfile.mkdtemp(), beta = 1.00):
+    def partition(self, nem_dir_path = tempfile.mkdtemp(), beta = 1.00, free_dispersion = False):
         """
             Use the graph topology and the presence or absence of genes from each organism into families to partition the pangenome in three groups ('persistent', 'shell' and 'cloud')
             . seealso:: Read the Mo Dang's thesis to understand NEM and Bernouilli Mixture Model, a summary is available here : http://www.kybernetika.cz/content/1998/4/393/paper.pdf
             
             :param nem_dir_path: a str containing a path to store tempory file of the NEM program
             :param beta: a float containing the spatial coefficient of smothing of the clustering results using the weighted graph topology (0.00 turn off the spatial clustering)
+            :param free_dispersion: a bool specyfing if the dispersion around the centroid vector of each paritition is the same for all the organisms or if the dispersion is free
             :type str: 
             :type float: 
+            :type bool: 
 
             .. warning:: please use the function neighborhoodComputation before
         """ 
@@ -538,7 +540,7 @@ class PPanGGOLiN:
         ITERMAX        = 100 # number of iteration max 
         MODEL          = "bern" # multivariate Bernoulli mixture model
         PROPORTION     = "pk" #equal proportion :  "p_"     varying proportion : "pk"
-        VARIANCE_MODEL = "sk_" #one variance per partition and organism : "sdk"      one variance per partition, same in all organisms : "sd_"   one variance per organism, same in all partion : "s_d"    same variance in organisms and partitions : "s__" 
+        VARIANCE_MODEL = "skd" if free_dispersion else "sk_"#one variance per partition and organism : "sdk"      one variance per partition, same in all organisms : "sd_"   one variance per organism, same in all partion : "s_d"    same variance in organisms and partitions : "s__" 
         NEIGHBOUR_SPEC = "f"# "f" specify to use all neighbors, orther argument is "4" to specify to use only the 4 neighbors with the higher weight (4 because for historic reason due to the 4 pixel neighbors of each pixel)
         CONVERGENCE_TH = "clas "+str(0.000001)
 
@@ -1046,7 +1048,7 @@ Pangenome Graph to be updated (in gexf format)""")
 Coeficient of smoothing all the partionning based on the Markov Random Feild leveraging the weigthed pangenome graph. A positive float, 0.0 means to discard spatial smoothing and -1 to find beta automaticaly (increase the computation time) 
 """)
     parser.add_argument("-fd", "--free_dispersion", default = False, action="store_true", help = """
-If False (default) the dispersion aroud the centroid binary vector of each partition is fixed for all the column of the matrix, if True the dispersion aroud the centroid binary can be variable for each organisms.
+Specify if the dispersion around the centroid vector of each paritition is the same for all the organisms or if the dispersion is free
 """)
     parser.add_argument("-i", "--delete_nem_intermediate_files", default=False, action="store_true", help="""
 Delete intermediate files used by NEM""")
@@ -1101,7 +1103,8 @@ Accelerate loadding of gff files if there are sorted by start point for each con
     pan.neighborhood_computation()
     start_partitioning = time.time()
     
-    pan.partition(NEMOUTPUTDIR, beta = options.beta_smoothing[0])
+    free_dispersion
+    pan.partition(nem_dir_path = NEMOUTPUTDIR, beta = options.beta_smoothing[0], free_dispersion = options.free_dispersion)
     start_identify_communities = time.time()
     pan.identify_communities_in_each_partition()
     #pan.identify_shell_subpaths()
@@ -1165,7 +1168,7 @@ Accelerate loadding of gff files if there are sorted by start point for each con
         while pan.nb_organisms>4:
             #if ((pan.nb_organisms%10)==0):
             pan.neighborhood_computation()
-            pan.partition(OUTPUTDIR+"/"+str(pan.nb_organisms),options.beta_smoothing[0])
+            pan.partition(nem_dir_path = OUTPUTDIR+"/"+str(pan.nb_organisms), beta = options.beta_smoothing[0], free_dispersion = options.free_dispersion)
             evol.write("\t".join([str(pan.nb_organisms),
                               str(len(pan.partitions["Persistent"])),
                               str(len(pan.partitions["Shell"])),
