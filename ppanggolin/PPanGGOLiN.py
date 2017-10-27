@@ -1240,7 +1240,7 @@ Generate Rscript able to draw plots and run it.""")
     "Execution time of writing output files: " +str(round(time.time()-time_of_writing_output_file, 2))+" s\n"+
     "Total execution time: " +str(round(time.time()-start_loading_file, 2))+" s\n")
 
-    pan.plot_Rscript(script_outfile, outpdf_Ushape, outpdf_matrix, run_script = True)
+    pan.plot_Rscript(OUTPUTDIR+"/generate_plots.R", "Ushaped_plot.pdf", "Presence_absence_matrix_plot.pdf", run_script = True)
 
     # print(pan.partitions_by_organisms)
     # partitions_by_organisms_file = open(OUTPUTDIR+"/partitions_by_organisms.txt","w")
