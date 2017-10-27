@@ -1018,27 +1018,27 @@ class PPanGGOLiN:
 #!/usr/bin/env R
 options(show.error.locations = TRUE)
 
-if(!require("packrat")) { install.packages("packrat", dep = TRUE)}
+if(!require("packrat")) \{ install.packages("packrat", dep = TRUE) \}
 library("packrat")
 
 packrat::init()
 
-if(!require("ggplot2")) { install.packages("ggplot2", dep = TRUE)}
+if(!require("ggplot2")) \{ install.packages("ggplot2", dep = TRUE) \}
 library("ggplot2")
-if(!require("reshape2")) { install.packages("reshape2", dep = TRUE)}
+if(!require("reshape2")) \{ install.packages("reshape2", dep = TRUE) \}
 library("reshape2")
-if(!require("ggrepel")) { install.packages("ggrepel", dep = TRUE)}
+if(!require("ggrepel")) \{ install.packages("ggrepel", dep = TRUE) \}
 library("ggrepel")
 
 color_chart = c(pangenome="black", "100_accessory"="#EB37ED", "100_core" ="#FF2828","95_accessory"="#fde2fd", "95_core" ="#fbc7c7", shell = "#00D860", persistant="#F7A507", cloud = "#79DEFF")
 
 binary_matrix         <- read.table("{nem_dir}/nem_file.dat", header=FALSE)
 occurences            <- rowSums(binary_matrix)
-classification_vector <- apply (read.table("{nem_dir}/nem_file.uf", header=FALSE),1, FUN = function(x){
+classification_vector <- apply (read.table("{nem_dir}/nem_file.uf", header=FALSE),1, FUN = function(x)\{
 ret = which(x==max(x))
-if(length(ret)>1){ret=2}
+if(length(ret)>1)\{ret=2\}
 return(ret)
-})
+\})
 
 means <- data.frame(cluster = c("1","2","3"), mean = rep(NA,3))
 
