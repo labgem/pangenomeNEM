@@ -404,7 +404,7 @@ class PPanGGOLiN:
 
         #multi_copy = defaultdict(int) if untangle_multi_copy_families else None
 
-        for organism in list(self.annotations.items()):
+        for organism in list(self.annotations):
             for contig, contig_annot in self.annotations[organism].items():
                 at_least_2_families = False
                 start = 0
