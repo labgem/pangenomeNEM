@@ -1175,6 +1175,10 @@ Accelerate loadding of gff files if there are sorted by start point for each con
 Free the memory elements which are no longer used""")
     parser.add_argument("-p", "--plots", default=True, action="store_true", help="""
 Generate Rscript able to draw plots and run it. (required R in the path and will install ggplot2, ggrepel and reshape2 if there are not installed)""")
+    parser.add_argument("-e", "--evolution", default=True, action="store_true", help="""
+""")
+
+
 
     options = parser.parse_args()
 
@@ -1213,7 +1217,7 @@ Generate Rscript able to draw plots and run it. (required R in the path and will
         pan.import_from_GEXF(options.update[0])
 
     start_neighborhood_computation = time.time()
-    pan.neighborhood_computation(option.ligth)
+    pan.neighborhood_computation(options.ligth)
     start_partitioning = time.time()
     
     pan.partition(nem_dir_path = NEMOUTPUTDIR, beta = options.beta_smoothing[0], free_dispersion = options.free_dispersion)
@@ -1282,7 +1286,7 @@ Generate Rscript able to draw plots and run it. (required R in the path and will
         while pan.nb_organisms>4:
             #if ((pan.nb_organisms%10)==0):
             pan.neighborhood_computation()
-            pan.partition(nem_dir_path = OUTPUTDIR+"/"+str(pan.nb_organisms), beta = options.beta_smoothing[0], free_dispersion = options.free_dispersion)
+            pan.partition(nem_dir_path = OUTPUTDIR+"/NEM_results_"+str(pan.nb_organisms), beta = options.beta_smoothing[0], free_dispersion = options.free_dispersion)
             evol.write("\t".join([str(pan.nb_organisms),
                               str(len(pan.partitions["Persistent"])),
                               str(len(pan.partitions["Shell"])),
