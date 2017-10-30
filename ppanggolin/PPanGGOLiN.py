@@ -23,6 +23,7 @@ import numpy as np
 import time
 import community
 import tempfile
+from random import randrange
 
 #import forceatlas2 
 
@@ -840,11 +841,13 @@ class PPanGGOLiN:
                                        str(data["length_max"])]
                                        +genes)+"\n")
 
-    def delete_pangenome_graph(self):
+    def delete_pangenome_graph(self, delete_NEM_files = False):
         """
             Delete all the pangenome graph of eventuelly the statistic of the partionning process (including the temporary file)
         """ 
-        self.delete_nem_intermediate_files()
+        if not keep_NEM_files:
+            self.delete_nem_intermediate_files()
+
         self.nem_output               = None
         self.neighbors_graph          = None
         self.pan_size                 = 0
@@ -1019,11 +1022,6 @@ class PPanGGOLiN:
 #!/usr/bin/env R
 options(show.error.locations = TRUE)
 
-# if(!require("packrat")) {{ install.packages("packrat", dep = TRUE) }}
-# library("packrat")
-
-# packrat::init()
-
 if(!require("ggplot2")) {{ install.packages("ggplot2", dep = TRUE) }}
 library("ggplot2")
 if(!require("reshape2")) {{ install.packages("reshape2", dep = TRUE) }}
@@ -1078,7 +1076,7 @@ binary_matrix[occurences != nb_org, "Former partitions"] <- "100_accessory"
 binary_matrix = binary_matrix[order(match(binary_matrix$"NEM partitions",c("persistent", "shell", "cloud")),
                                     match(binary_matrix$"Former partitions",c("100_core", "100_accessory")),
                                     -binary_matrix$occurences),
-                              c(binary_matrix_hclust$labels,"NEM partitions","Former partitions")]
+                              c(binary_matrix_hclust$label[binary_matrix_hclust$order],"NEM partitions","Former partitions")]
 
 binary_matrix$familles <- seq(1,nrow(binary_matrix))
 data = melt(binary_matrix, id.vars=c("familles"))
@@ -1103,6 +1101,7 @@ ggsave("{outpdf_matrix}", device = "pdf", plot)
             script_file.write(rscript)
         logging.getLogger().info("Running R script generating plot")
         if run_script:
+            logging.getLogger().info("Rscript "+script_outfile)
             proc = subprocess.Popen("Rscript "+script_outfile, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
             (out,err) = proc.communicate()
@@ -1176,9 +1175,8 @@ Free the memory elements which are no longer used""")
     parser.add_argument("-p", "--plots", default=True, action="store_true", help="""
 Generate Rscript able to draw plots and run it. (required R in the path and will install ggplot2, ggrepel and reshape2 if there are not installed)""")
     parser.add_argument("-e", "--evolution", default=True, action="store_true", help="""
+Relaunch the script using less and less organism in order to obtain a curve of the evolution of the pangenome metrics
 """)
-
-
 
     options = parser.parse_args()
 
@@ -1263,43 +1261,38 @@ Generate Rscript able to draw plots and run it. (required R in the path and will
     # partitions_by_organisms_file.close()
     # exact_by_organisms_file.close()
 
-    if options.delete_nem_intermediate_files:
-        pan.delete_pangenome_graph()
+    if not options.evolution:
 
-    logging.getLogger().info("Finished !")
-    exit()
-    #####################################
+        if options.delete_nem_intermediate_files:
+            pan.delete_nem_intermediate_files()
 
-    start_size = pan.nb_organisms
+        logging.getLogger().info("Finished !")
+        exit()
+    else:
+        STEP = 1
+        start_size = pan.nb_organisms
 
-    with open(OUTPUTDIR+"/stat_evol.txt","w") as evol, open(OUTPUTDIR+"/stat_evol_exact.txt","w") as evol_exact:
-        evol.write("\t".join([str(pan.nb_organisms),
-                                  str(len(pan.partitions["Persistent"])),
-                                  str(len(pan.partitions["Shell"])),
-                                  str(len(pan.partitions["Cloud"])),
-                                  str(pan.pan_size)])+"\n")
-        evol_exact.write("\t".join([str(pan.nb_organisms),
-                                      str(len(pan.partitions["Core_Exact"])),
-                                      str(len(pan.partitions["Accessory"])),
-                                      str(pan.pan_size)])+"\n")
-        pan.delete_pangenome_graph()
-        while pan.nb_organisms>4:
-            #if ((pan.nb_organisms%10)==0):
-            pan.neighborhood_computation()
-            pan.partition(nem_dir_path = OUTPUTDIR+"/NEM_results_"+str(pan.nb_organisms), beta = options.beta_smoothing[0], free_dispersion = options.free_dispersion)
-            evol.write("\t".join([str(pan.nb_organisms),
-                              str(len(pan.partitions["Persistent"])),
-                              str(len(pan.partitions["Shell"])),
-                              str(len(pan.partitions["Cloud"])),
-                              str(pan.pan_size)])+"\n")
-            evol_exact.write("\t".join([str(pan.nb_organisms),
-                                  str(len(pan.partitions["Core_Exact"])),
-                                  str(len(pan.partitions["Accessory"])),
-                                  str(pan.pan_size)])+"\n")
-            evol.flush()
-            evol_exact.flush()
-            pan.nem_intermediate_files = None
-            removed = pan.organisms.pop()
-            pan.annotations.pop(removed, None)
-            pan.nb_organisms-=1
-            pan.delete_pangenome_graph()
+        with open(OUTPUTDIR+"/stat_evol.txt","w") as evol, open(OUTPUTDIR+"/stat_evol_exact.txt","w") as evol_exact:
+            while pan.nb_organisms>2:
+                evol.write("\t".join([str(pan.nb_organisms),
+                                          str(len(pan.partitions["Persistent"])),
+                                          str(len(pan.partitions["Shell"])),
+                                          str(len(pan.partitions["Cloud"])),
+                                          str(pan.pan_size)])+"\n")
+                evol_exact.write("\t".join([str(pan.nb_organisms),
+                                              str(len(pan.partitions["Core_Exact"])),
+                                              str(len(pan.partitions["Accessory"])),
+                                              str(pan.pan_size)])+"\n")
+                evol.flush()
+                evol_exact.flush()
+
+                for i in range(STEP):
+                    removed = pan.organisms.pop(randrange(0,len(pan.organisms)))
+                    pan.annotations.pop(removed, None)
+                    pan.nb_organisms-= STEP
+                pan.delete_pangenome_graph(delete_NEM_files = options.delete_nem_intermediate_files)
+
+                pan.neighborhood_computation()
+                pan.partition(nem_dir_path = OUTPUTDIR+"/NEM_results_"+str(pan.nb_organisms), beta = options.beta_smoothing[0], free_dispersion = options.free_dispersion)
+                
+                
