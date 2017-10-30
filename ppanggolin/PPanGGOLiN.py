@@ -1069,6 +1069,8 @@ ggsave("{outpdf_Ushape}", device = "pdf", height= (par("din")[2]*1.5),plot)
 organism_names          <- unlist(strsplit(readLines("{nem_dir}/column_org_file")," "))
 colnames(binary_matrix) <- organism_names
 nb_org                  <- ncol(binary_matrix)
+
+binary_matrix_hclust    <- hclust(dist(t(binary_matrix), method="binary"))
 binary_matrix           <- data.frame(binary_matrix,"NEM partitions" = classification_vector, occurences = occurences, check.names=FALSE)
 
 binary_matrix[occurences == nb_org, "Former partitions"] <- "100_core"
@@ -1076,7 +1078,7 @@ binary_matrix[occurences != nb_org, "Former partitions"] <- "100_accessory"
 binary_matrix = binary_matrix[order(match(binary_matrix$"NEM partitions",c("persistent", "shell", "cloud")),
                                     match(binary_matrix$"Former partitions",c("100_core", "100_accessory")),
                                     -binary_matrix$occurences),
-                              colnames(binary_matrix) != "occurences"]
+                              c(binary_matrix_hclust$labels,"NEM partitions","Former partitions")]
 
 binary_matrix$familles <- seq(1,nrow(binary_matrix))
 data = melt(binary_matrix, id.vars=c("familles"))
@@ -1169,8 +1171,10 @@ Show information message, otherwise only errors and warnings will be displayed""
 Show all messages including debug ones""")
     parser.add_argument("-as", "--already_sorted", default=False, action="store_true", help="""
 Accelerate loadding of gff files if there are sorted by start point for each contig""")
-    parser.add_argument("-p", "--plots", default=False, action="store_true", help="""
-Generate Rscript able to draw plots and run it.""")
+    parser.add_argument("-l", "--ligth", default=False, action="store_true", help="""
+Free the memory elements which are no longer used""")
+    parser.add_argument("-p", "--plots", default=True, action="store_true", help="""
+Generate Rscript able to draw plots and run it. (required R in the path and will install ggplot2, ggrepel and reshape2 if there are not installed)""")
 
     options = parser.parse_args()
 
@@ -1209,7 +1213,7 @@ Generate Rscript able to draw plots and run it.""")
         pan.import_from_GEXF(options.update[0])
 
     start_neighborhood_computation = time.time()
-    pan.neighborhood_computation()
+    pan.neighborhood_computation(option.ligth)
     start_partitioning = time.time()
     
     pan.partition(nem_dir_path = NEMOUTPUTDIR, beta = options.beta_smoothing[0], free_dispersion = options.free_dispersion)
