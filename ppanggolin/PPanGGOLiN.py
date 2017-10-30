@@ -13,7 +13,7 @@ import sys
 import re
 import math
 import logging
-import gffutils
+#import gffutils
 import random 
 import string
 import shutil
@@ -28,9 +28,12 @@ from random import randrange
 #import forceatlas2 
 
 NEM_LOCATION  = os.path.dirname(os.path.abspath(__file__))+"/../NEM/nem_exe"
-(GENE, TYPE, FAMILY, START, END, STRAND, NAME, PRODUCT) = range(0, 8)#data index in annotation
+(TYPE, FAMILY, START, END, STRAND, NAME, PRODUCT) = range(0, 7)#data index in annotation
 (ORGANISM_ID, ORGANISM_GFF_FILE) = range(0, 2)#data index in the file listing organisms 
 #(ORGANISM, SEQUENCE, INDEX) = range(0, 3)# index for annotation in gene_location
+
+(GFF_seqname, GFF_source, GFF_feature, GFF_start, GFF_end, GFF_score, GFF_strand, GFF_frame, GFF_attribute) = range(0,9) 
+
 
 RESERVED_WORDS = set(["id", "label", "name", "weight", "partition", "partition_exact", "length", "length_min", "length_max", "length_avg", "length_avg", "product", 'nb_gene', 'community'])
 
@@ -229,10 +232,10 @@ class PPanGGOLiN:
             logging.getLogger().error("""
                 The following identifiers of circular contigs in the file listing organisms have not been found in any region feature of the gff files: """+"\t".join(check_circular_contigs.keys()))
             exit()
-    def __load_gff(self, gff_file, families, organism, lim_occurence = 0, infere_singleton = False, already_sorted = False):
+    def __load_gff(self, gff_file_path, families, organism, lim_occurence = 0, infere_singleton = False, already_sorted = False):
         """
             Load the content of a gff file
-            :param gff_file: a valid gff file where only feature of the type 'CDS' will be imported as genes. Each 'CDS' feature must have a uniq ID as attribute (afterall called gene id).
+            :param gff_file_path: a valid gff file path where only feature of the type 'CDS' will be imported as genes. Each 'CDS' feature must have a uniq ID as attribute (afterall called gene id).
             :param families: a dictionary having the gene as key and the identifier of the associated family as value. Depending on the infere_singleton attribute, singleton must be explicetly present on the dictionary or not
             :param organism: a str containing the organim name
             :param lim_occurence: a int containing the threshold of the maximum number copy of each families. Families exceeding this threshold are removed and are listed in the next attribute.
@@ -246,61 +249,82 @@ class PPanGGOLiN:
             :rtype: dict 
         """ 
 
-        logging.getLogger().info("Reading "+gff_file+" file ...")
+        logging.getLogger().info("Reading "+gff_file_path+" file ...")
 
         if organism not in self.organisms:
             self.organisms.add(organism)
-            db_gff = gffutils.create_db(gff_file, ':memory:', force_gff = True, keep_order = True if not already_sorted else False)
-            annot = defaultdict(list)
+            #db_gff = gffutils.create_db(gff_file, ':memory:', force_gff = True, keep_order = True if not already_sorted else False)
+            annot = defaultdict(OrderedDict)
 
             # prev = None
             ctp_prev = 1
             cpt_fam_occ = defaultdict(int)
 
-            for row in db_gff.all_features(featuretype=('region','CDS'),
-                                           order_by=('seqid','start') if not already_sorted else None,
-                                           ):
-                if row.featuretype == 'region':
-                    if row.seqid in self.circular_contig_size:
-                        self.circular_contig_size = row.end
-                else:
-                    # logging.getLogger().debug(row)
-                    protein = row.id
-                    try:
-                        family = families[protein]
-                    except KeyError:
-                        if infere_singleton:
-                            families[protein] = protein
-                            family           = families[protein]
-                            logging.getLogger().info("infered singleton: "+protein)
-                        else:
-                            raise KeyError("Unknown families:"+protein, ", check your families file or run again the program using the option to infere singleton")
+            gene_id_auto = False
 
-                    # if family == prev:
-                    #     family = family+"-"+str(ctp_prev)
+            with open(gff_file_path,'r') as gff_file:
+                for line in gff_file:
+                    
+                    if line.startswith('##',0,2):
 
-                    cpt_fam_occ[family]+=1
-                    prev = families[protein]
-
-                    try:
-                        name = row.attributes['Name'].pop()
-                    except:
+                        if line.startswith('FASTA',2,7):
+                            break
+                        elif line.startswith('sequence-region',2,17):
+                            fields = line.split(' ')
+                            if fields[1] in self.circular_contig_size:
+                                self.circular_contig_size[fields[1]] = int(3)
+                        continue
+                    gff_fields = line.split('\t')
+                    if GFF_feature == 'region':
+                        if GFF_seqname in self.circular_contig_size:
+                            self.circular_contig_size = int(GFF_end)
+                            continue
+                    elif gff_fields[GFF_feature] == 'CDS':
+                        attributes_feild = gff_fields[GFF_attribute].split(';')
+                        attributes = {}
+                        for att in attributes_feild:
+                            (key, value) = att.strip().split('=')
+                            attributes[key.upper()]=value
                         try:
-                            name = row.attributes['gene'].pop()
+                            protein = attributes["ID"]
                         except:
-                            name = ""
+                            logging.getLogger().error("Each CDS feature of the gff files must own a unique ID attribute. Not the case for file: "+gff_file_path)
+                            exit(1)
+                        try:
+                            family = families[protein]
+                        except KeyError:
+                            if infere_singleton:
+                                families[protein] = protein
+                                family           = families[protein]
+                                logging.getLogger().info("infered singleton: "+protein)
+                            else:
+                                raise KeyError("Unknown families:"+protein, ", check your families file or run again the program using the option to infere singleton")
 
-                    try:
-                        product = row.attributes['product'].pop()
-                    except:
-                        product = ""
+                        # if family == prev:
+                        #     family = family+"-"+str(ctp_prev)
 
-                    annot_row = [protein,"CDS",family,row.start,row.end,row.strand, name, product]
-                    #self.gene_location[protein] = tuple([organism, row.seqid, len(annot[row.seqid])])
-                    annot[row.seqid].append(annot_row)
+                        cpt_fam_occ[family]+=1
+                        prev = families[protein]
 
-                    # logging.getLogger().debug(annot[self.gene_location[protein][SEQUENCE]][self.gene_location[protein][INDEX]][GENE])
+                        try:
+                            name = attributes['NAME'].pop()
+                        except:
+                            try:
+                                name = attributes['GENE'].pop()
+                            except:
+                                name = ""
 
+                        try:
+                            product = attributes['PRODUCT'].pop()
+                        except:
+                            product = ""
+
+                        annot[gff_fields[GFF_seqname]][protein] = ["CDS",family,int(gff_fields[GFF_start]),int(gff_fields[GFF_end]),gff_fields[GFF_strand], name, product]
+
+            if not already_sorted:
+                for seq_id in list(annot):
+                    annot[seq_id] = OrderedDict(sorted(annot[seq_id].items(), key= lambda item: item[1][START]))
+                    
             if (lim_occurence > 0):
                 fam_to_remove =[fam for fam, occ in cpt_fam_occ.items() if occ > lim_occurence]
                 logging.getLogger().debug("highly repeted families found (>"+str(lim_occurence)+" in "+organism+"): "+" ".join(fam_to_remove))
@@ -407,48 +431,40 @@ class PPanGGOLiN:
 
         for organism in list(self.annotations):
             for contig, contig_annot in self.annotations[organism].items():
-                at_least_2_families = False
-                start = 0
-                while (start < len(contig_annot) and contig_annot[start][FAMILY] in self.families_repeted):
-                    start += 1
-                if start == len(contig_annot):
-                    continue
+                                
+                (gene_start, gene_info_start) = contig_annot.popitem(last=False)
 
-                family_id_nei  = contig_annot[start][FAMILY]
-                end_family_nei = contig_annot[start][END]
-                logging.getLogger().debug(contig_annot[start])
-                for index, gene_row in enumerate(contig_annot[start+1:]):
-                    logging.getLogger().debug(gene_row)
-                    if gene_row[FAMILY] not in self.families_repeted:
-
-                        self.__add_gene(gene_row[FAMILY],
-                                        organism,
-                                        gene_row[GENE],
-                                        gene_row[NAME],
-                                        gene_row[END]-gene_row[START],
-                                        gene_row[PRODUCT])
-                        self.neighbors_graph.add_node(family_id_nei)
-                        self.__add_link(gene_row[FAMILY],family_id_nei,organism, gene_row[START] - end_family_nei)
-                        family_id_nei  = gene_row[FAMILY]
-                        end_family_nei = gene_row[END]
-                        at_least_2_families = True
+                while (gene_info_start[FAMILY] in self.families_repeted):
+                    (gene_start, gene_info_start) = contig_annot.popitem(last=False)
                 
-                if contig in self.circular_contig_size and at_least_2_families:#circularization
-                    self.__add_gene(contig_annot[start][FAMILY],
-                                    organism,
-                                    contig_annot[start][GENE],
-                                    contig_annot[start][NAME],
-                                    contig_annot[start][END]-contig_annot[start][START],
-                                    contig_annot[start][PRODUCT])
-                    self.neighbors_graph.add_node(family_id_nei)
-                    self.__add_link(contig_annot[start][FAMILY],family_id_nei,organism, (self.circular_contig_size - end_family_nei) + contig_annot[start][START])
-                else:#no circularization
-                    self.__add_gene(contig_annot[start][FAMILY],
-                                    organism,
-                                    contig_annot[start][GENE],
-                                    contig_annot[start][NAME],
-                                    contig_annot[start][END]-contig_annot[start][START],
-                                    contig_annot[start][PRODUCT])
+                self.__add_gene(gene_info_start[FAMILY],
+                                organism,
+                                gene_start,
+                                gene_info_start[NAME],
+                                gene_info_start[END]-gene_info_start[START],
+                                gene_info_start[PRODUCT])
+
+                family_id_nei, end_family_nei  = gene_info_start[FAMILY], gene_info_start[END]
+                logging.getLogger().debug(gene_info_start)
+                for gene, gene_info in contig_annot.items():
+                    logging.getLogger().debug(gene_info)
+                    logging.getLogger().debug(gene)
+                    if gene_info[FAMILY] not in self.families_repeted:
+
+                        self.__add_gene(gene_info[FAMILY],
+                                        organism,
+                                        gene,
+                                        gene_info[NAME],
+                                        gene_info[END]-gene_info[START],
+                                        gene_info[PRODUCT])
+                        self.neighbors_graph.add_node(family_id_nei)
+                        self.__add_link(gene_info[FAMILY],family_id_nei,organism, gene_info[START] - end_family_nei)
+                        family_id_nei  = gene_info[FAMILY]
+                        end_family_nei = gene_info[END]
+                
+                if contig in self.circular_contig_size:#circularization
+                    self.__add_link(gene_info_start[FAMILY],family_id_nei,organism, (self.circular_contig_size[contig] - end_family_nei) + gene_info_start[START])
+                
             if light:
                 del self.annotations[organism]
         self.pan_size = nx.number_of_nodes(self.neighbors_graph)
@@ -685,7 +701,6 @@ class PPanGGOLiN:
                 self.neighbors_graph.node[node]["partition_exact"]="Accessory"
 
         for node_i, node_j, data in self.neighbors_graph.edges(data = True):
-            print(data["length"])
             l = list(data["length"])
             self.neighbors_graph[node_i][node_j]["length_avg"] = float(np.mean(l))
             self.neighbors_graph[node_i][node_j]["length_med"] = float(np.median(l))
@@ -1081,7 +1096,6 @@ binary_matrix = binary_matrix[order(match(binary_matrix$"NEM partitions",c("pers
 binary_matrix$familles <- seq(1,nrow(binary_matrix))
 data = melt(binary_matrix, id.vars=c("familles"))
 
-print(head(data))
 colnames(data) = c("fam","org","value")
 
 data$value <- factor(data$value, levels = c(1,0,"persistent", "shell", "cloud", "100_core", "100_accessory"), labels = c("presence","absence","persistent", "shell", "cloud", "100_core", "100_accessory"))
@@ -1174,7 +1188,7 @@ Accelerate loadding of gff files if there are sorted by start point for each con
 Free the memory elements which are no longer used""")
     parser.add_argument("-p", "--plots", default=True, action="store_true", help="""
 Generate Rscript able to draw plots and run it. (required R in the path and will install ggplot2, ggrepel and reshape2 if there are not installed)""")
-    parser.add_argument("-e", "--evolution", default=True, action="store_true", help="""
+    parser.add_argument("-e", "--evolution", default=False, action="store_true", help="""
 Relaunch the script using less and less organism in order to obtain a curve of the evolution of the pangenome metrics
 """)
 
@@ -1200,7 +1214,7 @@ Relaunch the script using less and less organism in order to obtain a curve of t
             os.makedirs(directory)
         elif not options.force:
             logging.getLogger().error(directory+" already exist")
-            exit()
+            exit(1)
 
     start_loading_file = time.time()
 
@@ -1267,7 +1281,7 @@ Relaunch the script using less and less organism in order to obtain a curve of t
             pan.delete_nem_intermediate_files()
 
         logging.getLogger().info("Finished !")
-        exit()
+        exit(0)
     else:
         STEP = 1
         start_size = pan.nb_organisms
