@@ -7,13 +7,11 @@ from collections import OrderedDict
 from collections import Counter
 from ordered_set import OrderedSet
 import networkx as nx
-import subprocess
 import os
 import sys
 import re
 import math
 import logging
-#import gffutils
 import random 
 import string
 import shutil
@@ -24,16 +22,21 @@ import time
 import community
 import tempfile
 from random import randrange
+from random import shuffle
+from multiprocessing import Pool
+import subprocess
+import progressbar
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from tqdm import tqdm
+import mmap
 
 #import forceatlas2 
 
 NEM_LOCATION  = os.path.dirname(os.path.abspath(__file__))+"/../NEM/nem_exe"
 (TYPE, FAMILY, START, END, STRAND, NAME, PRODUCT) = range(0, 7)#data index in annotation
 (ORGANISM_ID, ORGANISM_GFF_FILE) = range(0, 2)#data index in the file listing organisms 
-#(ORGANISM, SEQUENCE, INDEX) = range(0, 3)# index for annotation in gene_location
 
 (GFF_seqname, GFF_source, GFF_feature, GFF_start, GFF_end, GFF_score, GFF_strand, GFF_frame, GFF_attribute) = range(0,9) 
-
 
 RESERVED_WORDS = set(["id", "label", "name", "weight", "partition", "partition_exact", "length", "length_min", "length_max", "length_avg", "length_avg", "product", 'nb_gene', 'community'])
 
@@ -116,11 +119,11 @@ class PPanGGOLiN:
             .. attribute:: partitions
 
                 a dict provoding the families present in each partion:
-                    * partitions["Core_Exact"] contains the list of core families (core exact)
-                    * partitions["Accessory"] contains the list of families not in the core exact
-                    * partitions["Persistent"] contains the list of persistent families
-                    * partitions["Shell"] contains the list of shell families
-                    * partitions["Cloud"] contains the list of cloud families
+                    * partitions["core_exact"] contains the list of core families (core exact)
+                    * partitions["accessory"] contains the list of families not in the core exact
+                    * partitions["persistent"] contains the list of persistent families
+                    * partitions["shell"] contains the list of shell families
+                    * partitions["cloud"] contains the list of cloud families
 
             .. attribute:: BIC
 
@@ -150,7 +153,6 @@ class PPanGGOLiN:
             .. method:: delete_nem_intermediate_files()
 
                 blbaal
-
     """ 
     def __init__(self, init_from = "args", *args):
         """ 
@@ -165,7 +167,6 @@ class PPanGGOLiN:
             >>>pan = PPanGGOLiN("args", annotations, organisms, circular_contig_size, families_repeted)# load direclty the main attributes
         """ 
         self.annotations              = dict()
-        #self.gene_location            = OrderedDict()
         self.neighbors_graph          = None
         self.organisms                = OrderedSet()
         self.nb_organisms             = 0
@@ -176,11 +177,12 @@ class PPanGGOLiN:
         self.is_partitionned          = False
         self.nem_intermediate_files   = None
         self.partitions               = {}
-        self.partitions["Persistent"] = list()
-        self.partitions["Shell"]      = list()
-        self.partitions["Cloud"]      = list()
-        self.partitions["Core_Exact"] = list()
-        self.partitions["Accessory"]  = list()
+        self.partitions["undefined"]  = list()
+        self.partitions["persistent"] = list()
+        self.partitions["shell"]      = list()
+        self.partitions["cloud"]      = list()
+        self.partitions["core_exact"] = list()
+        self.partitions["accessory"]  = list()
         self.BIC                      = None # Bayesian Index Criterion
         #self.partitions_by_organisms  = defaultdict(lambda: defaultdict(set))
 
@@ -221,8 +223,20 @@ class PPanGGOLiN:
 
         logging.getLogger().info("Reading "+organisms_file.name+" list of organism files ...")
 
-        for line in organisms_file:
+        def get_num_lines(file_path):
+            fp = open(file_path, "r+")
+            buf = mmap.mmap(fp.fileno(), 0)
+            lines = 0
+            while buf.readline():
+                lines += 1
+            return lines
+
+        bar = tqdm(organisms_file,total=get_num_lines(organisms_file.name), unit = "gff file", unit_scale = True)
+
+        for line in bar:
             elements = line.split()
+            bar.set_description("Processing "+elements[ORGANISM_GFF_FILE])
+            bar.refresh()
             if len(elements)>2:
                 self.circular_contig_size.update({contig_id: None for contig_id in elements[2:len(elements)]})# size of the circular contig is initialized to None (waiting to read the gff files to fill the dictionnaries with the correct values)
             self.annotations[elements[0]] = self.__load_gff(elements[ORGANISM_GFF_FILE], families, elements[ORGANISM_ID], lim_occurence, infere_singleton, already_sorted)
@@ -249,14 +263,12 @@ class PPanGGOLiN:
             :rtype: dict 
         """ 
 
-        logging.getLogger().info("Reading "+gff_file_path+" file ...")
+        logging.getLogger().debug("Reading "+gff_file_path+" file ...")
 
         if organism not in self.organisms:
             self.organisms.add(organism)
-            #db_gff = gffutils.create_db(gff_file, ':memory:', force_gff = True, keep_order = True if not already_sorted else False)
             annot = defaultdict(OrderedDict)
 
-            # prev = None
             ctp_prev = 1
             cpt_fam_occ = defaultdict(int)
 
@@ -300,9 +312,6 @@ class PPanGGOLiN:
                             else:
                                 raise KeyError("Unknown families:"+protein, ", check your families file or run again the program using the option to infere singleton")
 
-                        # if family == prev:
-                        #     family = family+"-"+str(ctp_prev)
-
                         cpt_fam_occ[family]+=1
                         prev = families[protein]
 
@@ -342,15 +351,15 @@ class PPanGGOLiN:
 
         if self.pan_size != 0:
             pan_str += "Pan-genome size:"+str(self.pan_size)+"\n"
-            pan_str += "Exact core-genome size:"+str(len(self.partitions["Core_Exact"]))+"\n"
-            pan_str += "Exact variable-genome size:"+str(self.pan_size-len(self.partitions["Core_Exact"]))+"\n"
-            pan_str += "Persistent genome size:"+str(len(self.partitions["Persistent"]))+"\n"
-            pan_str += "Shell genome size:"+str(len(self.partitions["Shell"]))+"\n"
-            pan_str += "Cloud genome cloud:"+str(len(self.partitions["Cloud"]))+"\n"
+            pan_str += "Exact core-genome size:"+str(len(self.partitions["core_exact"]))+"\n"
+            pan_str += "Exact variable-genome size:"+str(self.pan_size-len(self.partitions["core_exact"]))+"\n"
+            pan_str += "Persistent genome size:"+str(len(self.partitions["persistent"]))+"\n"
+            pan_str += "Shell genome size:"+str(len(self.partitions["shell"]))+"\n"
+            pan_str += "Cloud genome cloud:"+str(len(self.partitions["cloud"]))+"\n"
         else:
             pan_str += "No partitioning have been performed on this Pangenome instance\n"
             pan_str += "Run the partitioning function to obtain more detailled statistics...\n"
-        pan_str += "----------------------------------\n"
+        pan_str += "----------------------------------"
 
         return(pan_str)    
 
@@ -417,8 +426,9 @@ class PPanGGOLiN:
         except KeyError:
             self.neighbors_graph[fam_id][fam_id_nei]["length"]=set([length])
 
-    def neighborhood_computation(self, light = False):#, untangle_multi_copy_families = False
+    def neighborhood_computation(self, directed = True, light = False):#, untangle_multi_copy_families = False
         """ Use the information already loaded (annotation) to build the pangenome graph
+            :param directed: a bool specifying if the graph is directed or undirected
             :param light: a bool specifying is the annotation attribute must be detroyed at each step to save memory
             :type bool: 
         """ 
@@ -427,16 +437,16 @@ class PPanGGOLiN:
         elif self.is_partitionned:
             raise Exception("The pangenome graph is already built and partionned, please use the function delete pangenome graph before build it again")
 
-        #multi_copy = defaultdict(int) if untangle_multi_copy_families else None
-
         for organism in list(self.annotations):
             for contig, contig_annot in self.annotations[organism].items():
-                                
-                (gene_start, gene_info_start) = contig_annot.popitem(last=False)
-
-                while (gene_info_start[FAMILY] in self.families_repeted):
-                    (gene_start, gene_info_start) = contig_annot.popitem(last=False)
                 
+                try:
+                    (gene_start, gene_info_start) = contig_annot.popitem(last=False)
+                    while (gene_info_start[FAMILY] in self.families_repeted):
+                            (gene_start, gene_info_start) = contig_annot.popitem(last=False)
+                except KeyError:
+                    continue
+
                 self.__add_gene(gene_info_start[FAMILY],
                                 organism,
                                 gene_start,
@@ -464,9 +474,12 @@ class PPanGGOLiN:
                 
                 if contig in self.circular_contig_size:#circularization
                     self.__add_link(gene_info_start[FAMILY],family_id_nei,organism, (self.circular_contig_size[contig] - end_family_nei) + gene_info_start[START])
-                
+
+                contig_annot[gene_start]=gene_info_start
+
             if light:
                 del self.annotations[organism]
+
         self.pan_size = nx.number_of_nodes(self.neighbors_graph)
 
     def partition(self, nem_dir_path = tempfile.mkdtemp(), beta = 1.00, free_dispersion = False):
@@ -521,10 +534,25 @@ class PPanGGOLiN:
             row_dist_score  = []
             neighbor_number = 0
             try:
-                for neighbor in nx.all_neighbors(self.neighbors_graph, node_name):
+                for neighbor in set(nx.all_neighbors(self.neighbors_graph, node_name)):
                     #nb_presences = sum([pre_abs for org, pre_abs in self.neighbors_graph[node_name][neighbor].items() if org not in RESERVED_WORDS])
                     #self.neighbors_graph[node_name][neighbor]["weight"]= nb_presences
-                    distance_score = self.neighbors_graph[node_name][neighbor]["weight"]/self.nb_organisms
+                    w_1=0
+                    w_2=0
+                    coverage = 0
+                    if self.neighbors_graph.is_directed():
+                        try:
+                            cov_sens = self.neighbors_graph[node_name][neighbor]["weight"]
+                        except KeyError:
+                            pass
+                        try:
+                            cov_antisens = self.neighbors_graph[neighbor][node_name]["weight"]
+                        except KeyError:
+                            pass
+                        coverage = cov_sens + cov_antisens
+                        
+                    else:
+                        distance_score = coverage/self.nb_organisms
                     row_fam.append(str(index[neighbor]))
                     row_dist_score.append(str(round(distance_score,4)))
                     neighbor_number += 1
@@ -534,7 +562,7 @@ class PPanGGOLiN:
                 else:
                     raise nx.exception.NetworkXError("no neighbors in selected organismss")
             except nx.exception.NetworkXError as nxe:
-                logging.getLogger().warning("The family: "+node_name+" is an isolated family")
+                logging.getLogger().debug("The family: "+node_name+" is an isolated family")
                 nei_file.write(str(index[node_name])+"\t0\n")
 
         m_file.write("1 0.33333 0.33333 ") # 1 to initialize parameter, 0.333 and 0.333 for to give one third of initial portition to each class (last 0.33 is automaticaly determined by substraction)
@@ -597,9 +625,9 @@ class PPanGGOLiN:
         if os.path.isfile(nem_dir_path+"/nem_file.uf"):
             logging.getLogger().info("Reading NEM results...")
         else:
-            logging.getLogger().error("No NEM output file found")
+            logging.getLogger().error("No NEM output file found: "+ nem_dir_path+"/nem_file.uf")
 
-        classification = ["Undefined"] * self.pan_size
+        classification = ["undefined"] * self.pan_size
         try:
             with open(nem_dir_path+"/nem_file.uf","r") as classification_nem_file, open(nem_dir_path+"/nem_file.mf","r") as parameter_nem_file:
 
@@ -614,8 +642,8 @@ class PPanGGOLiN:
 
                 for k, line in enumerate(parameter[-3:]):
                     logging.getLogger().debug(line)
-                    vector = line.split()
-                    mu_k = [bool(int(mu_kj)) for mu_kj in vector[0:self.nb_organisms]]
+                    vector = line.split() 
+                    mu_k = [bool(float(mu_kj)) for mu_kj in vector[0:self.nb_organisms]]
                     logging.getLogger().debug(mu_k)
                     logging.getLogger().debug(len(mu_k))
 
@@ -650,9 +678,9 @@ class PPanGGOLiN:
                 logging.getLogger().debug(cloud_k)
 
                 partition                 = {}
-                partition[persistent_k] = "Persistent"
-                partition[shell_k]      = "Shell"
-                partition[cloud_k]      = "Cloud"
+                partition[persistent_k] = "persistent"
+                partition[shell_k]      = "shell"
+                partition[cloud_k]      = "cloud"
 
                 for i, line in enumerate(classification_nem_file):
                     elements = [float(el) for el in line.split()]
@@ -662,7 +690,7 @@ class PPanGGOLiN:
                     logging.getLogger().debug(i)
 
                     if (len(positions_max_prob)>1):
-                        classification[i]="Shell"# in case of doubt (equiprobable partition), gene families is attributed to shell
+                        classification[i]="shell"# in case of doubt (equiprobable partition), gene families is attributed to shell
                     else:
                         classification[i] = partition[positions_max_prob.pop()]
 
@@ -694,11 +722,11 @@ class PPanGGOLiN:
             self.partitions[nem_class].append(node)
 
             if nb_orgs >= self.nb_organisms:
-                self.partitions["Core_Exact"].append(node)
-                self.neighbors_graph.node[node]["partition_exact"]="Core_Exact"
+                self.partitions["core_exact"].append(node)
+                self.neighbors_graph.node[node]["partition_exact"]="core_exact"
             else:
-                self.partitions["Accessory"].append(node)
-                self.neighbors_graph.node[node]["partition_exact"]="Accessory"
+                self.partitions["accessory"].append(node)
+                self.neighbors_graph.node[node]["partition_exact"]="accessory"
 
         for node_i, node_j, data in self.neighbors_graph.edges(data = True):
             l = list(data["length"])
@@ -710,7 +738,7 @@ class PPanGGOLiN:
             del self.neighbors_graph[node_i][node_j]["length"]
 
         if len(self.families_repeted)>0:
-            logging.getLogger().info("Discarded families are:\n"+"\n".join(self.families_repeted))
+            logging.getLogger().info("Discarded families are:\t"+" ".join(self.families_repeted))
         else:
             logging.getLogger().info("No families have been Discarded")
 
@@ -860,7 +888,7 @@ class PPanGGOLiN:
         """
             Delete all the pangenome graph of eventuelly the statistic of the partionning process (including the temporary file)
         """ 
-        if not keep_NEM_files:
+        if delete_NEM_files:
             self.delete_nem_intermediate_files()
 
         self.nem_output               = None
@@ -869,11 +897,12 @@ class PPanGGOLiN:
         self.nem_output               = None
         self.is_partitionned          = False
         self.partitions               = {}
-        self.partitions["Persistent"] = list()
-        self.partitions["Shell"]      = list()
-        self.partitions["Cloud"]      = list()
-        self.partitions["Core_Exact"] = list()
-        self.partitions["Accessory"]  = list()
+        self.partitions["undefined"]  = list()
+        self.partitions["persistent"] = list()
+        self.partitions["shell"]      = list()
+        self.partitions["cloud"]      = list()
+        self.partitions["core_exact"] = list()
+        self.partitions["accessory"]  = list()
         self.BIC                      = None
         #self.partitions_by_organisms  = defaultdict(lambda: defaultdict(set))
 
@@ -892,7 +921,7 @@ class PPanGGOLiN:
             Use the Louvain's algorithm to label the nodes by their community in each partition
         """ 
         size_communities=defaultdict(lambda : defaultdict(int))
-        for partition in ["Persistent","Shell", "Cloud"]:
+        for partition in ["persistent","shell", "cloud"]:
             subgraph = self.neighbors_graph.subgraph([nodes for nodes,data in self.neighbors_graph.nodes(data=True) if data['partition']==partition])
             comm = community.best_partition(subgraph)# = nx.algorithms.community.asyn_fluidc(subgraph, 100)
             for node, id_com in comm.items():
@@ -949,7 +978,7 @@ class PPanGGOLiN:
                 else:
                     raise nx.exception.NetworkXError("no neighbors in selected organismss")
             except nx.exception.NetworkXError as nxe:
-                logging.getLogger().warning("The family: "+node_name+" is an isolated family")
+                logging.getLogger().debug("The family: "+node_name+" is an isolated family")
                 nei_file.write(str(index[node_name])+"\t0\n")
 
         index_file.close()
@@ -996,10 +1025,8 @@ class PPanGGOLiN:
                                 "-l y"])
          
             logging.getLogger().info(command)
-
             proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-            (out,err) = proc.communicate()
+            (out,err) = proc.communicate()  
             logging.getLogger().debug(out)
             logging.getLogger().debug(err)
 
@@ -1025,7 +1052,7 @@ class PPanGGOLiN:
                     self.neighbors_graph.node[index_inv[i+1]]["subshell"]=str(classes[0])
 
 
-    def plot_Rscript(self, script_outfile, outpdf_Ushape, outpdf_matrix, run_script = True):
+    def plot_Rscript(self, script_outfile, outpdf_Ushape, outpdf_matrix, evoltion_stat_file = None, outpdf_evolution = None, outpdf_projection = None, run_script = True):
         """
         run r script
         required the following package to be intaled 
@@ -1037,14 +1064,12 @@ class PPanGGOLiN:
 #!/usr/bin/env R
 options(show.error.locations = TRUE)
 
-if(!require("ggplot2")) {{ install.packages("ggplot2", dep = TRUE) }}
+if(!require("ggplot2")) {{ install.packages("ggplot2", dep = TRUE,repos = "http://cran.us.r-project.org") }}
 library("ggplot2")
-if(!require("reshape2")) {{ install.packages("reshape2", dep = TRUE) }}
+if(!require("reshape2")) {{ install.packages("reshape2", dep = TRUE,repos = "http://cran.us.r-project.org") }}
 library("reshape2")
-if(!require("ggrepel")) {{ install.packages("ggrepel", dep = TRUE) }}
-library("ggrepel")
 
-color_chart = c(pangenome="black", "100_accessory"="#EB37ED", "100_core" ="#FF2828","95_accessory"="#fde2fd", "95_core" ="#fbc7c7", shell = "#00D860", persistent="#F7A507", cloud = "#79DEFF")
+color_chart = c(pangenome="black", "accessory"="#EB37ED", "core_exact" ="#FF2828", shell = "#00D860", persistent="#F7A507", cloud = "#79DEFF")
 
 binary_matrix         <- read.table("{nem_dir}/nem_file.dat", header=FALSE)
 occurences            <- rowSums(binary_matrix)
@@ -1054,22 +1079,22 @@ if(length(ret)>1){{ret=2}}
 return(ret)
 }})
 
-means <- data.frame(cluster = c("1","2","3"), mean = rep(NA,3))
+means <- data.frame(partition = c("1","2","3"), mean = rep(NA,3))
 
-means[means$cluster == "1","mean"] <- mean(occurences[classification_vector == "1"])
-means[means$cluster == "2","mean"] <- mean(occurences[classification_vector == "2"])
-means[means$cluster == "3","mean"] <- mean(occurences[classification_vector == "3"])
+means[means$partition == "1","mean"] <- mean(occurences[classification_vector == "1"])
+means[means$partition == "2","mean"] <- mean(occurences[classification_vector == "2"])
+means[means$partition == "3","mean"] <- mean(occurences[classification_vector == "3"])
 
 means <- means[order(means$mean),]
 
-classification_vector[classification_vector == means[1,"cluster"]] <- "cloud"
-classification_vector[classification_vector == means[2,"cluster"]] <- "shell"
-classification_vector[classification_vector == means[3,"cluster"]] <- "persistent"
+classification_vector[classification_vector == means[1,"partition"]] <- "cloud"
+classification_vector[classification_vector == means[2,"partition"]] <- "shell"
+classification_vector[classification_vector == means[3,"partition"]] <- "persistent"
 
-c = data.frame(nb_org = occurences, cluster = classification_vector)
+c = data.frame(nb_org = occurences, partition = classification_vector)
 
 plot <- ggplot(data = c) + 
-    geom_bar(aes_string(x = "nb_org", fill = "cluster")) +
+    geom_bar(aes_string(x = "nb_org", fill = "partition")) +
     scale_fill_manual(name = "partition", values = color_chart, breaks=c("persistent","shell","cloud")) +
     scale_x_discrete(limits = seq(1, ncol(binary_matrix))) +
     xlab("# of organisms in which each familly is present")+
@@ -1086,10 +1111,10 @@ nb_org                  <- ncol(binary_matrix)
 binary_matrix_hclust    <- hclust(dist(t(binary_matrix), method="binary"))
 binary_matrix           <- data.frame(binary_matrix,"NEM partitions" = classification_vector, occurences = occurences, check.names=FALSE)
 
-binary_matrix[occurences == nb_org, "Former partitions"] <- "100_core"
-binary_matrix[occurences != nb_org, "Former partitions"] <- "100_accessory"
+binary_matrix[occurences == nb_org, "Former partitions"] <- "core_exact"
+binary_matrix[occurences != nb_org, "Former partitions"] <- "accessory"
 binary_matrix = binary_matrix[order(match(binary_matrix$"NEM partitions",c("persistent", "shell", "cloud")),
-                                    match(binary_matrix$"Former partitions",c("100_core", "100_accessory")),
+                                    match(binary_matrix$"Former partitions",c("core_exact", "accessory")),
                                     -binary_matrix$occurences),
                               c(binary_matrix_hclust$label[binary_matrix_hclust$order],"NEM partitions","Former partitions")]
 
@@ -1098,7 +1123,7 @@ data = melt(binary_matrix, id.vars=c("familles"))
 
 colnames(data) = c("fam","org","value")
 
-data$value <- factor(data$value, levels = c(1,0,"persistent", "shell", "cloud", "100_core", "100_accessory"), labels = c("presence","absence","persistent", "shell", "cloud", "100_core", "100_accessory"))
+data$value <- factor(data$value, levels = c(1,0,"persistent", "shell", "cloud", "core_exact", "accessory"), labels = c("presence","absence","persistent", "shell", "cloud", "core_exact", "accessory"))
 
 plot <- ggplot(data = data)+
         geom_raster(aes_string(x="org",y="fam", fill="value"))+
@@ -1107,9 +1132,71 @@ plot <- ggplot(data = data)+
 
 ggsave("{outpdf_matrix}", device = "pdf", plot)
 
-        """.format(nem_dir       = self.nem_intermediate_files,
-                   outpdf_Ushape = outpdf_Ushape,
-                   outpdf_matrix = outpdf_matrix)
+############################################################
+
+
+if(!require("ggrepel") || packageVersion("ggrepel") < "0.6.6") {{ install.packages("ggrepel", dep = TRUE, repos = "http://cran.us.r-project.org") }}
+library("ggrepel")
+
+if(!require("data.table")) {{ install.packages("data.table", dep = TRUE,repos = "http://cran.us.r-project.org") }}
+library("data.table")
+
+if (file.exists("{evoltion_stat_file}")){{
+    data <- read.table("{evoltion_stat_file}", header = TRUE)
+
+
+    data <- melt(data, id = "nb_org")
+    colnames(data) <- c("nb_org","partition","value")
+
+    final_state = data[data$nb_org == max(data$nb_org,na.rm=T),]
+    final_state = final_state[!duplicated(final_state), ]
+    final <- structure(names = as.character(final_state$partition), as.integer(final_state$value))
+
+    #gamma and kappa are calculated according to the Tettelin et al. 2008 approach
+    median_by_nb_org <- setDT(data)[,list(med=as.numeric(median(value))), by=c("nb_org","partition")]
+    colnames(median_by_nb_org) <- c("nb_org_comb","partition","med")
+
+    for (part in as.character(final_state$partition)){{
+        regression  <- nls(med~kapa*(nb_org_comb^gama),median_by_nb_org[which(median_by_nb_org$partition == part),],start=list(kapa=1000,gama=1))
+        coefficient <- coef(regression)
+        final_state[final_state$partition == part,"formula" ] <- paste0("n == ", format(coefficient["kapa"],decimal.mark = ",",digits =2),"~N^{{",format(coefficient["gama"],digits =2),"}}")
+    }}
+
+    plot <- ggplot(data = data, aes_string(x="nb_org",y="value", colour = "partition"))+
+            ggtitle(bquote(list("Rarefaction curve. Heap's law parameters based on Tettelin et al. 2008 approach", n == kappa~N^gamma)))+
+            geom_smooth(data        = median_by_nb_org[median_by_nb_org$partition %in% c("pangenome","shell","cloud","accessory", "persistent", "core_exact") ,],# 
+                        mapping     = aes_string(x="nb_org_comb",y="med",colour = "partition"),
+                        method      = "nls",
+                        formula     = y~kapa*(x^gama),method.args =list(start=c(kapa=1000,gama=1)),
+                        linetype    ="twodash",
+                        size        = 1.5,
+                        se          = FALSE,
+                        show.legend = FALSE)+
+            stat_summary(fun.ymin = function(z) {{ quantile(z,0.25) }},  fun.ymax = function(z) {{ quantile(z,0.75) }}, geom="ribbon", alpha=0.1,size=0.1, linetype="dashed", show.legend = FALSE)+
+            stat_summary(fun.y=median, geom="line",size=0.5)+
+            stat_summary(fun.y=median, geom="point",shape=4,size=1, show.legend = FALSE)+
+            stat_summary(fun.ymax=max,fun.ymin=min,geom="errorbar",linetype="dotted",size=0.1,width=0.2)+
+            scale_x_continuous(breaks = as.numeric(unique(data$nb_org)))+
+            scale_y_continuous(limits=c(0,max(data$value,na.rm=T)), breaks = seq(0,max(data$value,na.rm=T),1000))+
+            scale_colour_manual(name = "NEM partitioning", values = color_chart, breaks=names(sort(final, decreasing = TRUE)))+
+            geom_label_repel(data = final_state, aes_string(x="nb_org", y="value", colour = "partition", label = "value"), show.legend = FALSE,
+                      fontface = 'bold', fill = 'white',
+                      box.padding = unit(0.35, "lines"),
+                      point.padding = unit(0.5, "lines"),
+                      segment.color = 'grey50',
+                      nudge_x = 45) +
+            geom_label_repel(data = final_state, aes(x = nb_org*0.9, y = value, label = formula), size = 2, parse = TRUE, show.legend = FALSE, segment.color = NA) + 
+            xlab("# of organisms")+
+            ylab("# of families")+
+            ggplot2::theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+    
+    ggsave("{outpdf_evolution}", device = "pdf", width = (par("din")[1]*2) ,plot)
+}}
+        """.format(nem_dir            = self.nem_intermediate_files,
+                   outpdf_Ushape      = outpdf_Ushape,
+                   outpdf_matrix      = outpdf_matrix,
+                   evoltion_stat_file = evoltion_stat_file,
+                   outpdf_evolution   = outpdf_evolution)
         logging.getLogger().info("Writing R script generating plot")
         with open(script_outfile,"w") as script_file:
             script_file.write(rscript)
@@ -1122,7 +1209,88 @@ ggsave("{outpdf_matrix}", device = "pdf", plot)
             logging.getLogger().debug(out)
             logging.getLogger().debug(err)
 
-#an exeception occurs during execution of the Rsciript, The R script has been save here and can be relauch by the user 
+    def projection_polar_histogram(self, out_file, organisms_to_project):
+        
+        out_file.write("contig\tgene\tfamily\tpartition\tpersistent\tshell\tcloud\n")
+
+        for organism in organisms_to_project:
+            for contig, contig_annot in self.annotations[organism].items():
+                for gene, gene_info in contig_annot.items():
+                    if gene_info[FAMILY] not in self.families_repeted:
+                        nei_partitions = [self.neighbors_graph.node[nei]["partition"] for nei in nx.all_neighbors(self.neighbors_graph,gene_info[FAMILY])]
+                        out_file.write("\t".join([gene,
+                                                  contig,
+                                                  gene_info[FAMILY],
+                                                  self.neighbors_graph.node[gene_info[FAMILY]]["partition"],
+                                                  str(nei_partitions.count("persistent")),
+                                                  str(nei_partitions.count("shell")),
+                                                  str(nei_partitions.count("cloud"))])+"\n")
+
+################ END OF CLASS PPanGGOLiN ################
+
+# Calcul du nombre de combinaisons de k elements parmi n
+def combinationNb(k,n):
+        if (k == 0):
+                return 1
+        result = 1
+        for i in range(0, k):
+                result *= float(n - i)/(i + 1);
+        return int(round(result))
+
+# Calcul du nombre total de combinaisons uniques de n elements
+def combinationTotalNb(size):
+        return pow(2,size)-1
+
+# Generation d'une sous-liste aléatoire de taille n
+def randomSublist(items,n):
+        item_array = np.array(items)
+        index_array = np.arange(item_array.size)
+        np.random.shuffle(index_array)
+        ordered_index_array = sorted(index_array[:n])
+        return list(item_array[ordered_index_array])
+
+# Generation de toutes les combinaisons uniques (sans notion d'ordre) d'elements donnes
+def exactCombinations(items):
+        len_item  = len(items);
+        combinations = defaultdict(list)
+        for i in range(1, 1<<len_item):
+                c = []
+                for j in range(0, len_item):
+                        if(i & (1 << j)):
+                                c.append(items[j])
+                combinations[len(c)].append(c)
+        return combinations
+
+# Echantillonage proportionnel d'un nombre donne de combinaisons (sans remise)
+def samplingCombinations(items, sample_thr, sample_min):
+        samplingCombinationList = defaultdict(list)
+        item_size = len(items)
+        combTotNb = combinationTotalNb(item_size)
+        sample_coeff = (float(combTotNb)/sample_thr)
+        for k in range(1,item_size+1):
+                tmp_comb = []
+                combNb = combinationNb(k,item_size)
+                combNb_sample = math.ceil(float(combNb)/sample_coeff)
+                # Plus petit echantillonage possible pour un k donné = sample_min
+                if ((combNb_sample < sample_min) and k != item_size):
+                        combNb_sample = sample_min
+                i = 0;
+                while (i < combNb_sample):
+                        comb = randomSublist(items,k)
+                        # Echantillonnage sans remise
+                        if (comb not in tmp_comb):
+                                tmp_comb.append(comb)
+                                samplingCombinationList[len(comb)].append(comb)
+                                i+=1
+        return samplingCombinationList
+
+# Generate list of combinations of organisms exaustively or following a binomial coeficient
+def organismsCombinations(orgs, nbOrgThr, sample_thr, sample_min):
+        if (len(orgs) <= nbOrgThr):
+                comb_list = exactCombinations(orgs)
+        else:
+                comb_list = samplingCombinations(orgs, sample_thr, sample_min)
+        return comb_list
 
 if __name__=='__main__':
     """
@@ -1154,7 +1322,7 @@ the families name can be any string but must should be unique and not contain an
 As a conventation, it is recommanded to use the name of the most reprensative gene of the families as the family name.
 Gene name can be any string corresponding to the if feature in the gff files. they should be unique and not contain any spaces, " or ' and reserved words.
 example:""",  required=True)
-    parser.add_argument('-d', '--output_directory', type=str, nargs=1, default=["output.dir"], help="""
+    parser.add_argument('-od', '--output_directory', type=str, nargs=1, default=["output.dir"], help="""
 The output directory""")
     parser.add_argument('-f', '--force', action="store_true", help="""
 Force overwriting existing output directory""")
@@ -1172,7 +1340,7 @@ Coeficient of smoothing all the partionning based on the Markov Random Feild lev
     parser.add_argument("-fd", "--free_dispersion", default = False, action="store_true", help = """
 Specify if the dispersion around the centroid vector of each paritition is the same for all the organisms or if the dispersion is free
 """)
-    parser.add_argument("-di", "--delete_nem_intermediate_files", default=False, action="store_true", help="""
+    parser.add_argument("-df", "--delete_nem_intermediate_files", default=False, action="store_true", help="""
 Delete intermediate files used by NEM. Do not delete these files if you can the gerate plot latter using the generated Rscript""")
     parser.add_argument("-c", "--compress_graph", default=False, action="store_true", help="""
 Compress (using gzip) the file containing the partionned pangenome graph""")
@@ -1188,10 +1356,21 @@ Accelerate loadding of gff files if there are sorted by start point for each con
 Free the memory elements which are no longer used""")
     parser.add_argument("-p", "--plots", default=True, action="store_true", help="""
 Generate Rscript able to draw plots and run it. (required R in the path and will install ggplot2, ggrepel and reshape2 if there are not installed)""")
+    parser.add_argument("-di", "--directed", default=False, action="store_true", help="""
+directed or not directed graph
+""")
     parser.add_argument("-e", "--evolution", default=False, action="store_true", help="""
 Relaunch the script using less and less organism in order to obtain a curve of the evolution of the pangenome metrics
 """)
-
+    parser.add_argument("-ep", "--evolution_resampling_param", type=int, nargs=4, default=[4,10,30,1], help="""
+1st argument is the number of thread (int) to use to resemple in parallel the pangenome
+2nd argument is the minimun number of resampling for each number of organisms
+3nd argument is the maximun number of resampling for each number of organisms
+4th argument is the step between each number of organisms
+""")
+    parser.add_argument("-pr", "--projection", default=False, action="store_true", help="""
+Project the graph as a circos plot on each organism.
+""")
     options = parser.parse_args()
 
     level = logging.WARNING
@@ -1202,6 +1381,8 @@ Relaunch the script using less and less organism in order to obtain a curve of t
 
     logging.basicConfig(stream=sys.stdout, level = level, format = '\n%(asctime)s %(filename)s:l%(lineno)d %(levelname)s\t%(message)s', datefmt='%H:%M:%S')
 
+    
+
     logging.getLogger().info("Command: "+" ".join([arg for arg in sys.argv]))
     logging.getLogger().info("Python version: "+sys.version)
     logging.getLogger().info("Networkx version: "+nx.__version__)
@@ -1209,15 +1390,27 @@ Relaunch the script using less and less organism in order to obtain a curve of t
     OUTPUTDIR       = options.output_directory[0]
     NEMOUTPUTDIR    = OUTPUTDIR+"/NEM_results/"
     FIGUREOUTPUTDIR = OUTPUTDIR+"/figures/"
-    for directory in [OUTPUTDIR, NEMOUTPUTDIR, FIGUREOUTPUTDIR]:
+    PROJECTION      = OUTPUTDIR+"/projection/"
+    EVOLUTION       = OUTPUTDIR+"/evolution/"
+    list_dir        = [OUTPUTDIR,NEMOUTPUTDIR,FIGUREOUTPUTDIR]
+    if options.projection:
+        list_dir.append(PROJECTION)
+    if options.evolution:
+        list_dir.append(EVOLUTION)
+        EVOLUTION_STAT_FILE = EVOLUTION+"/"+"stat_evol.txt"
+        (NB_THREADS, RESAMPLING_MIN, RESAMPLING_MAX, STEP) = options.evolution_resampling_param
+    for directory in list_dir:
         if not os.path.exists(directory):
             os.makedirs(directory)
         elif not options.force:
             logging.getLogger().error(directory+" already exist")
             exit(1)
 
-    start_loading_file = time.time()
+    GEXF_GRAPH_FILE     = OUTPUTDIR+"/"+"graph.gexf"
+    MATRIX_CSV_FILE     = OUTPUTDIR+"/matrix.csv"
 
+    #-------------
+    start_loading_file = time.time()
     pan = PPanGGOLiN("file",
                      options.organisms[0],
                      options.gene_families[0],
@@ -1227,86 +1420,152 @@ Relaunch the script using less and less organism in order to obtain a curve of t
 
     if options.update is not None:
         pan.import_from_GEXF(options.update[0])
+    end_loading_file = time.time()
+    #-------------
 
+    #-------------
+    logging.getLogger().info("Neighborhood Computation...")
     start_neighborhood_computation = time.time()
-    pan.neighborhood_computation(options.ligth)
+    pan.neighborhood_computation(options.directed, options.ligth)
+    end_neighborhood_computation = time.time()
+    #-------------
+
+    #-------------
+    logging.getLogger().info("Partionning...")
     start_partitioning = time.time()
-    
     pan.partition(nem_dir_path = NEMOUTPUTDIR, beta = options.beta_smoothing[0], free_dispersion = options.free_dispersion)
-    start_identify_communities = time.time()
-    pan.identify_communities_in_each_partition()
+    end_partitioning = time.time()
+    #-------------
+
+    #-------------
+    # start_identify_communities = time.time()
+    # pan.identify_communities_in_each_partition()
+    # end_identify_communities = time.time()
     #pan.identify_shell_subpaths()
+    #-------------
 
-
-    time_of_writing_output_file = time.time()
-    GEXF_GRAPH_FILE  = OUTPUTDIR+"/"+"graph.gexf"
+    #-------------
+    start_writing_output_file = time.time()
     if options.compress_graph:
         pan.export_to_GEXF(GEXF_GRAPH_FILE+".gz", compressed=True)
     else:
         pan.export_to_GEXF(GEXF_GRAPH_FILE, compressed=False)
-
     for filename, families in pan.partitions.items(): 
         file = open(OUTPUTDIR+"/"+filename+".txt","w")
         file.write("\n".join(families))
         file.close()
-
-    pan.csv_matrix(OUTPUTDIR+"/matrix.csv")
+    pan.csv_matrix(MATRIX_CSV_FILE)
+    end_writing_output_file = time.time()
+    #-------------
 
     logging.getLogger().info(pan)
-    logging.getLogger().info("\n\
-    Execution time of file loading: " +str(round(start_neighborhood_computation-start_loading_file, 2))+" s\n"+
-    "Execution time of neighborhood computation: " +str(round(start_partitioning-start_neighborhood_computation, 2))+" s\n"+
-    "Execution time of partitioning: " +str(round(start_identify_communities-start_partitioning, 2))+" s\n"+
-    "Execution time of community identification: " +str(round(time_of_writing_output_file-start_identify_communities, 2))+" s\n"+
-    "Execution time of writing output files: " +str(round(time.time()-time_of_writing_output_file, 2))+" s\n"+
-    "Total execution time: " +str(round(time.time()-start_loading_file, 2))+" s\n")
 
-    pan.plot_Rscript(FIGUREOUTPUTDIR+"/generate_plots.R", FIGUREOUTPUTDIR+"/Ushaped_plot.pdf", FIGUREOUTPUTDIR+"/Presence_absence_matrix_plot.pdf", run_script = options.plots)
+    #-------------
+    if options.projection:
+        logging.getLogger().info("Projection...")
+        start_projection = time.time()
+        pan.projection_polar_histogram(open(PROJECTION+"/project_YEPE.1017.00002.csv",'w'), ["YEPE.1017.00002"])
+        end_projection = time.time()
+    #-------------
+
 
     # print(pan.partitions_by_organisms)
     # partitions_by_organisms_file = open(OUTPUTDIR+"/partitions_by_organisms.txt","w")
     # exact_by_organisms_file = open(OUTPUTDIR+"/exacte_by_organisms.txt","w")
     # for org, partitions in pan.partitions_by_organisms.items(): 
-    #     partitions_by_organisms_file.write(org+"\t"+str(len(partitions["Persistent"]))+
-    #                                            "\t"+str(len(partitions["Shell"]))+
-    #                                            "\t"+str(len(partitions["Cloud"]))+"\n")
-    #     exact_by_organisms_file.write(org+"\t"+str(len(partitions["Core_Exact"]))+
-    #                                       "\t"+str(len(partitions["Accessory"]))+"\n")
+    #     partitions_by_organisms_file.write(org+"\t"+str(len(partitions["persistent"]))+
+    #                                            "\t"+str(len(partitions["shell"]))+
+    #                                            "\t"+str(len(partitions["cloud"]))+"\n")
+    #     exact_by_organisms_file.write(org+"\t"+str(len(partitions["core_exact"]))+
+    #                                       "\t"+str(len(partitions["accessory"]))+"\n")
     # partitions_by_organisms_file.close()
     # exact_by_organisms_file.close()
 
-    if not options.evolution:
 
-        if options.delete_nem_intermediate_files:
-            pan.delete_nem_intermediate_files()
+    #-------------
+    if options.evolution:
+        logging.getLogger().info("Evolution...")
+        start_evolution = time.time()
+        logging.disable(logging.INFO)# disable message info
 
-        logging.getLogger().info("Finished !")
-        exit(0)
-    else:
-        STEP = 1
-        start_size = pan.nb_organisms
+        STEP=5
+        combinations = organismsCombinations(list(pan.organisms), nbOrgThr=1, sample_thr=RESAMPLING_MAX, sample_min=RESAMPLING_MIN)
+        del combinations[pan.nb_organisms]
+        del combinations[1]
+        shuffled_comb = [OrderedSet(comb) for nb_org, combs in combinations.items() for comb in combs if nb_org%STEP == 0]
+        random.shuffle(shuffled_comb)
 
-        with open(OUTPUTDIR+"/stat_evol.txt","w") as evol, open(OUTPUTDIR+"/stat_evol_exact.txt","w") as evol_exact:
-            while pan.nb_organisms>2:
-                evol.write("\t".join([str(pan.nb_organisms),
-                                          str(len(pan.partitions["Persistent"])),
-                                          str(len(pan.partitions["Shell"])),
-                                          str(len(pan.partitions["Cloud"])),
-                                          str(pan.pan_size)])+"\n")
-                evol_exact.write("\t".join([str(pan.nb_organisms),
-                                              str(len(pan.partitions["Core_Exact"])),
-                                              str(len(pan.partitions["Accessory"])),
-                                              str(pan.pan_size)])+"\n")
+        with open(EVOLUTION_STAT_FILE,"w") as evol:
+
+            evol.write("nb_org\tpersistent\tshell\tcloud\tcore_exact\taccessory\tpangenome\n")
+            def write_stat(a_pan):#internal function
+                evol.write("\t".join([str(a_pan.nb_organisms),
+                                       str(len(a_pan.partitions["persistent"])),
+                                       str(len(a_pan.partitions["shell"])),
+                                       str(len(a_pan.partitions["cloud"])),
+                                       str(len(a_pan.partitions["core_exact"])),
+                                       str(len(a_pan.partitions["accessory"])),
+                                       str(a_pan.pan_size)])+"\n")
                 evol.flush()
-                evol_exact.flush()
-
-                for i in range(STEP):
-                    removed = pan.organisms.pop(randrange(0,len(pan.organisms)))
-                    pan.annotations.pop(removed, None)
-                    pan.nb_organisms-= STEP
-                pan.delete_pangenome_graph(delete_NEM_files = options.delete_nem_intermediate_files)
-
-                pan.neighborhood_computation()
-                pan.partition(nem_dir_path = OUTPUTDIR+"/NEM_results_"+str(pan.nb_organisms), beta = options.beta_smoothing[0], free_dispersion = options.free_dispersion)
+            
+            def pan_sample(index):#internal function
                 
+                pan_sample = PPanGGOLiN("args",
+                                       {org:pan.annotations[org] for org in shuffled_comb[index]},
+                                       shuffled_comb[index],
+                                       pan.circular_contig_size,
+                                       pan.families_repeted)
+
+                pan_sample.neighborhood_computation(options.directed, light=True)
+                pan_sample.partition(EVOLUTION+"/nborg"+str(len(shuffled_comb[index]))+"_"+str(index), options.beta_smoothing[0], options.free_dispersion)
+
+                write_stat(pan_sample)
+                evol.flush()
                 
+                pan_sample.delete_pangenome_graph(delete_NEM_files = options.delete_nem_intermediate_files)
+                del pan_sample
+                
+
+            write_stat(pan)
+
+            with ProcessPoolExecutor(NB_THREADS) as executor:
+                futures = [executor.submit(pan_sample,i) for i in range(len(shuffled_comb))]
+
+                for f in tqdm(as_completed(futures), total = len(shuffled_comb), unit = 'pangenome resampled',  unit_scale = True):
+                    if f.exception() is not None:
+                        logging.getLogger().error(f.exception())
+                        executor.shutdown()
+                        exit(1)
+            end_evolution = time.time()
+            logging.disable(logging.NOTSET)#restaure message info
+    #-------------
+
+    logging.getLogger().info("\n"+
+    "Execution time of file loading: """ +str(round(end_loading_file-start_loading_file, 2))+" s\n"+
+    "Execution time of neighborhood computation: " +str(round(end_neighborhood_computation-start_neighborhood_computation, 2))+" s\n"+
+    "Execution time of partitioning: " +str(round(end_partitioning-start_partitioning, 2))+" s\n"+
+    #"Execution time of community identification: " +str(round(end_identify_communities-start_identify_communities, 2))+" s\n"+
+    "Execution time of writing output files: " +str(round(end_writing_output_file-start_writing_output_file, 2))+" s\n"+
+    (("Execution time of projection: " +str(round(end_projection-start_projection, 2))+" s\n") if options.projection else "")+
+    (("Execution time of evolution: " +str(round(end_evolution-start_evolution, 2))+" s\n") if options.evolution else "")+
+
+    "Total execution time: " +str(round(time.time()-start_loading_file, 2))+" s\n")
+
+    logging.getLogger().info("""
+The pangenome computation is complete. 
+Plots will be generated using R (in the directory: """+FIGUREOUTPUTDIR+""").
+If R and the required package (ggplot2, reshape2, ggrepel(>0.6.6), data.table) are not instaled don't worry the R script will be saved in the directory allowing to generate the figures latter""")
+
+    pan.plot_Rscript(script_outfile     = FIGUREOUTPUTDIR+"/generate_plots.R",
+                     outpdf_Ushape      = FIGUREOUTPUTDIR+"/Ushaped_plot.pdf",
+                     outpdf_matrix      = FIGUREOUTPUTDIR+"/Presence_absence_matrix_plot.pdf",
+                     evoltion_stat_file = EVOLUTION_STAT_FILE if options.evolution else None,
+                     outpdf_evolution   = FIGUREOUTPUTDIR+"/evolution.pdf" if options.evolution else None,
+                     outpdf_projection  = FIGUREOUTPUTDIR+"/projection.pdf" if options.projection else None,
+                     run_script = options.plots)
+
+    if options.delete_nem_intermediate_files:
+            pan.delete_nem_intermediate_files()   
+
+    logging.getLogger().info("Finished !")
+    exit(0)
