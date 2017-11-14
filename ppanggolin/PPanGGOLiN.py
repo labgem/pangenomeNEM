@@ -316,16 +316,16 @@ class PPanGGOLiN:
                         prev = families[protein]
 
                         try:
-                            name = attributes['NAME'].pop()
-                        except:
+                            name = attributes.pop('NAME')
+                        except KeyError:
                             try:
-                                name = attributes['GENE'].pop()
-                            except:
+                                name = attributes.pop('GENE')
+                            except KeyError:
                                 name = ""
 
                         try:
-                            product = attributes['PRODUCT'].pop()
-                        except:
+                            product = attributes.pop('PRODUCT')
+                        except KeyError:
                             product = ""
 
                         annot[gff_fields[GFF_seqname]][protein] = ["CDS",family,int(gff_fields[GFF_start]),int(gff_fields[GFF_end]),gff_fields[GFF_strand], name, product]
@@ -600,7 +600,7 @@ class PPanGGOLiN:
         DLOSS          = 0.5 #threshold of allowed D loss (higher = less detection)
         LLOSS          = 0.02 #threshold of allowed L loss (higher = less detection)
         
-        BETA           = ["-B",HEURISTIC,"-H",str(STEP_HEURISTIC),str(BETA_MAX),str(DDROP),str(DLOSS),str(LLOSS)] if beta < 0.00 else ["-b "+str(beta)]
+        BETA           = ["-B",HEURISTIC,"-H",str(STEP_HEURISTIC),str(BETA_MAX),str(DDROP),str(DLOSS),str(LLOSS)] if beta == float('Inf') else ["-b "+str(beta)]
 
         command = " ".join([NEM_LOCATION, 
                             nem_dir_path+"/nem_file",
@@ -697,7 +697,7 @@ class PPanGGOLiN:
                 logging.getLogger().debug(partition)
                 #logging.getLogger().debug(index.keys())
         except FileNotFoundError:
-            logging.getLogger().warning("The number of organisms is too low to partition the pangenome graph in persistent, shell, cloud partition, traditional partitions only (Core and Accessory genome) will be provided")
+            logging.getLogger().warning("The number of organisms is too low ("+str(self.nb_organisms)+" organisms in this pangenome) to partition the pangenome graph in persistent, shell, cloud partition, traditional partitions only (Core and Accessory genome) will be provided")
 
         for node, nem_class in zip(self.neighbors_graph.nodes(), classification):
             nb_orgs=0
@@ -1052,179 +1052,23 @@ class PPanGGOLiN:
                     self.neighbors_graph.node[index_inv[i+1]]["subshell"]=str(classes[0])
 
 
-    def plot_Rscript(self, script_outfile, outpdf_Ushape, outpdf_matrix, evoltion_stat_file = None, outpdf_evolution = None, outpdf_projection = None, run_script = True):
-        """
-        run r script
-        required the following package to be intaled 
-        """
-
-# check if nem intermedaire file are 
-
-        rscript = """
-#!/usr/bin/env R
-options(show.error.locations = TRUE)
-
-if(!require("ggplot2")) {{ install.packages("ggplot2", dep = TRUE,repos = "http://cran.us.r-project.org") }}
-library("ggplot2")
-if(!require("reshape2")) {{ install.packages("reshape2", dep = TRUE,repos = "http://cran.us.r-project.org") }}
-library("reshape2")
-
-color_chart = c(pangenome="black", "accessory"="#EB37ED", "core_exact" ="#FF2828", shell = "#00D860", persistent="#F7A507", cloud = "#79DEFF")
-
-binary_matrix         <- read.table("{nem_dir}/nem_file.dat", header=FALSE)
-occurences            <- rowSums(binary_matrix)
-classification_vector <- apply (read.table("{nem_dir}/nem_file.uf", header=FALSE),1, FUN = function(x){{
-ret = which(x==max(x))
-if(length(ret)>1){{ret=2}}
-return(ret)
-}})
-
-means <- data.frame(partition = c("1","2","3"), mean = rep(NA,3))
-
-means[means$partition == "1","mean"] <- mean(occurences[classification_vector == "1"])
-means[means$partition == "2","mean"] <- mean(occurences[classification_vector == "2"])
-means[means$partition == "3","mean"] <- mean(occurences[classification_vector == "3"])
-
-means <- means[order(means$mean),]
-
-classification_vector[classification_vector == means[1,"partition"]] <- "cloud"
-classification_vector[classification_vector == means[2,"partition"]] <- "shell"
-classification_vector[classification_vector == means[3,"partition"]] <- "persistent"
-
-c = data.frame(nb_org = occurences, partition = classification_vector)
-
-plot <- ggplot(data = c) + 
-    geom_bar(aes_string(x = "nb_org", fill = "partition")) +
-    scale_fill_manual(name = "partition", values = color_chart, breaks=c("persistent","shell","cloud")) +
-    scale_x_discrete(limits = seq(1, ncol(binary_matrix))) +
-    xlab("# of organisms in which each familly is present")+
-    ylab("# of families")
-
-ggsave("{outpdf_Ushape}", device = "pdf", height= (par("din")[2]*1.5),plot)
-
-############################################################
-
-organism_names          <- unlist(strsplit(readLines("{nem_dir}/column_org_file")," "))
-colnames(binary_matrix) <- organism_names
-nb_org                  <- ncol(binary_matrix)
-
-binary_matrix_hclust    <- hclust(dist(t(binary_matrix), method="binary"))
-binary_matrix           <- data.frame(binary_matrix,"NEM partitions" = classification_vector, occurences = occurences, check.names=FALSE)
-
-binary_matrix[occurences == nb_org, "Former partitions"] <- "core_exact"
-binary_matrix[occurences != nb_org, "Former partitions"] <- "accessory"
-binary_matrix = binary_matrix[order(match(binary_matrix$"NEM partitions",c("persistent", "shell", "cloud")),
-                                    match(binary_matrix$"Former partitions",c("core_exact", "accessory")),
-                                    -binary_matrix$occurences),
-                              c(binary_matrix_hclust$label[binary_matrix_hclust$order],"NEM partitions","Former partitions")]
-
-binary_matrix$familles <- seq(1,nrow(binary_matrix))
-data = melt(binary_matrix, id.vars=c("familles"))
-
-colnames(data) = c("fam","org","value")
-
-data$value <- factor(data$value, levels = c(1,0,"persistent", "shell", "cloud", "core_exact", "accessory"), labels = c("presence","absence","persistent", "shell", "cloud", "core_exact", "accessory"))
-
-plot <- ggplot(data = data)+
-        geom_raster(aes_string(x="org",y="fam", fill="value"))+
-        scale_fill_manual(values = c("presence"="green","absence"="grey80",color_chart)) +
-        theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5), panel.border = element_blank(), panel.background = element_blank())
-
-ggsave("{outpdf_matrix}", device = "pdf", plot)
-
-############################################################
-
-
-if(!require("ggrepel") || packageVersion("ggrepel") < "0.6.6") {{ install.packages("ggrepel", dep = TRUE, repos = "http://cran.us.r-project.org") }}
-library("ggrepel")
-
-if(!require("data.table")) {{ install.packages("data.table", dep = TRUE,repos = "http://cran.us.r-project.org") }}
-library("data.table")
-
-if (file.exists("{evoltion_stat_file}")){{
-    data <- read.table("{evoltion_stat_file}", header = TRUE)
-
-
-    data <- melt(data, id = "nb_org")
-    colnames(data) <- c("nb_org","partition","value")
-
-    final_state = data[data$nb_org == max(data$nb_org,na.rm=T),]
-    final_state = final_state[!duplicated(final_state), ]
-    final <- structure(names = as.character(final_state$partition), as.integer(final_state$value))
-
-    #gamma and kappa are calculated according to the Tettelin et al. 2008 approach
-    median_by_nb_org <- setDT(data)[,list(med=as.numeric(median(value))), by=c("nb_org","partition")]
-    colnames(median_by_nb_org) <- c("nb_org_comb","partition","med")
-
-    for (part in as.character(final_state$partition)){{
-        regression  <- nls(med~kapa*(nb_org_comb^gama),median_by_nb_org[which(median_by_nb_org$partition == part),],start=list(kapa=1000,gama=1))
-        coefficient <- coef(regression)
-        final_state[final_state$partition == part,"formula" ] <- paste0("n == ", format(coefficient["kapa"],decimal.mark = ",",digits =2),"~N^{{",format(coefficient["gama"],digits =2),"}}")
-    }}
-
-    plot <- ggplot(data = data, aes_string(x="nb_org",y="value", colour = "partition"))+
-            ggtitle(bquote(list("Rarefaction curve. Heap's law parameters based on Tettelin et al. 2008 approach", n == kappa~N^gamma)))+
-            geom_smooth(data        = median_by_nb_org[median_by_nb_org$partition %in% c("pangenome","shell","cloud","accessory", "persistent", "core_exact") ,],# 
-                        mapping     = aes_string(x="nb_org_comb",y="med",colour = "partition"),
-                        method      = "nls",
-                        formula     = y~kapa*(x^gama),method.args =list(start=c(kapa=1000,gama=1)),
-                        linetype    ="twodash",
-                        size        = 1.5,
-                        se          = FALSE,
-                        show.legend = FALSE)+
-            stat_summary(fun.ymin = function(z) {{ quantile(z,0.25) }},  fun.ymax = function(z) {{ quantile(z,0.75) }}, geom="ribbon", alpha=0.1,size=0.1, linetype="dashed", show.legend = FALSE)+
-            stat_summary(fun.y=median, geom="line",size=0.5)+
-            stat_summary(fun.y=median, geom="point",shape=4,size=1, show.legend = FALSE)+
-            stat_summary(fun.ymax=max,fun.ymin=min,geom="errorbar",linetype="dotted",size=0.1,width=0.2)+
-            scale_x_continuous(breaks = as.numeric(unique(data$nb_org)))+
-            scale_y_continuous(limits=c(0,max(data$value,na.rm=T)), breaks = seq(0,max(data$value,na.rm=T),1000))+
-            scale_colour_manual(name = "NEM partitioning", values = color_chart, breaks=names(sort(final, decreasing = TRUE)))+
-            geom_label_repel(data = final_state, aes_string(x="nb_org", y="value", colour = "partition", label = "value"), show.legend = FALSE,
-                      fontface = 'bold', fill = 'white',
-                      box.padding = unit(0.35, "lines"),
-                      point.padding = unit(0.5, "lines"),
-                      segment.color = 'grey50',
-                      nudge_x = 45) +
-            geom_label_repel(data = final_state, aes(x = nb_org*0.9, y = value, label = formula), size = 2, parse = TRUE, show.legend = FALSE, segment.color = NA) + 
-            xlab("# of organisms")+
-            ylab("# of families")+
-            ggplot2::theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
-    
-    ggsave("{outpdf_evolution}", device = "pdf", width = (par("din")[1]*2) ,plot)
-}}
-        """.format(nem_dir            = self.nem_intermediate_files,
-                   outpdf_Ushape      = outpdf_Ushape,
-                   outpdf_matrix      = outpdf_matrix,
-                   evoltion_stat_file = evoltion_stat_file,
-                   outpdf_evolution   = outpdf_evolution)
-        logging.getLogger().info("Writing R script generating plot")
-        with open(script_outfile,"w") as script_file:
-            script_file.write(rscript)
-        logging.getLogger().info("Running R script generating plot")
-        if run_script:
-            logging.getLogger().info("Rscript "+script_outfile)
-            proc = subprocess.Popen("Rscript "+script_outfile, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-            (out,err) = proc.communicate()
-            logging.getLogger().debug(out)
-            logging.getLogger().debug(err)
-
-    def projection_polar_histogram(self, out_file, organisms_to_project):
+    def projection_polar_histogram(self, out_dir, organisms_to_project):
         
-        out_file.write("contig\tgene\tfamily\tpartition\tpersistent\tshell\tcloud\n")
-
         for organism in organisms_to_project:
-            for contig, contig_annot in self.annotations[organism].items():
-                for gene, gene_info in contig_annot.items():
-                    if gene_info[FAMILY] not in self.families_repeted:
-                        nei_partitions = [self.neighbors_graph.node[nei]["partition"] for nei in nx.all_neighbors(self.neighbors_graph,gene_info[FAMILY])]
-                        out_file.write("\t".join([gene,
-                                                  contig,
-                                                  gene_info[FAMILY],
-                                                  self.neighbors_graph.node[gene_info[FAMILY]]["partition"],
-                                                  str(nei_partitions.count("persistent")),
-                                                  str(nei_partitions.count("shell")),
-                                                  str(nei_partitions.count("cloud"))])+"\n")
+            with open(out_dir+"/"+organism+".csv","w") as out_file:
+                out_file.write("gene\tcontig\tori\tfamily\tpartition\tpersistent\tshell\tcloud\n")
+                for contig, contig_annot in self.annotations[organism].items():
+                    for gene, gene_info in contig_annot.items():
+                        if gene_info[FAMILY] not in self.families_repeted:
+                            nei_partitions = [self.neighbors_graph.node[nei]["partition"] for nei in nx.all_neighbors(self.neighbors_graph,gene_info[FAMILY])]
+                            out_file.write("\t".join([gene,
+                                                      contig,
+                                                      "T" if (gene_info[NAME].upper() == "DNAA" or gene_info[PRODUCT].upper() == "DNAA") else "F",
+                                                      gene_info[FAMILY],
+                                                      self.neighbors_graph.node[gene_info[FAMILY]]["partition"],
+                                                      str(nei_partitions.count("persistent")),
+                                                      str(nei_partitions.count("shell")),
+                                                      str(nei_partitions.count("cloud"))])+"\n")
 
 ################ END OF CLASS PPanGGOLiN ################
 
@@ -1292,6 +1136,234 @@ def organismsCombinations(orgs, nbOrgThr, sample_thr, sample_min):
                 comb_list = samplingCombinations(orgs, sample_thr, sample_min)
         return comb_list
 
+def plot_Rscript(script_outfile, nem_dir, outpdf_Ushape, outpdf_matrix, evoltion_dir, outpdf_evolution, projection_dir, outputdir_pdf_projection, run_script = True):
+    """
+    run r script
+    required the following package to be instaled : ggplot2, reshape2, data.table, ggrepel (last version)
+
+    """
+
+    rscript = """
+#!/usr/bin/env R
+options(show.error.locations = TRUE)
+
+if(!require("ggplot2")) {{ install.packages("ggplot2", dep = TRUE,repos = "http://cran.us.r-project.org") }}
+library("ggplot2")
+if(!require("reshape2")) {{ install.packages("reshape2", dep = TRUE,repos = "http://cran.us.r-project.org") }}
+library("reshape2")
+
+color_chart = c(pangenome="black", "accessory"="#EB37ED", "core_exact" ="#FF2828", shell = "#00D860", persistent="#F7A507", cloud = "#79DEFF")
+
+########################### START U SHAPED PLOT #################################
+
+binary_matrix         <- read.table("{nem_dir}/nem_file.dat", header=FALSE)
+occurences            <- rowSums(binary_matrix)
+classification_vector <- apply (read.table("{nem_dir}/nem_file.uf", header=FALSE),1, FUN = function(x){{
+ret = which(x==max(x))
+if(length(ret)>1){{ret=2}}
+return(ret)
+}})
+
+means <- data.frame(partition = c("1","2","3"), mean = rep(NA,3))
+
+means[means$partition == "1","mean"] <- mean(occurences[classification_vector == "1"])
+means[means$partition == "2","mean"] <- mean(occurences[classification_vector == "2"])
+means[means$partition == "3","mean"] <- mean(occurences[classification_vector == "3"])
+
+means <- means[order(means$mean),]
+
+classification_vector[classification_vector == means[1,"partition"]] <- "cloud"
+classification_vector[classification_vector == means[2,"partition"]] <- "shell"
+classification_vector[classification_vector == means[3,"partition"]] <- "persistent"
+
+c = data.frame(nb_org = occurences, partition = classification_vector)
+
+plot <- ggplot(data = c) + 
+    geom_bar(aes_string(x = "nb_org", fill = "partition")) +
+    scale_fill_manual(name = "partition", values = color_chart, breaks=c("persistent","shell","cloud")) +
+    scale_x_discrete(limits = seq(1, ncol(binary_matrix))) +
+    xlab("# of organisms in which each familly is present")+
+    ylab("# of families")
+
+ggsave("{outpdf_Ushape}", device = "pdf", height= (par("din")[2]*1.5),plot)
+
+########################### END U SHAPED PLOT #################################
+
+########################### START RESENCE/ABSENCE MATRIX #################################
+
+organism_names          <- unlist(strsplit(readLines("{nem_dir}/column_org_file")," "))
+colnames(binary_matrix) <- organism_names
+nb_org                  <- ncol(binary_matrix)
+
+binary_matrix_hclust    <- hclust(dist(t(binary_matrix), method="binary"))
+binary_matrix           <- data.frame(binary_matrix,"NEM partitions" = classification_vector, occurences = occurences, check.names=FALSE)
+
+binary_matrix[occurences == nb_org, "Former partitions"] <- "core_exact"
+binary_matrix[occurences != nb_org, "Former partitions"] <- "accessory"
+binary_matrix = binary_matrix[order(match(binary_matrix$"NEM partitions",c("persistent", "shell", "cloud")),
+                                    match(binary_matrix$"Former partitions",c("core_exact", "accessory")),
+                                    -binary_matrix$occurences),
+                              c(binary_matrix_hclust$label[binary_matrix_hclust$order],"NEM partitions","Former partitions")]
+
+binary_matrix$familles <- seq(1,nrow(binary_matrix))
+data = melt(binary_matrix, id.vars=c("familles"))
+
+colnames(data) = c("fam","org","value")
+
+data$value <- factor(data$value, levels = c(1,0,"persistent", "shell", "cloud", "core_exact", "accessory"), labels = c("presence","absence","persistent", "shell", "cloud", "core_exact", "accessory"))
+
+plot <- ggplot(data = data)+
+        geom_raster(aes_string(x="org",y="fam", fill="value"))+
+        scale_fill_manual(values = c("presence"="green","absence"="grey80",color_chart)) +
+        theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5), panel.border = element_blank(), panel.background = element_blank())
+
+ggsave("{outpdf_matrix}", device = "pdf", plot)
+
+########################### END PRESENCE/ABSENCE MATRIX #################################
+
+########################### START EVOLUTION CURVE #################################
+
+if(!require("ggrepel") || packageVersion("ggrepel") < "0.6.6") {{ install.packages("ggrepel", dep = TRUE, repos = "http://cran.us.r-project.org") }}
+library("ggrepel")
+
+if(!require("data.table")) {{ install.packages("data.table", dep = TRUE,repos = "http://cran.us.r-project.org") }}
+library("data.table")
+
+if (file.exists("{evoltion_dir}/stat_evol.txt")){{
+    data <- read.table("{evoltion_dir}/stat_evol.txt", header = TRUE)
+
+
+    data <- melt(data, id = "nb_org")
+    colnames(data) <- c("nb_org","partition","value")
+
+    final_state = data[data$nb_org == max(data$nb_org,na.rm=T),]
+    final_state = final_state[!duplicated(final_state), ]
+    final <- structure(names = as.character(final_state$partition), as.integer(final_state$value))
+
+    #gamma and kappa are calculated according to the Tettelin et al. 2008 approach
+    median_by_nb_org <- setDT(data)[,list(med=as.numeric(median(value))), by=c("nb_org","partition")]
+    colnames(median_by_nb_org) <- c("nb_org_comb","partition","med")
+
+    for (part in as.character(final_state$partition)){{
+        regression  <- nls(med~kapa*(nb_org_comb^gama),median_by_nb_org[which(median_by_nb_org$partition == part),],start=list(kapa=1000,gama=1))
+        coefficient <- coef(regression)
+        final_state[final_state$partition == part,"formula" ] <- paste0("n == ", format(coefficient["kapa"],decimal.mark = ",",digits =2),"~N^{{",format(coefficient["gama"],digits =2),"}}")
+    }}
+
+    plot <- ggplot(data = data, aes_string(x="nb_org",y="value", colour = "partition"))+
+            ggtitle(bquote(list("Rarefaction curve. Heap's law parameters based on Tettelin et al. 2008 approach", n == kappa~N^gamma)))+
+            geom_smooth(data        = median_by_nb_org[median_by_nb_org$partition %in% c("pangenome","shell","cloud","accessory", "persistent", "core_exact") ,],# 
+                        mapping     = aes_string(x="nb_org_comb",y="med",colour = "partition"),
+                        method      = "nls",
+                        formula     = y~kapa*(x^gama),method.args =list(start=c(kapa=1000,gama=1)),
+                        linetype    ="twodash",
+                        size        = 1.5,
+                        se          = FALSE,
+                        show.legend = FALSE)+
+            stat_summary(fun.ymin = function(z) {{ quantile(z,0.25) }},  fun.ymax = function(z) {{ quantile(z,0.75) }}, geom="ribbon", alpha=0.1,size=0.1, linetype="dashed", show.legend = FALSE)+
+            stat_summary(fun.y=median, geom="line",size=0.5)+
+            stat_summary(fun.y=median, geom="point",shape=4,size=1, show.legend = FALSE)+
+            stat_summary(fun.ymax=max,fun.ymin=min,geom="errorbar",linetype="dotted",size=0.1,width=0.2)+
+            scale_x_continuous(breaks = as.numeric(unique(data$nb_org)))+
+            scale_y_continuous(limits=c(0,max(data$value,na.rm=T)), breaks = seq(0,max(data$value,na.rm=T),1000))+
+            scale_colour_manual(name = "NEM partitioning", values = color_chart, breaks=names(sort(final, decreasing = TRUE)))+
+            geom_label_repel(data = final_state, aes_string(x="nb_org", y="value", colour = "partition", label = "value"), show.legend = FALSE,
+                      fontface = 'bold', fill = 'white',
+                      box.padding = unit(0.35, "lines"),
+                      point.padding = unit(0.5, "lines"),
+                      segment.color = 'grey50',
+                      nudge_x = 45) +
+            geom_label_repel(data = final_state, aes(x = nb_org*0.9, y = value, label = formula), size = 2, parse = TRUE, show.legend = FALSE, segment.color = NA) + 
+            xlab("# of organisms")+
+            ylab("# of families")+
+            ggplot2::theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+    
+    ggsave("{outpdf_evolution}", device = "pdf", width = (par("din")[1]*2) ,plot)
+
+}}
+########################### END EVOLUTION CURVE #################################
+
+########################### START PROJECTION #################################
+
+for (org_csv in list.files(path = "{projection_dir}", pattern = "*.csv$")){{
+    
+    data <- read.table(paste0("{projection_dir}/",org_csv), header = T)
+    data <- cbind(data, pos = seq(nrow(data)))
+
+    max_degree_log2p1 <- max(apply(data,1,FUN = function(x){{
+            sum(log2(as.numeric(x[6:8])+1))
+        }}))
+
+    ori <- which(data$ori == T, arr.ind=T)
+    data$ori <- NULL
+
+    duplicated_fam     <- unique(data[duplicated(data$family),"family"])
+    data$family <- ifelse(data$family %in% duplicated_fam, data$family, NA)
+    data$family = as.factor(data$family)
+    colors_duplicated_fam <- rainbow(length(duplicated_fam))
+    names(colors_duplicated_fam) <- duplicated_fam
+
+    data_melted <- melt(data, id.var=c("contig", "gene","family","partition","pos"))
+    data_melted$variable <- factor(data_melted$variable, levels = rev(c("persistent","shell","cloud")), ordered=TRUE)
+
+    contig <- unique(data_melted$contig)
+    contig_color <-  rainbow(length(contig))
+    names(contig_color) <- contig
+
+    data_melted$value <- log2(data_melted$value+1)
+
+    plot = ggplot(data = data_melted)+
+    ggtitle(paste0("plot corresponding to the file", org_csv))+
+    geom_bar(aes_string(x = "gene", y = "value", fill = "variable"),stat="identity", show.legend = FALSE)+
+    scale_y_continuous(limits = c(-30, max_degree_log2p1), breaks = seq(0,ceiling(max_degree_log2p1)))+
+    geom_hline(yintercept = 0)+
+    geom_rect(aes_string(xmin ="pos-1/2", xmax = "pos+1/2", fill = "partition"), ymin = -10, ymax=-1, color = NA, show.legend = FALSE)+
+    geom_hline(yintercept = -10)+
+    geom_rect(aes_string(xmin ="pos-1/2", xmax = "pos+1/2", fill = "family"), ymin = -20, ymax=-11,  color = NA, show.legend = FALSE)+
+    geom_hline(yintercept = -20)+
+    geom_rect(aes_string(xmin ="pos-1/2", xmax = "pos+1/2", fill = "contig"), ymin = -30, ymax=-21,  color = NA)+
+    geom_vline(xintercept = ori)+
+    scale_fill_manual(values = c(color_chart,colors_duplicated_fam, contig_color), na.value = "grey80")+
+    coord_polar()+
+    ylab("log2(degree+1) of the families in wich each gene is")+
+    theme(axis.line        = ggplot2::element_blank(),
+                        axis.text.x      = ggplot2::element_blank(),
+                        axis.ticks.x       = ggplot2::element_blank(),
+                        axis.title.x     = ggplot2::element_blank(),
+                        panel.background = ggplot2::element_blank(),
+                        panel.border     = ggplot2::element_blank(),
+                        panel.grid.major.x = ggplot2::element_blank(),
+                        panel.grid.minor.x = ggplot2::element_blank(),
+                        plot.background  = ggplot2::element_blank(),
+                        plot.margin      = grid::unit(c(0,0,0,0), "cm"),
+                        panel.spacing    = grid::unit(c(0,0,0,0), "cm"))
+
+    ggsave(paste0("{outputdir_pdf_projection}/projection_",org_csv,".pdf"), device = "pdf", height= 40, width = 49, plot)
+
+}}
+
+########################### END PROJECTION #################################
+
+    """.format(nem_dir                  = nem_dir,
+               outpdf_Ushape            = outpdf_Ushape,
+               outpdf_matrix            = outpdf_matrix,
+               evoltion_dir             = evoltion_dir,
+               outpdf_evolution         = outpdf_evolution,
+               projection_dir           = projection_dir,
+               outputdir_pdf_projection = outputdir_pdf_projection)
+    logging.getLogger().info("Writing R script generating plot")
+    with open(script_outfile,"w") as script_file:
+        script_file.write(rscript)
+    logging.getLogger().info("Running R script generating plot")
+    if run_script:
+        logging.getLogger().info("Rscript "+script_outfile)
+        proc = subprocess.Popen("Rscript "+script_outfile, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        (out,err) = proc.communicate()
+        logging.getLogger().debug(out)
+        logging.getLogger().debug(err)
+
+
 if __name__=='__main__':
     """
     --organims is a tab delimited files containg at least 2 mandatory fields by row and as many optional field as circular contig. Each row correspond to an organism to be added to the pangenome.
@@ -1302,8 +1374,8 @@ if __name__=='__main__':
     example:
 
     """
-    parser = argparse.ArgumentParser(description='Build a partitioned pangenome graph from annotated genomes and gene families')
-    parser.add_argument('-?', '--version', action='version', version='0.1')
+    parser = argparse.ArgumentParser(prog = "", description='Build a partitioned pangenome graph from annotated genomes and gene families')
+    parser.add_argument('-?', '--version', action='version', version='0.1.1')
     parser.add_argument('-o', '--organisms', type=argparse.FileType('r'), nargs=1, help="""
 A tab delimited file containg at least 2 mandatory fields by row and as many optional fields as the number of well assembled circular contigs. Each row correspond to an organism to be added to the pangenome.
 Reserved words are : "id", "label", "name", "weight", "partition", "partition_exact"
@@ -1332,10 +1404,10 @@ When -u is set, only work on new organisms added""")
     parser.add_argument('-s', '--infere_singleton', default=False, action="store_true", help="""
 If a gene id found in a gff file is absent of the gene families file, the singleton will be automatically infered as a gene families having a single element. 
 if this argument is not set, the program will raise KeyError exception if a gene id found in a gff file is absent of the gene families file.""")
-    parser.add_argument("-u", "--update", default = None, type=argparse.FileType('r'), nargs=1, help="""
-Pangenome Graph to be updated (in gexf format)""")
+#    parser.add_argument("-u", "--update", default = None, type=argparse.FileType('r'), nargs=1, help="""
+# Pangenome Graph to be updated (in gexf format)""")
     parser.add_argument("-b", "--beta_smoothing", default = [-1.00], type=float, nargs=1, help = """
-Coeficient of smoothing all the partionning based on the Markov Random Feild leveraging the weigthed pangenome graph. A positive float, 0.0 means to discard spatial smoothing and -1 to find beta automaticaly (increase the computation time) 
+Coeficient of smoothing all the partionning based on the Markov Random Feild leveraging the weigthed pangenome graph. A positive float, 0.0 means to discard spatial smoothing and 'inf' to find beta automaticaly (increase the computation time) 
 """)
     parser.add_argument("-fd", "--free_dispersion", default = False, action="store_true", help = """
 Specify if the dispersion around the centroid vector of each paritition is the same for all the organisms or if the dispersion is free
@@ -1351,26 +1423,29 @@ Show information message, otherwise only errors and warnings will be displayed""
     parser.add_argument("-vv", "--verbose_debug", default=False, action="store_true", help="""
 Show all messages including debug ones""")
     parser.add_argument("-as", "--already_sorted", default=False, action="store_true", help="""
-Accelerate loadding of gff files if there are sorted by start point for each contig""")
+Accelerate loading of gff files if there are sorted by the coordinate of gene annotations (starting point) for each contig""")
     parser.add_argument("-l", "--ligth", default=False, action="store_true", help="""
 Free the memory elements which are no longer used""")
-    parser.add_argument("-p", "--plots", default=True, action="store_true", help="""
-Generate Rscript able to draw plots and run it. (required R in the path and will install ggplot2, ggrepel and reshape2 if there are not installed)""")
-    parser.add_argument("-di", "--directed", default=False, action="store_true", help="""
+    parser.add_argument("-p", "--plots", default=False, action="store_true", help="""
+Generate Rscript able to draw plots and run it. (required R in the path and the packages ggplot2, ggrepel, data.table and reshape2 to be installed)""")
+    parser.add_argument("-di", "--directed", default=True, action="store_true", help="""
 directed or not directed graph
 """)
     parser.add_argument("-e", "--evolution", default=False, action="store_true", help="""
 Relaunch the script using less and less organism in order to obtain a curve of the evolution of the pangenome metrics
 """)
     parser.add_argument("-ep", "--evolution_resampling_param", type=int, nargs=4, default=[4,10,30,1], help="""
-1st argument is the number of thread (int) to use to resemple in parallel the pangenome
+1st argument is the number of threads (int) to use to resemple in parallel the pangenome
 2nd argument is the minimun number of resampling for each number of organisms
 3nd argument is the maximun number of resampling for each number of organisms
 4th argument is the step between each number of organisms
 """)
-    parser.add_argument("-pr", "--projection", default=False, action="store_true", help="""
+    parser.add_argument("-pr", "--projection", type = int, nargs = "+", help="""
 Project the graph as a circos plot on each organism.
+Expected parameters are the line number (1 based) of each organism on which the graph will be projected providing a circos plot (well assembled representative organisms must be prefered).
+0 means all organisms (it is discouraged to use -p and -pr 0 in the same time because the projection of the graph on all the organisms can take a long time).
 """)
+
     options = parser.parse_args()
 
     level = logging.WARNING
@@ -1418,8 +1493,8 @@ Project the graph as a circos plot on each organism.
                      options.infere_singleton,
                      options.already_sorted)
 
-    if options.update is not None:
-        pan.import_from_GEXF(options.update[0])
+    # if options.update is not None:
+    #     pan.import_from_GEXF(options.update[0])
     end_loading_file = time.time()
     #-------------
 
@@ -1464,7 +1539,7 @@ Project the graph as a circos plot on each organism.
     if options.projection:
         logging.getLogger().info("Projection...")
         start_projection = time.time()
-        pan.projection_polar_histogram(open(PROJECTION+"/project_YEPE.1017.00002.csv",'w'), ["YEPE.1017.00002"])
+        pan.projection_polar_histogram(PROJECTION, [pan.organisms.__getitem__(index-1) for index in options.projection] if options.projection[0] >   0 else list(pan.organisms))
         end_projection = time.time()
     #-------------
 
@@ -1488,7 +1563,6 @@ Project the graph as a circos plot on each organism.
         start_evolution = time.time()
         logging.disable(logging.INFO)# disable message info
 
-        STEP=5
         combinations = organismsCombinations(list(pan.organisms), nbOrgThr=1, sample_thr=RESAMPLING_MAX, sample_min=RESAMPLING_MIN)
         del combinations[pan.nb_organisms]
         del combinations[1]
@@ -1556,13 +1630,15 @@ The pangenome computation is complete.
 Plots will be generated using R (in the directory: """+FIGUREOUTPUTDIR+""").
 If R and the required package (ggplot2, reshape2, ggrepel(>0.6.6), data.table) are not instaled don't worry the R script will be saved in the directory allowing to generate the figures latter""")
 
-    pan.plot_Rscript(script_outfile     = FIGUREOUTPUTDIR+"/generate_plots.R",
-                     outpdf_Ushape      = FIGUREOUTPUTDIR+"/Ushaped_plot.pdf",
-                     outpdf_matrix      = FIGUREOUTPUTDIR+"/Presence_absence_matrix_plot.pdf",
-                     evoltion_stat_file = EVOLUTION_STAT_FILE if options.evolution else None,
-                     outpdf_evolution   = FIGUREOUTPUTDIR+"/evolution.pdf" if options.evolution else None,
-                     outpdf_projection  = FIGUREOUTPUTDIR+"/projection.pdf" if options.projection else None,
-                     run_script = options.plots)
+    plot_Rscript(script_outfile           = OUTPUTDIR+"/generate_plots.R",
+                 nem_dir                  = NEMOUTPUTDIR,
+                 outpdf_Ushape            = FIGUREOUTPUTDIR+"/Ushaped_plot.pdf",
+                 outpdf_matrix            = FIGUREOUTPUTDIR+"/Presence_absence_matrix_plot.pdf",
+                 evoltion_dir             = EVOLUTION,
+                 outpdf_evolution         = FIGUREOUTPUTDIR+"/evolution.pdf",
+                 projection_dir           = PROJECTION,
+                 outputdir_pdf_projection = FIGUREOUTPUTDIR,
+                 run_script               = options.plots)
 
     if options.delete_nem_intermediate_files:
             pan.delete_nem_intermediate_files()   
