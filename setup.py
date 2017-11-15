@@ -1,3 +1,6 @@
+#!/usr/bin/python3
+# -*- coding: iso-8859-1 -*-
+
 import os
 from setuptools import setup
 import logging

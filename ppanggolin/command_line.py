@@ -1,3 +1,6 @@
+#!/usr/bin/python3
+# -*- coding: iso-8859-1 -*-
+
 import argparse
 import logging
 import random 
@@ -312,7 +315,7 @@ def __main__():
     """
     parser = argparse.ArgumentParser(prog = "", description='Build a partitioned pangenome graph from annotated genomes and gene families')
     parser.add_argument('-?', '--version', action='version', version=__version__)
-    parser.add_argument('-o', '--organisms', type=argparse.FileType('r'), nargs=1, help="""
+    parser.add_argument('-o', '--organisms', type=argparse.FileType('r'), nargs=1, metavar=('ORGANISMS_FILE'), help="""
 A tab delimited file containg at least 2 mandatory fields by row and as many optional fields as the number of well assembled circular contigs. Each row correspond to an organism to be added to the pangenome.
 Reserved words are : "id", "label", "name", "weight", "partition", "partition_exact"
 The first field is the organinsm name (id should be unique not contain any spaces, " or ' and reserved words).
@@ -320,7 +323,7 @@ The second field is the gff file associated to the organism. This path can be ab
 The next fields contain the name of perfectly assembled circular contigs.
 Contig names should be unique and not contain any spaces, quote, double quote and reserved words.
 example:""", required=True)
-    parser.add_argument('-gf', '--gene_families', type=argparse.FileType('r'), nargs=1, help="""
+    parser.add_argument('-gf', '--gene_families', type=argparse.FileType('r'), nargs=1, metavar=('FAMILIES_FILE'), help="""
 A tab delimited file containg the gene families. Each row contain 2 fields.
 Reserved words are : "id", "label", "name", "weight", "partition", "partition_exact"
 The first field is the family name.
@@ -330,11 +333,11 @@ the families name can be any string but must should be unique and not contain an
 As a conventation, it is recommanded to use the name of the most reprensative gene of the families as the family name.
 Gene name can be any string corresponding to the if feature in the gff files. they should be unique and not contain any spaces, " or ' and reserved words.
 example:""",  required=True)
-    parser.add_argument('-od', '--output_directory', type=str, nargs=1, default=["output.dir"], help="""
+    parser.add_argument('-od', '--output_directory', type=str, nargs=1, default=["output.dir"], metavar=('OUTPUT_DIR'), help="""
 The output directory""")
     parser.add_argument('-f', '--force', action="store_true", help="""
 Force overwriting existing output directory""")
-    parser.add_argument('-r', '--remove_high_copy_number_families', type=int, nargs=1, default=[0], help="""
+    parser.add_argument('-r', '--remove_high_copy_number_families', type=int, nargs=1, default=[0], metavar=('REPETITION_THRESHOLD'), help="""
 Remove families having a number of copy of one families above or equal to this threshold in at least one organism (0 or negative value keep all families whatever their occurence). 
 When -u is set, only work on new organisms added""")
     parser.add_argument('-s', '--infere_singleton', default=False, action="store_true", help="""
@@ -342,7 +345,7 @@ If a gene id found in a gff file is absent of the gene families file, the single
 if this argument is not set, the program will raise KeyError exception if a gene id found in a gff file is absent of the gene families file.""")
 #    parser.add_argument("-u", "--update", default = None, type=argparse.FileType('r'), nargs=1, help="""
 # Pangenome Graph to be updated (in gexf format)""")
-    parser.add_argument("-b", "--beta_smoothing", default = [-1.00], type=float, nargs=1, help = """
+    parser.add_argument("-b", "--beta_smoothing", default = [-1.00], type=float, nargs=1, metavar=('BETA_VALUE'), help = """
 Coeficient of smoothing all the partionning based on the Markov Random Feild leveraging the weigthed pangenome graph. A positive float, 0.0 means to discard spatial smoothing and 'inf' to find beta automaticaly (increase the computation time) 
 """)
     parser.add_argument("-fd", "--free_dispersion", default = False, action="store_true", help = """
@@ -370,13 +373,13 @@ directed or not directed graph
     parser.add_argument("-e", "--evolution", default=False, action="store_true", help="""
 Relaunch the script using less and less organism in order to obtain a curve of the evolution of the pangenome metrics
 """)
-    parser.add_argument("-ep", "--evolution_resampling_param", type=int, nargs=4, default=[4,10,30,1], help="""
+    parser.add_argument("-ep", "--evolution_resampling_param", type=int, nargs=4, default=[4,10,30,1], metavar=('NB_THREADS','MINIMUN_RESAMPLING','MAXIMUN_RESAMPLING','STEP'), help="""
 1st argument is the number of threads (int) to use to resemple in parallel the pangenome
 2nd argument is the minimun number of resampling for each number of organisms
 3nd argument is the maximun number of resampling for each number of organisms
 4th argument is the step between each number of organisms
 """)
-    parser.add_argument("-pr", "--projection", type = int, nargs = "+", help="""
+    parser.add_argument("-pr", "--projection", type = int, nargs = "+", metavar=('LINE_NUMBER_OR_ZERO'), help="""
 Project the graph as a circos plot on each organism.
 Expected parameters are the line number (1 based) of each organism on which the graph will be projected providing a circos plot (well assembled representative organisms must be prefered).
 0 means all organisms (it is discouraged to use -p and -pr 0 in the same time because the projection of the graph on all the organisms can take a long time).
