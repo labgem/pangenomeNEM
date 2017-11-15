@@ -16,7 +16,6 @@ import tempfile
 import subprocess
 from tqdm import tqdm
 import mmap
-from pkg_resources import Requirement, resource_filename
 
 #import forceatlas2 
 
