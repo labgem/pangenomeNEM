@@ -303,6 +303,42 @@ for (org_csv in list.files(path = "{projection_dir}", pattern = "*.csv$")){{
         proc = subprocess.Popen("Rscript "+script_outfile, shell=True)
         proc.communicate()
 
+#### START - NEED TO BE TO LEVEL OF THE MODULE TO ALLOW MULTIPROCESSING
+shuffled_comb = []
+evol = None
+pan = None
+options = None
+EVOLUTION = None
+def pan_sample(index):
+    global shuffled_comb
+    
+    pan_sample = PPanGGOLiN("args",
+                {org:pan.annotations[org] for org in shuffled_comb[index]},
+                           shuffled_comb[index],
+                           pan.circular_contig_size,
+                           pan.families_repeted)
+
+    pan_sample.neighborhood_computation(options.directed, light=True)
+    pan_sample.partition(EVOLUTION+"/nborg"+str(len(shuffled_comb[index]))+"_"+str(index), options.beta_smoothing[0], options.free_dispersion)
+
+    write_stat(pan_sample)
+    evol.flush()
+    
+    pan_sample.delete_pangenome_graph(delete_NEM_files = options.delete_nem_intermediate_files)
+    del pan_sample
+
+def write_stat(a_pan):#internal function
+    global evol
+    evol.write("\t".join([str(a_pan.nb_organisms),
+                           str(len(a_pan.partitions["persistent"])),
+                           str(len(a_pan.partitions["shell"])),
+                           str(len(a_pan.partitions["cloud"])),
+                           str(len(a_pan.partitions["core_exact"])),
+                           str(len(a_pan.partitions["accessory"])),
+                           str(a_pan.pan_size)])+"\n")
+    evol.flush()
+#### END - NEED TO BE TO LEVEL OF THE MODULE TO ALLOW MULTIPROCESSING
+
 def __main__():
     """
     --organims is a tab delimited files containg at least 2 mandatory fields by row and as many optional field as circular contig. Each row correspond to an organism to be added to the pangenome.
@@ -313,78 +349,80 @@ def __main__():
     example:
 
     """
-    parser = argparse.ArgumentParser(prog = "", description='Build a partitioned pangenome graph from annotated genomes and gene families')
+    parser = argparse.ArgumentParser(prog = "ppanggolin",
+                                     description='Build a partitioned pangenome graph from annotated genomes and gene families', 
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('-?', '--version', action='version', version=__version__)
     parser.add_argument('-o', '--organisms', type=argparse.FileType('r'), nargs=1, metavar=('ORGANISMS_FILE'), help="""
-A tab delimited file containg at least 2 mandatory fields by row and as many optional fields as the number of well assembled circular contigs. Each row correspond to an organism to be added to the pangenome.
-Reserved words are : "id", "label", "name", "weight", "partition", "partition_exact"
-The first field is the organinsm name (id should be unique not contain any spaces, " or ' and reserved words).
-The second field is the gff file associated to the organism. This path can be abolute or relative. The gff file must contain an id feature for each CDS (id should be unique across all pangenome and not contain any spaces, " or ' and reserved words).
-The next fields contain the name of perfectly assembled circular contigs.
-Contig names should be unique and not contain any spaces, quote, double quote and reserved words.
-example:""", required=True)
+    A tab delimited file containg at least 2 mandatory fields by row and as many optional fields as the number of well assembled circular contigs. Each row correspond to an organism to be added to the pangenome.
+    Reserved words are : "id", "label", "name", "weight", "partition", "partition_exact"
+    The first field is the organinsm name (id should be unique not contain any spaces, " or ' and reserved words).
+    The second field is the gff file associated to the organism. This path can be abolute or relative. The gff file must contain an id feature for each CDS (id should be unique across all pangenome and not contain any spaces, " or ' and reserved words).
+    The next fields contain the name of perfectly assembled circular contigs.
+    Contig names should be unique and not contain any spaces, quote, double quote and reserved words.
+    example:""", required=True)
     parser.add_argument('-gf', '--gene_families', type=argparse.FileType('r'), nargs=1, metavar=('FAMILIES_FILE'), help="""
-A tab delimited file containg the gene families. Each row contain 2 fields.
-Reserved words are : "id", "label", "name", "weight", "partition", "partition_exact"
-The first field is the family name.
-The second field is the gene name.
-families are intended to be grouped by chuncks of row.
-the families name can be any string but must should be unique and not contain any spaces, " or ' and reserved words
-As a conventation, it is recommanded to use the name of the most reprensative gene of the families as the family name.
-Gene name can be any string corresponding to the if feature in the gff files. they should be unique and not contain any spaces, " or ' and reserved words.
-example:""",  required=True)
+    A tab delimited file containg the gene families. Each row contain 2 fields.
+    Reserved words are : "id", "label", "name", "weight", "partition", "partition_exact"
+    The first field is the family name.
+    The second field is the gene name.
+    families are intended to be grouped by chuncks of row.
+    the families name can be any string but must should be unique and not contain any spaces, " or ' and reserved words
+    As a conventation, it is recommanded to use the name of the most reprensative gene of the families as the family name.
+    Gene name can be any string corresponding to the if feature in the gff files. they should be unique and not contain any spaces, " or ' and reserved words.
+    example:""",  required=True)
     parser.add_argument('-od', '--output_directory', type=str, nargs=1, default=["output.dir"], metavar=('OUTPUT_DIR'), help="""
-The output directory""")
+    The output directory""")
     parser.add_argument('-f', '--force', action="store_true", help="""
-Force overwriting existing output directory""")
+    Force overwriting existing output directory""")
     parser.add_argument('-r', '--remove_high_copy_number_families', type=int, nargs=1, default=[0], metavar=('REPETITION_THRESHOLD'), help="""
-Remove families having a number of copy of one families above or equal to this threshold in at least one organism (0 or negative value keep all families whatever their occurence). 
-When -u is set, only work on new organisms added""")
+    Remove families having a number of copy of one families above or equal to this threshold in at least one organism (0 or negative value keep all families whatever their occurence). 
+    When -u is set, only work on new organisms added""")
     parser.add_argument('-s', '--infere_singleton', default=False, action="store_true", help="""
-If a gene id found in a gff file is absent of the gene families file, the singleton will be automatically infered as a gene families having a single element. 
-if this argument is not set, the program will raise KeyError exception if a gene id found in a gff file is absent of the gene families file.""")
-#    parser.add_argument("-u", "--update", default = None, type=argparse.FileType('r'), nargs=1, help="""
-# Pangenome Graph to be updated (in gexf format)""")
+    If a gene id found in a gff file is absent of the gene families file, the singleton will be automatically infered as a gene families having a single element. 
+    if this argument is not set, the program will raise KeyError exception if a gene id found in a gff file is absent of the gene families file.""")
+    #    parser.add_argument("-u", "--update", default = None, type=argparse.FileType('r'), nargs=1, help="""
+    # Pangenome Graph to be updated (in gexf format)""")
     parser.add_argument("-b", "--beta_smoothing", default = [-1.00], type=float, nargs=1, metavar=('BETA_VALUE'), help = """
-Coeficient of smoothing all the partionning based on the Markov Random Feild leveraging the weigthed pangenome graph. A positive float, 0.0 means to discard spatial smoothing and 'inf' to find beta automaticaly (increase the computation time) 
-""")
+    Coeficient of smoothing all the partionning based on the Markov Random Feild leveraging the weigthed pangenome graph. A positive float, 0.0 means to discard spatial smoothing and 'inf' to find beta automaticaly (increase the computation time) 
+    """)
     parser.add_argument("-fd", "--free_dispersion", default = False, action="store_true", help = """
-Specify if the dispersion around the centroid vector of each paritition is the same for all the organisms or if the dispersion is free
-""")
+    Specify if the dispersion around the centroid vector of each paritition is the same for all the organisms or if the dispersion is free
+    """)
     parser.add_argument("-df", "--delete_nem_intermediate_files", default=False, action="store_true", help="""
-Delete intermediate files used by NEM. Do not delete these files if you can the gerate plot latter using the generated Rscript""")
+    Delete intermediate files used by NEM. Do not delete these files if you can the gerate plot latter using the generated Rscript""")
     parser.add_argument("-c", "--compress_graph", default=False, action="store_true", help="""
-Compress (using gzip) the file containing the partionned pangenome graph""")
+    Compress (using gzip) the file containing the partionned pangenome graph""")
     parser.add_argument("-ss", "--subpartition_shell", default = 0, type=int, nargs=1, help = """
-Subpartition the shell genome in n subpartition, n can be ajusted automatically if n = -1, 0 desactivate shell genome subpartitioning""")
+    Subpartition the shell genome in n subpartition, n can be ajusted automatically if n = -1, 0 desactivate shell genome subpartitioning""")
     parser.add_argument("-v", "--verbose", default=True, action="store_true", help="""
-Show information message, otherwise only errors and warnings will be displayed""")
+    Show information message, otherwise only errors and warnings will be displayed""")
     parser.add_argument("-vv", "--verbose_debug", default=False, action="store_true", help="""
-Show all messages including debug ones""")
+    Show all messages including debug ones""")
     parser.add_argument("-as", "--already_sorted", default=False, action="store_true", help="""
-Accelerate loading of gff files if there are sorted by the coordinate of gene annotations (starting point) for each contig""")
+    Accelerate loading of gff files if there are sorted by the coordinate of gene annotations (starting point) for each contig""")
     parser.add_argument("-l", "--ligth", default=False, action="store_true", help="""
-Free the memory elements which are no longer used""")
+    Free the memory elements which are no longer used""")
     parser.add_argument("-p", "--plots", default=False, action="store_true", help="""
-Generate Rscript able to draw plots and run it. (required R in the path and the packages ggplot2, ggrepel, data.table and reshape2 to be installed)""")
+    Generate Rscript able to draw plots and run it. (required R in the path and the packages ggplot2, ggrepel, data.table and reshape2 to be installed)""")
     parser.add_argument("-di", "--directed", default=True, action="store_true", help="""
-directed or not directed graph
-""")
+    directed or not directed graph
+    """)
     parser.add_argument("-e", "--evolution", default=False, action="store_true", help="""
-Relaunch the script using less and less organism in order to obtain a curve of the evolution of the pangenome metrics
-""")
+    Relaunch the script using less and less organism in order to obtain a curve of the evolution of the pangenome metrics
+    """)
     parser.add_argument("-ep", "--evolution_resampling_param", type=int, nargs=4, default=[4,10,30,1], metavar=('NB_THREADS','MINIMUN_RESAMPLING','MAXIMUN_RESAMPLING','STEP'), help="""
-1st argument is the number of threads (int) to use to resemple in parallel the pangenome
-2nd argument is the minimun number of resampling for each number of organisms
-3nd argument is the maximun number of resampling for each number of organisms
-4th argument is the step between each number of organisms
-""")
+    1st argument is the number of threads (int) to use to resemple in parallel the pangenome
+    2nd argument is the minimun number of resampling for each number of organisms
+    3nd argument is the maximun number of resampling for each number of organisms
+    4th argument is the step between each number of organisms
+    """)
     parser.add_argument("-pr", "--projection", type = int, nargs = "+", metavar=('LINE_NUMBER_OR_ZERO'), help="""
-Project the graph as a circos plot on each organism.
-Expected parameters are the line number (1 based) of each organism on which the graph will be projected providing a circos plot (well assembled representative organisms must be prefered).
-0 means all organisms (it is discouraged to use -p and -pr 0 in the same time because the projection of the graph on all the organisms can take a long time).
-""")
-
+    Project the graph as a circos plot on each organism.
+    Expected parameters are the line number (1 based) of each organism on which the graph will be projected providing a circos plot (well assembled representative organisms must be prefered).
+    0 means all organisms (it is discouraged to use -p and -pr 0 in the same time because the projection of the graph on all the organisms can take a long time).
+    """)
+    global options
     options = parser.parse_args()
 
     level = logging.WARNING
@@ -395,8 +433,6 @@ Expected parameters are the line number (1 based) of each organism on which the 
 
     logging.basicConfig(stream=sys.stdout, level = level, format = '\n%(asctime)s %(filename)s:l%(lineno)d %(levelname)s\t%(message)s', datefmt='%H:%M:%S')
 
-    
-
     logging.getLogger().info("Command: "+" ".join([arg for arg in sys.argv]))
     logging.getLogger().info("Python version: "+sys.version)
     logging.getLogger().info("Networkx version: "+nx.__version__)
@@ -405,7 +441,9 @@ Expected parameters are the line number (1 based) of each organism on which the 
     NEMOUTPUTDIR    = OUTPUTDIR+"/NEM_results/"
     FIGUREOUTPUTDIR = OUTPUTDIR+"/figures/"
     PROJECTION      = OUTPUTDIR+"/projection/"
+    global EVOLUTION
     EVOLUTION       = OUTPUTDIR+"/evolution/"
+
     list_dir        = [OUTPUTDIR,NEMOUTPUTDIR,FIGUREOUTPUTDIR]
     if options.projection:
         list_dir.append(PROJECTION)
@@ -425,6 +463,7 @@ Expected parameters are the line number (1 based) of each organism on which the 
 
     #-------------
     start_loading_file = time.time()
+    global pan
     pan = PPanGGOLiN("file",
                      options.organisms[0],
                      options.gene_families[0],
@@ -475,7 +514,7 @@ Expected parameters are the line number (1 based) of each organism on which the 
         pan.projection_polar_histogram(PROJECTION, [pan.organisms.__getitem__(index-1) for index in options.projection] if options.projection[0] >   0 else list(pan.organisms))
         end_projection = time.time()
     end_writing_output_file = time.time()
-    
+
     # print(pan.partitions_by_organisms)
     # partitions_by_organisms_file = open(OUTPUTDIR+"/partitions_by_organisms.txt","w")
     # exact_by_organisms_file = open(OUTPUTDIR+"/exacte_by_organisms.txt","w")
@@ -500,52 +539,29 @@ Expected parameters are the line number (1 based) of each organism on which the 
         combinations = organismsCombinations(list(pan.organisms), nbOrgThr=1, sample_thr=RESAMPLING_MAX, sample_min=RESAMPLING_MIN)
         del combinations[pan.nb_organisms]
         del combinations[1]
+        global shuffled_comb
         shuffled_comb = [OrderedSet(comb) for nb_org, combs in combinations.items() for comb in combs if nb_org%STEP == 0]
         random.shuffle(shuffled_comb)
 
-        with open(EVOLUTION_STAT_FILE,"w") as evol:
+        global evol
+        evol =  open(EVOLUTION_STAT_FILE,"w")
 
-            evol.write("nb_org\tpersistent\tshell\tcloud\tcore_exact\taccessory\tpangenome\n")
-            def write_stat(a_pan):#internal function
-                evol.write("\t".join([str(a_pan.nb_organisms),
-                                       str(len(a_pan.partitions["persistent"])),
-                                       str(len(a_pan.partitions["shell"])),
-                                       str(len(a_pan.partitions["cloud"])),
-                                       str(len(a_pan.partitions["core_exact"])),
-                                       str(len(a_pan.partitions["accessory"])),
-                                       str(a_pan.pan_size)])+"\n")
-                evol.flush()
-            
-            def pan_sample(index):#internal function
-                
-                pan_sample = PPanGGOLiN("args",
-                                       {org:pan.annotations[org] for org in shuffled_comb[index]},
-                                       shuffled_comb[index],
-                                       pan.circular_contig_size,
-                                       pan.families_repeted)
+        evol.write("nb_org\tpersistent\tshell\tcloud\tcore_exact\taccessory\tpangenome\n")
+        
+        write_stat(pan)
 
-                pan_sample.neighborhood_computation(options.directed, light=True)
-                pan_sample.partition(EVOLUTION+"/nborg"+str(len(shuffled_comb[index]))+"_"+str(index), options.beta_smoothing[0], options.free_dispersion)
+        with ProcessPoolExecutor(NB_THREADS) as executor:
+            futures = [executor.submit(pan_sample,i) for i in range(len(shuffled_comb))]
 
-                write_stat(pan_sample)
-                evol.flush()
-                
-                pan_sample.delete_pangenome_graph(delete_NEM_files = options.delete_nem_intermediate_files)
-                del pan_sample
-                
+            for f in tqdm(as_completed(futures), total = len(shuffled_comb), unit = 'pangenome resampled',  unit_scale = True):
+                if f.exception() is not None:
+                    logging.getLogger().error(f.exception())
+                    executor.shutdown()
+                    exit(1)
 
-            write_stat(pan)
-
-            with ProcessPoolExecutor(NB_THREADS) as executor:
-                futures = [executor.submit(pan_sample,i) for i in range(len(shuffled_comb))]
-
-                for f in tqdm(as_completed(futures), total = len(shuffled_comb), unit = 'pangenome resampled',  unit_scale = True):
-                    if f.exception() is not None:
-                        logging.getLogger().error(f.exception())
-                        executor.shutdown()
-                        exit(1)
-            end_evolution = time.time()
-            logging.disable(logging.NOTSET)#restaure message info
+        evol.close()
+        end_evolution = time.time()
+        logging.disable(logging.NOTSET)#restaure message info
     #-------------
 
     logging.getLogger().info("\n"+
@@ -559,9 +575,9 @@ Expected parameters are the line number (1 based) of each organism on which the 
     "Total execution time: " +str(round(time.time()-start_loading_file, 2))+" s\n")
 
     logging.getLogger().info("""
-The pangenome computation is complete. 
-Plots will be generated using R (in the directory: """+FIGUREOUTPUTDIR+""").
-If R and the required package (ggplot2, reshape2, ggrepel(>0.6.6), data.table) are not instaled don't worry the R script will be saved in the directory allowing to generate the figures latter""")
+    The pangenome computation is complete. 
+    Plots will be generated using R (in the directory: """+FIGUREOUTPUTDIR+""").
+    If R and the required package (ggplot2, reshape2, ggrepel(>0.6.6), data.table) are not instaled don't worry the R script will be saved in the directory allowing to generate the figures latter""")
 
     plot_Rscript(script_outfile           = OUTPUTDIR+"/generate_plots.R",
                  nem_dir                  = NEMOUTPUTDIR,
@@ -578,3 +594,4 @@ If R and the required package (ggplot2, reshape2, ggrepel(>0.6.6), data.table) a
 
     logging.getLogger().info("Finished !")
     exit(0)
+
