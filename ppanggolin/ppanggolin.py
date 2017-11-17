@@ -19,7 +19,7 @@ import mmap
 
 #import forceatlas2 
 
-NEM_LOCATION  = os.path.dirname(os.path.abspath(__file__))+"/NEM/nem_exe"
+NEM_LOCATION  = os.path.dirname(os.path.abspath(__file__))+"/nem_exe"
 
 (TYPE, FAMILY, START, END, STRAND, NAME, PRODUCT) = range(0, 7)#data index in annotation
 (ORGANISM_ID, ORGANISM_GFF_FILE) = range(0, 2)#data index in the file listing organisms 
@@ -538,7 +538,6 @@ class PPanGGOLiN:
                         except KeyError:
                             pass
                         coverage = cov_sens + cov_antisens
-                        
                     else:
                         distance_score = coverage/self.nb_organisms
                     row_fam.append(str(index[neighbor]))
@@ -609,6 +608,18 @@ class PPanGGOLiN:
         (out,err) = proc.communicate()
         logging.getLogger().debug(out)
         logging.getLogger().debug(err)
+
+        if beta == float('Inf'):
+            with open(nem_dir_path+"/beta_evol.txt", "w") as beta_evol_file:
+                beta_evol_file.write("beta\tM\n")
+                for line in out:
+                    if line.startswith(" * * *  Estimated beta : "):
+                        elements = line.split("=")
+                        if elements[0] == " * * Testing beta ":
+                           beta = float(elements[1].split("*")[0].strip())
+                        elif elements[0] == "  criterion NEM ":
+                            M = float(elements[2].split("/")[0].strip())
+                            beta_evol_file.write(str(beta)+"\t"+str(M)+"\n")
 
         if os.path.isfile(nem_dir_path+"/nem_file.uf"):
             logging.getLogger().info("Reading NEM results...")
