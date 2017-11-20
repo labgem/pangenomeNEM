@@ -318,7 +318,7 @@ def pan_sample(index):
                            pan.circular_contig_size,
                            pan.families_repeted)
 
-    pan_sample.neighborhood_computation(options.directed, light=True)
+    pan_sample.neighborhood_computation(options.undirected, light=True)
     pan_sample.partition(EVOLUTION+"/nborg"+str(len(shuffled_comb[index]))+"_"+str(index), options.beta_smoothing[0], options.free_dispersion)
 
     write_stat(pan_sample)
@@ -395,18 +395,16 @@ def __main__():
     Compress (using gzip) the file containing the partionned pangenome graph""")
     parser.add_argument("-ss", "--subpartition_shell", default = 0, type=int, nargs=1, help = """
     Subpartition the shell genome in n subpartition, n can be ajusted automatically if n = -1, 0 desactivate shell genome subpartitioning""")
-    parser.add_argument("-v", "--verbose", default=True, action="store_true", help="""
-    Show information message, otherwise only errors and warnings will be displayed""")
-    parser.add_argument("-vv", "--verbose_debug", default=False, action="store_true", help="""
+    parser.add_argument("-v", "--verbose", default=False, action="store_true", help="""
     Show all messages including debug ones""")
-    parser.add_argument("-as", "--already_sorted", default=False, action="store_true", help="""
-    Accelerate loading of gff files if there are sorted by the coordinate of gene annotations (starting point) for each contig""")
+    # parser.add_argument("-as", "--already_sorted", default=False, action="store_true", help="""
+    # Accelerate loading of gff files if there are sorted by the coordinate of gene annotations (starting point) for each contig""")
     parser.add_argument("-l", "--ligth", default=False, action="store_true", help="""
     Free the memory elements which are no longer used""")
     parser.add_argument("-p", "--plots", default=False, action="store_true", help="""
     Generate Rscript able to draw plots and run it. (required R in the path and the packages ggplot2, ggrepel, data.table and reshape2 to be installed)""")
-    parser.add_argument("-di", "--directed", default=True, action="store_true", help="""
-    directed or not directed graph
+    parser.add_argument("-ud", "--undirected", default=False, action="store_true", help="""
+    generate undirected graph
     """)
     parser.add_argument("-e", "--evolution", default=False, action="store_true", help="""
     Relaunch the script using less and less organism in order to obtain a curve of the evolution of the pangenome metrics
@@ -425,10 +423,8 @@ def __main__():
     global options
     options = parser.parse_args()
 
-    level = logging.WARNING
+    level = logging.INFO
     if options.verbose:
-        level = logging.INFO
-    if options.verbose_debug:
         level = logging.DEBUG
 
     logging.basicConfig(stream=sys.stdout, level = level, format = '\n%(asctime)s %(filename)s:l%(lineno)d %(levelname)s\t%(message)s', datefmt='%H:%M:%S')
@@ -468,8 +464,7 @@ def __main__():
                      options.organisms[0],
                      options.gene_families[0],
                      options.remove_high_copy_number_families[0],
-                     options.infere_singleton,
-                     options.already_sorted)
+                     options.infere_singleton)
 
     # if options.update is not None:
     #     pan.import_from_GEXF(options.update[0])
@@ -479,7 +474,7 @@ def __main__():
     #-------------
     logging.getLogger().info("Neighborhood Computation...")
     start_neighborhood_computation = time.time()
-    pan.neighborhood_computation(options.directed, options.ligth)
+    pan.neighborhood_computation(options.undirected, options.ligth)
     end_neighborhood_computation = time.time()
     #-------------
 
@@ -595,3 +590,5 @@ def __main__():
     logging.getLogger().info("Finished !")
     exit(0)
 
+if __name__ == "__main__":
+    __main__()
