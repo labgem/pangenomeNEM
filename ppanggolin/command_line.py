@@ -339,6 +339,15 @@ def write_stat(a_pan):#internal function
     evol.flush()
 #### END - NEED TO BE TO LEVEL OF THE MODULE TO ALLOW MULTIPROCESSING
 
+#####test
+
+
+
+
+#####
+
+
+
 def __main__():
     """
     --organims is a tab delimited files containg at least 2 mandatory fields by row and as many optional field as circular contig. Each row correspond to an organism to be added to the pangenome.
@@ -383,7 +392,7 @@ def __main__():
     if this argument is not set, the program will raise KeyError exception if a gene id found in a gff file is absent of the gene families file.""")
     #    parser.add_argument("-u", "--update", default = None, type=argparse.FileType('r'), nargs=1, help="""
     # Pangenome Graph to be updated (in gexf format)""")
-    parser.add_argument("-b", "--beta_smoothing", default = [-1.00], type=float, nargs=1, metavar=('BETA_VALUE'), help = """
+    parser.add_argument("-b", "--beta_smoothing", default = [float("inf")], type=float, nargs=1, metavar=('BETA_VALUE'), help = """
     Coeficient of smoothing all the partionning based on the Markov Random Feild leveraging the weigthed pangenome graph. A positive float, 0.0 means to discard spatial smoothing and 'inf' to find beta automaticaly (increase the computation time) 
     """)
     parser.add_argument("-fd", "--free_dispersion", default = False, action="store_true", help = """
@@ -493,6 +502,32 @@ def __main__():
     #-------------
 
     #-------------
+    th = 50
+
+    cpt_partition = {}
+    for fam in pan.neighbors_graph.node:
+        cpt_partition[fam]= {"persistent":0,"shell":0,"cloud":0}
+
+    cpt = 0
+    validated = set()
+    while(len(validated)<pan.pan_size):
+        sample = pan.sample(n=50)
+        sample.neighborhood_computation(options.undirected, light=True)
+        sample.partition(EVOLUTION+"/"+str(cpt), float(50), options.free_dispersion)#options.beta_smoothing[0]
+        cpt+=1
+        for node,data in pan.neighbors_graph.nodes(data=True):
+            cpt_partition[node][data["partition"]]+=1
+            if sum(cpt_partition[node].values()) > th:
+                validated.add(node)
+
+    for fam, data in cpt_partition.items():
+        pan.neighbors_graph.nodes[fam]["partition_bis"]= max(data, key=data.get)
+
+
+    print(cpt_partition)
+    #-------------
+
+    #-------------
     start_writing_output_file = time.time()
     if options.compress_graph:
         pan.export_to_GEXF(GEXF_GRAPH_FILE+".gz", compressed=True)
@@ -527,7 +562,9 @@ def __main__():
 
     #-------------
     if options.evolution:
+
         logging.getLogger().info("Evolution...")
+
         start_evolution = time.time()
         logging.disable(logging.INFO)# disable message info to not disturb the progess bar
 

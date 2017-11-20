@@ -16,6 +16,7 @@ import tempfile
 import subprocess
 from tqdm import tqdm
 import mmap
+from random import shuffle
 
 #import forceatlas2 
 
@@ -188,7 +189,7 @@ class PPanGGOLiN:
             raise ValueError("init_from parameter is required")
         self.nb_organisms = len(self.organisms)
 
-    def __initialize_from_files(self, organisms_file, families_tsv_file, lim_occurence = 0, infere_singleton = False, already_sorted = False):
+    def __initialize_from_files(self, organisms_file, families_tsv_file, lim_occurence = 0, infere_singleton = False):
         """ 
             :param organisms_file: a file listing organims by compute, first column is organism name, second is path to gff file and optionnally other other to provide the name of circular contig
             :param families_tsv_file: a file listing families. The first element is the family identifier (by convention, we advice to use the identifier of the average gene of the family) and then the next elements are the identifiers of the genes belonging to this family.
@@ -227,21 +228,21 @@ class PPanGGOLiN:
             bar.refresh()
             if len(elements)>2:
                 self.circular_contig_size.update({contig_id: None for contig_id in elements[2:len(elements)]})# size of the circular contig is initialized to None (waiting to read the gff files to fill the dictionnaries with the correct values)
-            self.annotations[elements[0]] = self.__load_gff(elements[ORGANISM_GFF_FILE], families, elements[ORGANISM_ID], lim_occurence, infere_singleton, already_sorted)
+            self.annotations[elements[0]] = self.__load_gff(elements[ORGANISM_GFF_FILE], families, elements[ORGANISM_ID], lim_occurence, infere_singleton)
 
         check_circular_contigs = {contig: size for contig, size in self.circular_contig_size.items() if size == None }
         if len(check_circular_contigs) > 0:
             logging.getLogger().error("""
                 The following identifiers of circular contigs in the file listing organisms have not been found in any region feature of the gff files: """+"\t".join(check_circular_contigs.keys()))
             exit()
-    def __load_gff(self, gff_file_path, families, organism, lim_occurence = 0, infere_singleton = False, already_sorted = False):
+    def __load_gff(self, gff_file_path, families, organism, lim_occurence = 0, infere_singleton = False):
         """
             Load the content of a gff file
             :param gff_file_path: a valid gff file path where only feature of the type 'CDS' will be imported as genes. Each 'CDS' feature must have a uniq ID as attribute (afterall called gene id).
             :param families: a dictionary having the gene as key and the identifier of the associated family as value. Depending on the infere_singleton attribute, singleton must be explicetly present on the dictionary or not
             :param organism: a str containing the organim name
             :param lim_occurence: a int containing the threshold of the maximum number copy of each families. Families exceeding this threshold are removed and are listed in the next attribute.
-            :param lim_occurence: a bool specifying if singleton must be explicitely present in the families parameter (False) or if single gene automatically infered as a singleton family (True)
+            :param infere_singleton: a bool specifying if singleton must be explicitely present in the families parameter (False) or if single gene automatically infered as a singleton family (True)
             :type str: 
             :type dict: 
             :type str: 
@@ -318,9 +319,8 @@ class PPanGGOLiN:
 
                         annot[gff_fields[GFF_seqname]][protein] = ["CDS",family,int(gff_fields[GFF_start]),int(gff_fields[GFF_end]),gff_fields[GFF_strand], name, product]
 
-            if not already_sorted:
-                for seq_id in list(annot):
-                    annot[seq_id] = OrderedDict(sorted(annot[seq_id].items(), key= lambda item: item[1][START]))
+            for seq_id in list(annot):#sort genes by annotation start coordinate
+                annot[seq_id] = OrderedDict(sorted(annot[seq_id].items(), key= lambda item: item[1][START]))
                     
             if (lim_occurence > 0):
                 fam_to_remove =[fam for fam, occ in cpt_fam_occ.items() if occ > lim_occurence]
@@ -414,14 +414,17 @@ class PPanGGOLiN:
         except KeyError:
             self.neighbors_graph[fam_id][fam_id_nei]["length"]=set([length])
 
-    def neighborhood_computation(self, directed = True, light = False):#, untangle_multi_copy_families = False
+    def neighborhood_computation(self, undirected = False, light = False):#, untangle_multi_copy_families = False
         """ Use the information already loaded (annotation) to build the pangenome graph
-            :param directed: a bool specifying if the graph is directed or undirected
+            :param undirected: a bool specifying if the graph is directed or undirected
             :param light: a bool specifying is the annotation attribute must be detroyed at each step to save memory
             :type bool: 
         """ 
         if self.neighbors_graph is None:
-            self.neighbors_graph = nx.Graph()
+            if undirected:
+                self.neighbors_graph = nx.Graph()
+            else:
+                self.neighbors_graph = nx.DiGraph()
         elif self.is_partitionned:
             raise Exception("The pangenome graph is already built and partionned, please use the function delete pangenome graph before build it again")
 
@@ -529,6 +532,7 @@ class PPanGGOLiN:
                     w_2=0
                     coverage = 0
                     if self.neighbors_graph.is_directed():
+                        cov_sens, cov_antisens = (0,0)
                         try:
                             cov_sens = self.neighbors_graph[node_name][neighbor]["weight"]
                         except KeyError:
@@ -539,7 +543,8 @@ class PPanGGOLiN:
                             pass
                         coverage = cov_sens + cov_antisens
                     else:
-                        distance_score = coverage/self.nb_organisms
+                        coverage = self.neighbors_graph[neighbor][node_name]["weight"]
+                    distance_score = coverage/self.nb_organisms
                     row_fam.append(str(index[neighbor]))
                     row_dist_score.append(str(round(distance_score,4)))
                     neighbor_number += 1
@@ -610,16 +615,24 @@ class PPanGGOLiN:
         logging.getLogger().debug(err)
 
         if beta == float('Inf'):
+            starting_heuristic = False
             with open(nem_dir_path+"/beta_evol.txt", "w") as beta_evol_file:
-                beta_evol_file.write("beta\tM\n")
-                for line in out:
-                    if line.startswith(" * * *  Estimated beta : "):
+                
+                for line in str(err).split("\\n"):
+
+                    if not starting_heuristic and line.startswith("* * Starting heuristic * *"):
+                        beta_evol_file.write("beta\tLmix\n")
+                        starting_heuristic = True
+                        continue
+                    if starting_heuristic:
                         elements = line.split("=")
+                        
+                        print(elements)
                         if elements[0] == " * * Testing beta ":
                            beta = float(elements[1].split("*")[0].strip())
                         elif elements[0] == "  criterion NEM ":
-                            M = float(elements[2].split("/")[0].strip())
-                            beta_evol_file.write(str(beta)+"\t"+str(M)+"\n")
+                            Lmix = float(elements[len(elements)-1].strip())
+                            beta_evol_file.write(str(beta)+"\t"+str(Lmix)+"\n")
 
         if os.path.isfile(nem_dir_path+"/nem_file.uf"):
             logging.getLogger().info("Reading NEM results...")
@@ -629,7 +642,6 @@ class PPanGGOLiN:
         classification = ["undefined"] * self.pan_size
         try:
             with open(nem_dir_path+"/nem_file.uf","r") as classification_nem_file, open(nem_dir_path+"/nem_file.mf","r") as parameter_nem_file:
-
                 sum_mu_k = []
                 sum_epsilon_k = []
                 proportion = []
@@ -882,6 +894,22 @@ class PPanGGOLiN:
                                        str(data["length_min"]),
                                        str(data["length_max"])]
                                        +genes)+"\n")
+
+    def sample(self, n = None, organisms = None):
+
+        if organisms is None and n is None:
+            return self
+        elif organisms is None:
+            list_org  = list(self.organisms)
+            shuffle(list_org)
+            organisms = list_org[0:n]
+
+        return PPanGGOLiN("args",
+                          {org:self.annotations[org] for org in organisms},
+                           OrderedSet(organisms),
+                           self.circular_contig_size,
+                           self.families_repeted)
+
 
     def delete_pangenome_graph(self, delete_NEM_files = False):
         """
