@@ -10,6 +10,7 @@ from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 import sys
 import networkx as nx
+from ordered_set import OrderedSet
 
 from ppanggolin import *
 
@@ -174,8 +175,6 @@ library("data.table")
 
 if (file.exists("{evoltion_dir}/stat_evol.txt")){{
     data <- read.table("{evoltion_dir}/stat_evol.txt", header = TRUE)
-
-
     data <- melt(data, id = "nb_org")
     colnames(data) <- c("nb_org","partition","value")
 
@@ -303,49 +302,33 @@ for (org_csv in list.files(path = "{projection_dir}", pattern = "*.csv$")){{
         proc = subprocess.Popen("Rscript "+script_outfile, shell=True)
         proc.communicate()
 
-#### START - NEED TO BE TO LEVEL OF THE MODULE TO ALLOW MULTIPROCESSING
+#### START - NEED TO BE AT THE HIGHEST LEVEL OF THE MODULE TO ALLOW MULTIPROCESSING
 shuffled_comb = []
 evol = None
 pan = None
 options = None
 EVOLUTION = None
-def pan_sample(index):
+
+def resample(index):
     global shuffled_comb
+
+    stats = pan.partition(EVOLUTION+"/nborg"+str(len(shuffled_comb[index]))+"_"+str(index),
+                          options.beta_smoothing[0],
+                          options.free_dispersion,
+                          shuffled_comb[index],
+                          False,
+                          True)
     
-    pan_sample = PPanGGOLiN("args",
-                {org:pan.annotations[org] for org in shuffled_comb[index]},
-                           shuffled_comb[index],
-                           pan.circular_contig_size,
-                           pan.families_repeted)
-
-    pan_sample.neighborhood_computation(options.undirected, light=True)
-    pan_sample.partition(EVOLUTION+"/nborg"+str(len(shuffled_comb[index]))+"_"+str(index), options.beta_smoothing[0], options.free_dispersion)
-
-    write_stat(pan_sample)
+    evol.write("\t".join([str(len(shuffled_comb[index])),
+                          str(stats["persistent"]) if stats["undefined"] == 0 else "NA",
+                          str(stats["shell"]) if stats["undefined"] == 0 else "NA",
+                          str(stats["cloud"]) if stats["undefined"] == 0 else "NA",
+                          str(stats["core_exact"]),
+                          str(stats["accessory"]),
+                          str(stats["core_exact"]+stats["accessory"])])+"\n")
     evol.flush()
-    
-    pan_sample.delete_pangenome_graph(delete_NEM_files = options.delete_nem_intermediate_files)
-    del pan_sample
 
-def write_stat(a_pan):#internal function
-    global evol
-    evol.write("\t".join([str(a_pan.nb_organisms),
-                           str(len(a_pan.partitions["persistent"])),
-                           str(len(a_pan.partitions["shell"])),
-                           str(len(a_pan.partitions["cloud"])),
-                           str(len(a_pan.partitions["core_exact"])),
-                           str(len(a_pan.partitions["accessory"])),
-                           str(a_pan.pan_size)])+"\n")
-    evol.flush()
-#### END - NEED TO BE TO LEVEL OF THE MODULE TO ALLOW MULTIPROCESSING
-
-#####test
-
-
-
-
-#####
-
+#### END - NEED TO BE AT THE HIGHEST LEVEL OF THE MODULE TO ALLOW MULTIPROCESSING
 
 
 def __main__():
@@ -393,7 +376,7 @@ def __main__():
     #    parser.add_argument("-u", "--update", default = None, type=argparse.FileType('r'), nargs=1, help="""
     # Pangenome Graph to be updated (in gexf format)""")
     parser.add_argument("-b", "--beta_smoothing", default = [float("inf")], type=float, nargs=1, metavar=('BETA_VALUE'), help = """
-    Coeficient of smoothing all the partionning based on the Markov Random Feild leveraging the weigthed pangenome graph. A positive float, 0.0 means to discard spatial smoothing and 'inf' to find beta automaticaly (increase the computation time) 
+    Coeficient of smoothing all the partionning based on the Markov Random Feild leveraging the weigthed pangenome graph. A positive float, 0.0 means to discard spatial smoothing and 1.00 means strong smoothing (can be more but it is not advised), 0.5 is generally advised as a good trad off.
     """)
     parser.add_argument("-fd", "--free_dispersion", default = False, action="store_true", help = """
     Specify if the dispersion around the centroid vector of each paritition is the same for all the organisms or if the dispersion is free
@@ -502,29 +485,29 @@ def __main__():
     #-------------
 
     #-------------
-    th = 50
+    # th = 100
 
-    cpt_partition = {}
-    for fam in pan.neighbors_graph.node:
-        cpt_partition[fam]= {"persistent":0,"shell":0,"cloud":0}
+    # cpt_partition = {}
+    # for fam in pan.neighbors_graph.node:
+    #     cpt_partition[fam]= {"persistent":0,"shell":0,"cloud":0}
 
-    cpt = 0
-    validated = set()
-    while(len(validated)<pan.pan_size):
-        sample = pan.sample(n=50)
-        sample.neighborhood_computation(options.undirected, light=True)
-        sample.partition(EVOLUTION+"/"+str(cpt), float(50), options.free_dispersion)#options.beta_smoothing[0]
-        cpt+=1
-        for node,data in pan.neighbors_graph.nodes(data=True):
-            cpt_partition[node][data["partition"]]+=1
-            if sum(cpt_partition[node].values()) > th:
-                validated.add(node)
+    # cpt = 0
+    # validated = set()
+    # while(len(validated)<pan.pan_size):
+    #     sample = pan.sample(n=100)
+    #     sample.neighborhood_computation(options.undirected, light=True)
+    #     sample.partition(EVOLUTION+"/"+str(cpt), float(50), options.free_dispersion)#options.beta_smoothing[0]
+    #     cpt+=1
+    #     for node,data in pan.neighbors_graph.nodes(data=True):
+    #         cpt_partition[node][data["partition"]]+=1
+    #         if sum(cpt_partition[node].values()) > th:
+    #             validated.add(node)
 
-    for fam, data in cpt_partition.items():
-        pan.neighbors_graph.nodes[fam]["partition_bis"]= max(data, key=data.get)
+    # for fam, data in cpt_partition.items():
+    #     pan.neighbors_graph.nodes[fam]["partition_bis"]= max(data, key=data.get)
 
 
-    print(cpt_partition)
+    # print(cpt_partition)
     #-------------
 
     #-------------
@@ -579,19 +562,26 @@ def __main__():
         evol =  open(EVOLUTION_STAT_FILE,"w")
 
         evol.write("nb_org\tpersistent\tshell\tcloud\tcore_exact\taccessory\tpangenome\n")
-        
-        write_stat(pan)
+        evol.write("\t".join([str(pan.nb_organisms),
+                                      str(len(pan.partitions["persistent"])),
+                                      str(len(pan.partitions["shell"])),
+                                      str(len(pan.partitions["cloud"])),
+                                      str(len(pan.partitions["core_exact"])),
+                                      str(len(pan.partitions["accessory"])),
+                                      str(len(pan.partitions["accessory"])+len(pan.partitions["core_exact"]))])+"\n")
+        evol.flush()
 
         with ProcessPoolExecutor(NB_THREADS) as executor:
-            futures = [executor.submit(pan_sample,i) for i in range(len(shuffled_comb))]
+            futures = [executor.submit(resample,i) for i in range(len(shuffled_comb))]
 
             for f in tqdm(as_completed(futures), total = len(shuffled_comb), unit = 'pangenome resampled',  unit_scale = True):
                 if f.exception() is not None:
                     logging.getLogger().error(f.exception())
-                    executor.shutdown()
+                    executor.shutdown(wait=False)
                     exit(1)
 
         evol.close()
+
         end_evolution = time.time()
         logging.disable(logging.NOTSET)#restaure message info
     #-------------
