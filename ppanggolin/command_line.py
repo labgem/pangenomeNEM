@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 # -*- coding: iso-8859-1 -*-
 
 import argparse
@@ -318,7 +318,7 @@ def resample(index):
                           shuffled_comb[index],
                           False,
                           True)
-    
+
     evol.write("\t".join([str(len(shuffled_comb[index])),
                           str(stats["persistent"]) if stats["undefined"] == 0 else "NA",
                           str(stats["shell"]) if stats["undefined"] == 0 else "NA",
@@ -383,8 +383,10 @@ def __main__():
     """)
     parser.add_argument("-df", "--delete_nem_intermediate_files", default=False, action="store_true", help="""
     Delete intermediate files used by NEM. Do not delete these files if you can the gerate plot latter using the generated Rscript""")
-    parser.add_argument("-c", "--compress_graph", default=False, action="store_true", help="""
+    parser.add_argument("-cg", "--compress_graph", default=False, action="store_true", help="""
     Compress (using gzip) the file containing the partionned pangenome graph""")
+    parser.add_argument("-c", "--cpu", default=[1],  type=int, nargs=1, help="""
+    Number of cpu to use""")
     parser.add_argument("-ss", "--subpartition_shell", default = 0, type=int, nargs=1, help = """
     Subpartition the shell genome in n subpartition, n can be ajusted automatically if n = -1, 0 desactivate shell genome subpartitioning""")
     parser.add_argument("-v", "--verbose", default=False, action="store_true", help="""
@@ -401,11 +403,10 @@ def __main__():
     parser.add_argument("-e", "--evolution", default=False, action="store_true", help="""
     Relaunch the script using less and less organism in order to obtain a curve of the evolution of the pangenome metrics
     """)
-    parser.add_argument("-ep", "--evolution_resampling_param", type=int, nargs=4, default=[4,10,30,1], metavar=('NB_THREADS','MINIMUN_RESAMPLING','MAXIMUN_RESAMPLING','STEP'), help="""
-    1st argument is the number of threads (int) to use to resemple in parallel the pangenome
-    2nd argument is the minimun number of resampling for each number of organisms
-    3nd argument is the maximun number of resampling for each number of organisms
-    4th argument is the step between each number of organisms
+    parser.add_argument("-ep", "--evolution_resampling_param", type=int, nargs=4, default=[10,30,1], metavar=('NB_THREADS','MINIMUN_RESAMPLING','MAXIMUN_RESAMPLING','STEP'), help="""
+    1st argument is the minimun number of resampling for each number of organisms
+    2nd argument is the maximun number of resampling for each number of organisms
+    3rd argument is the step between each number of organisms
     """)
     parser.add_argument("-pr", "--projection", type = int, nargs = "+", metavar=('LINE_NUMBER_OR_ZERO'), help="""
     Project the graph as a circos plot on each organism.
@@ -438,7 +439,7 @@ def __main__():
     if options.evolution:
         list_dir.append(EVOLUTION)
         EVOLUTION_STAT_FILE = EVOLUTION+"/"+"stat_evol.txt"
-        (NB_THREADS, RESAMPLING_MIN, RESAMPLING_MAX, STEP) = options.evolution_resampling_param
+        (RESAMPLING_MIN, RESAMPLING_MAX, STEP) = options.evolution_resampling_param
     for directory in list_dir:
         if not os.path.exists(directory):
             os.makedirs(directory)
@@ -473,7 +474,7 @@ def __main__():
     #-------------
     logging.getLogger().info("Partionning...")
     start_partitioning = time.time()
-    pan.partition(nem_dir_path = NEMOUTPUTDIR, beta = options.beta_smoothing[0], free_dispersion = options.free_dispersion)
+    pan.partition(nem_dir_path = NEMOUTPUTDIR, beta = options.beta_smoothing[0], free_dispersion = options.free_dispersion, nb_process = options.cpu[0])
     end_partitioning = time.time()
     #-------------
 
@@ -571,7 +572,7 @@ def __main__():
                                       str(len(pan.partitions["accessory"])+len(pan.partitions["core_exact"]))])+"\n")
         evol.flush()
 
-        with ProcessPoolExecutor(NB_THREADS) as executor:
+        with ProcessPoolExecutor(options.cpu[0]) as executor:
             futures = [executor.submit(resample,i) for i in range(len(shuffled_comb))]
 
             for f in tqdm(as_completed(futures), total = len(shuffled_comb), unit = 'pangenome resampled',  unit_scale = True):

@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 # -*- coding: iso-8859-1 -*-
 
 from collections import defaultdict, OrderedDict
@@ -18,7 +18,7 @@ from tqdm import tqdm
 import mmap
 from random import sample
 
-from pathos.threading import ThreadPool
+from multiprocessing import Pool
 
 #import forceatlas2 
 
@@ -477,7 +477,7 @@ class PPanGGOLiN:
 
         self.pan_size = nx.number_of_nodes(self.neighbors_graph)
 
-    def partition(self, nem_dir_path = tempfile.mkdtemp(), beta = 1.00, free_dispersion = False, organisms = None, inplace = True, just_stats = False, nb_threads = 1):#tempfile.mkdtemp()
+    def partition(self, nem_dir_path = tempfile.mkdtemp(), beta = 1.00, free_dispersion = False, organisms = None, inplace = True, just_stats = False, nb_process = 1):#tempfile.mkdtemp()
         """
             Use the graph topology and the presence or absence of genes from each organism into families to partition the pangenome in three groups ('persistent', 'shell' and 'cloud')
             . seealso:: Read the Mo Dang's thesis to understand NEM and Bernouilli Mixture Model, a summary is available here : http://www.kybernetika.cz/content/1998/4/393/paper.pdf
@@ -534,31 +534,20 @@ class PPanGGOLiN:
             cpt=0
             total_BIC = 0
 
-            pool=None
-            if nb_threads>1:
-                pool = ThreadPool(nodes=nb_threads)
-
             while len(validated)<(stats["accessory"]+stats["core_exact"]):
                 results = []
-                if pool:
-                    results = pool.imap(self.partition,
-                                        [nem_dir_path+"/"+str(i)+"/" for i in range(cpt, cpt+nb_threads)],
-                                        [beta]*nb_threads,
-                                        [free_dispersion]*nb_threads,
-                                        [sample(organisms,NEM_NB_MAX_VARIABLE)]*nb_threads,
-                                        [False]*nb_threads)
-                else:
-                    results.append(self.partition(nem_dir_path+"/"+str(cpt)+"/",beta,free_dispersion,sample(organisms,NEM_NB_MAX_VARIABLE),False))
-                
-                cpt+=nb_threads
-                for result in results:
-                    (BIC, partitions) = result
-                    total_BIC += BIC
-                    for node,nem_class in partitions.items():
-                        cpt_partition[node][nem_class]+=1
-                        sum_partionning = sum(cpt_partition[node].values()) 
-                        if sum_partionning > len(organisms)/NEM_NB_MAX_VARIABLE and max(cpt_partition[node].values()) > sum_partionning*0.5:
-                            validated.add(node)
+                with Pool(nb_process) as pool:
+                    results = pool.starmap(self.partition,
+                                          [[nem_dir_path+"/"+str(i)+"/",beta,free_dispersion,sample(organisms,NEM_NB_MAX_VARIABLE),False] for i in range(cpt, cpt+nb_process)])
+                    cpt+=nb_process
+                    for result in results:
+                        (BIC, partitions) = result
+                        total_BIC += BIC
+                        for node,nem_class in partitions.items():
+                            cpt_partition[node][nem_class]+=1
+                            sum_partionning = sum(cpt_partition[node].values()) 
+                            if sum_partionning > len(organisms)/NEM_NB_MAX_VARIABLE and max(cpt_partition[node].values()) > sum_partionning*0.5:
+                                validated.add(node)
 
             classification = list()
             for fam, data in cpt_partition.items():
@@ -679,7 +668,7 @@ class PPanGGOLiN:
             logging.getLogger().info(command)
 
             proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE if logging.getLogger().getEffectiveLevel() == logging.INFO else None,
-                                                         stderr=subprocess.PIPE if logging.getLogger().getEffectiveLevel() == logging.INFO else None)
+                                                        stderr=subprocess.PIPE if logging.getLogger().getEffectiveLevel() == logging.INFO else None)
             (out,err) = proc.communicate()
             with open(nem_dir_path+"/out.txt", "wb") as file_out, open(nem_dir_path+"/err.txt", "wb") as file_err:
                 file_out.write(out)
