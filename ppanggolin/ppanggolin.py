@@ -24,7 +24,7 @@ from multiprocessing import Pool, Manager, Semaphore
 
 NEM_LOCATION  = os.path.dirname(os.path.abspath(__file__))+"/nem_exe"
 
-NEM_NB_MAX_VARIABLE = 50
+NEM_NB_MAX_VARIABLE = 100
 
 (TYPE, FAMILY, START, END, STRAND, NAME, PRODUCT) = range(0, 7)#data index in annotation
 (ORGANISM_ID, ORGANISM_GFF_FILE) = range(0, 2)#data index in the file listing organisms 
@@ -525,29 +525,26 @@ class PPanGGOLiN:
                         elif True in compressed_vector:# if size = 1 and contains just True, then core_exact
                             stats["core_exact"]+=1
 
-        BIC = None
+        BIC = 0
 
         if len(organisms) > NEM_NB_MAX_VARIABLE:
 
             cpt_partition = OrderedDict()
             for fam in self.neighbors_graph.nodes():
                 cpt_partition[fam]= {"persistent":0,"shell":0,"cloud":0,"unclassified":0}
-
             
-            #total = 0
+            total_BIC = 0
             with Pool(nb_process) as pool:
                 sem = Semaphore(nb_process)
 
                 validated = set()
                 cpt=0
-                # total_BIC = 0
 
                 def validate_family(result):
+                    nonlocal total_BIC
                     try :
-                        global total_BIC
                         (BIC, partitions) = result
-                        # print(BIC)
-                        # total_BIC += BIC
+                        total_BIC += BIC
                         for node,nem_class in partitions.items():
                             cpt_partition[node][nem_class]+=1
                             sum_partionning = sum(cpt_partition[node].values()) 
@@ -569,7 +566,7 @@ class PPanGGOLiN:
                     else:
                         time.sleep(0.5)
 
-                #BIC = total_BIC/cpt
+                BIC = total_BIC/cpt
             classification = list()
             for fam, data in cpt_partition.items():
                 classification.append(max(data, key=data.get))
@@ -717,6 +714,8 @@ class PPanGGOLiN:
             else:
                 logging.getLogger().error("No NEM output file found: "+ nem_dir_path+"/nem_file.uf")
 
+            
+            
             classification = ["undefined"] * len(index_fam)
             try:
                 with open(nem_dir_path+"/nem_file.uf","r") as classification_nem_file, open(nem_dir_path+"/nem_file.mf","r") as parameter_nem_file:
@@ -844,7 +843,7 @@ class PPanGGOLiN:
                     stats[nem_class]+=1
                 return stats
             else:
-                return (float(BIC),dict(zip(index_fam.keys(), classification)))
+                return (BIC,dict(zip(index_fam.keys(), classification)))
 
     def export_to_GEXF(self, graph_output_path, all_node_attributes = False, compressed=False):
         """

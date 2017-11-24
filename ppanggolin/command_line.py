@@ -54,13 +54,13 @@ def samplingCombinations(items, sample_thr, sample_min):
         samplingCombinationList = defaultdict(list)
         item_size = len(items)
         combTotNb = combinationTotalNb(item_size)
-        combTotNb = float(combTotNb) if sys.float_info.max < combTotNb else float(sys.float_info.max)
+        combTotNb = float(combTotNb) if combTotNb < sys.float_info.max else float(sys.float_info.max)
         sample_coeff = (combTotNb/sample_thr)
         for k in range(1,item_size+1):
                 tmp_comb = []
                 combNb = combinationNb(k,item_size)
-                combNb = float(combTotNb) if sys.float_info.max < combTotNb else float(sys.float_info.max)
-                combNb_sample = math.ceil(float(combNb)/sample_coeff)
+                combNb = float(combNb) if combNb < sys.float_info.max else float(sys.float_info.max)
+                combNb_sample = math.ceil(combNb/sample_coeff)
                 # Plus petit echantillonage possible pour un k donné = sample_min
                 if ((combNb_sample < sample_min) and k != item_size):
                         combNb_sample = sample_min
@@ -312,6 +312,7 @@ options = None
 EVOLUTION = None
 
 def resample(index):
+    print(index)
     global shuffled_comb
 
     stats = pan.partition(EVOLUTION+"/nborg"+str(len(shuffled_comb[index]))+"_"+str(index),
@@ -423,9 +424,6 @@ def __main__():
         level = logging.DEBUG
 
     logging.basicConfig(stream=sys.stdout, level = level, format = '\n%(asctime)s %(filename)s:l%(lineno)d %(levelname)s\t%(message)s', datefmt='%H:%M:%S')
-
-    import multiprocessing_logging
-    multiprocessing_logging.install_mp_handler()
 
     logging.getLogger().info("Command: "+" ".join([arg for arg in sys.argv]))
     logging.getLogger().info("Python version: "+sys.version)
