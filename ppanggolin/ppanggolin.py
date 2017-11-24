@@ -17,8 +17,8 @@ import subprocess
 from tqdm import tqdm
 import mmap
 from random import sample
-
-from multiprocessing import Pool
+import time
+from multiprocessing import Pool, Manager, Semaphore
 
 #import forceatlas2 
 
@@ -494,6 +494,7 @@ class PPanGGOLiN:
 
             .. warning:: please use the function neighborhoodComputation before
         """ 
+        
         if organisms is None:
             organisms = self.organisms
         else:
@@ -524,36 +525,54 @@ class PPanGGOLiN:
                         elif True in compressed_vector:# if size = 1 and contains just True, then core_exact
                             stats["core_exact"]+=1
 
+        BIC = None
+
         if len(organisms) > NEM_NB_MAX_VARIABLE:
 
             cpt_partition = OrderedDict()
             for fam in self.neighbors_graph.nodes():
                 cpt_partition[fam]= {"persistent":0,"shell":0,"cloud":0,"unclassified":0}
 
-            validated = set()
-            cpt=0
-            total_BIC = 0
+            
+            #total = 0
+            with Pool(nb_process) as pool:
+                sem = Semaphore(nb_process)
 
-            while len(validated)<(stats["accessory"]+stats["core_exact"]):
-                results = []
-                with Pool(nb_process) as pool:
-                    results = pool.starmap(self.partition,
-                                          [[nem_dir_path+"/"+str(i)+"/",beta,free_dispersion,sample(organisms,NEM_NB_MAX_VARIABLE),False] for i in range(cpt, cpt+nb_process)])
-                    cpt+=nb_process
-                    for result in results:
+                validated = set()
+                cpt=0
+                # total_BIC = 0
+
+                def validate_family(result):
+                    try :
+                        global total_BIC
                         (BIC, partitions) = result
-                        total_BIC += BIC
+                        # print(BIC)
+                        # total_BIC += BIC
                         for node,nem_class in partitions.items():
                             cpt_partition[node][nem_class]+=1
                             sum_partionning = sum(cpt_partition[node].values()) 
                             if sum_partionning > len(organisms)/NEM_NB_MAX_VARIABLE and max(cpt_partition[node].values()) > sum_partionning*0.5:
                                 validated.add(node)
+                    finally:
+                        sem.release()
+                
+                while len(validated)<(stats["accessory"]+stats["core_exact"]):
+                    if sem.acquire():
+                        res = pool.apply_async(self.partition,
+                                               args = (nem_dir_path+"/"+str(cpt)+"/",
+                                                     beta,
+                                                     free_dispersion,
+                                                     sample(organisms,NEM_NB_MAX_VARIABLE),
+                                                     False),
+                                               callback = validate_family)
+                        cpt +=1
+                    else:
+                        time.sleep(0.5)
 
+                #BIC = total_BIC/cpt
             classification = list()
             for fam, data in cpt_partition.items():
                 classification.append(max(data, key=data.get))
-
-            BIC = total_BIC/cpt
         else:
 
             logging.getLogger().info("Writing nem_file.str nem_file.index nem_file.nei nem_file.dat and nem_file.m files")
@@ -698,8 +717,6 @@ class PPanGGOLiN:
             else:
                 logging.getLogger().error("No NEM output file found: "+ nem_dir_path+"/nem_file.uf")
 
-            
-            BIC = None
             classification = ["undefined"] * len(index_fam)
             try:
                 with open(nem_dir_path+"/nem_file.uf","r") as classification_nem_file, open(nem_dir_path+"/nem_file.mf","r") as parameter_nem_file:
@@ -827,7 +844,7 @@ class PPanGGOLiN:
                     stats[nem_class]+=1
                 return stats
             else:
-                return (BIC,dict(zip(index_fam.keys(), classification)))
+                return (float(BIC),dict(zip(index_fam.keys(), classification)))
 
     def export_to_GEXF(self, graph_output_path, all_node_attributes = False, compressed=False):
         """

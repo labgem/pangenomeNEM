@@ -54,10 +54,12 @@ def samplingCombinations(items, sample_thr, sample_min):
         samplingCombinationList = defaultdict(list)
         item_size = len(items)
         combTotNb = combinationTotalNb(item_size)
-        sample_coeff = (float(combTotNb)/sample_thr)
+        combTotNb = float(combTotNb) if sys.float_info.max < combTotNb else float(sys.float_info.max)
+        sample_coeff = (combTotNb/sample_thr)
         for k in range(1,item_size+1):
                 tmp_comb = []
                 combNb = combinationNb(k,item_size)
+                combNb = float(combTotNb) if sys.float_info.max < combTotNb else float(sys.float_info.max)
                 combNb_sample = math.ceil(float(combNb)/sample_coeff)
                 # Plus petit echantillonage possible pour un k donné = sample_min
                 if ((combNb_sample < sample_min) and k != item_size):
@@ -385,7 +387,7 @@ def __main__():
     Delete intermediate files used by NEM. Do not delete these files if you can the gerate plot latter using the generated Rscript""")
     parser.add_argument("-cg", "--compress_graph", default=False, action="store_true", help="""
     Compress (using gzip) the file containing the partionned pangenome graph""")
-    parser.add_argument("-c", "--cpu", default=[1],  type=int, nargs=1, help="""
+    parser.add_argument("-c", "--cpu", default=[1],  type=int, nargs=1, metavar=('NB_CPU'), help="""
     Number of cpu to use""")
     parser.add_argument("-ss", "--subpartition_shell", default = 0, type=int, nargs=1, help = """
     Subpartition the shell genome in n subpartition, n can be ajusted automatically if n = -1, 0 desactivate shell genome subpartitioning""")
@@ -403,7 +405,7 @@ def __main__():
     parser.add_argument("-e", "--evolution", default=False, action="store_true", help="""
     Relaunch the script using less and less organism in order to obtain a curve of the evolution of the pangenome metrics
     """)
-    parser.add_argument("-ep", "--evolution_resampling_param", type=int, nargs=4, default=[10,30,1], metavar=('NB_THREADS','MINIMUN_RESAMPLING','MAXIMUN_RESAMPLING','STEP'), help="""
+    parser.add_argument("-ep", "--evolution_resampling_param", type=int, nargs=3, default=[10,30,1], metavar=('MINIMUN_RESAMPLING','MAXIMUN_RESAMPLING','STEP'), help="""
     1st argument is the minimun number of resampling for each number of organisms
     2nd argument is the maximun number of resampling for each number of organisms
     3rd argument is the step between each number of organisms
@@ -421,6 +423,9 @@ def __main__():
         level = logging.DEBUG
 
     logging.basicConfig(stream=sys.stdout, level = level, format = '\n%(asctime)s %(filename)s:l%(lineno)d %(levelname)s\t%(message)s', datefmt='%H:%M:%S')
+
+    import multiprocessing_logging
+    multiprocessing_logging.install_mp_handler()
 
     logging.getLogger().info("Command: "+" ".join([arg for arg in sys.argv]))
     logging.getLogger().info("Python version: "+sys.version)
@@ -472,9 +477,14 @@ def __main__():
     #-------------
 
     #-------------
-    logging.getLogger().info("Partionning...")
+    logging.getLogger().info("Partitionning...")
     start_partitioning = time.time()
-    pan.partition(nem_dir_path = NEMOUTPUTDIR, beta = options.beta_smoothing[0], free_dispersion = options.free_dispersion, nb_process = options.cpu[0])
+    pan.partition(nem_dir_path = NEMOUTPUTDIR,
+                  beta = options.beta_smoothing[0],
+                  organisms = None,
+                  free_dispersion = options.free_dispersion,
+                  inplace = True,
+                  nb_process = options.cpu[0])
     end_partitioning = time.time()
     #-------------
 
