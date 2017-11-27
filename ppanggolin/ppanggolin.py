@@ -10,7 +10,7 @@ import math
 import logging
 import shutil
 import gzip
-import numpy as np
+#import numpy as np
 #import community
 import tempfile
 import subprocess
@@ -23,9 +23,7 @@ from multiprocessing import Pool, Manager, Semaphore
 #import forceatlas2 
 
 NEM_LOCATION  = os.path.dirname(os.path.abspath(__file__))+"/nem_exe"
-
-NEM_NB_MAX_VARIABLE = 100
-
+NEM_NB_MAX_VARIABLE = 20
 (TYPE, FAMILY, START, END, STRAND, NAME, PRODUCT) = range(0, 7)#data index in annotation
 (ORGANISM_ID, ORGANISM_GFF_FILE) = range(0, 2)#data index in the file listing organisms 
 
@@ -33,7 +31,9 @@ NEM_NB_MAX_VARIABLE = 100
 
 RESERVED_WORDS = set(["id", "label", "name", "weight", "partition", "partition_exact", "length", "length_min", "length_max", "length_avg", "length_avg", "product", 'nb_gene', 'community'])
 
-"""  
+SHORT_TO_LONG = {'A':'accessory','CE':'core_exact','P':'persistent','S':'shell','C':'cloud','U':'undefined'}
+
+"""
     :mod:`ppanggolin` -- Depict microbial diversity
 ===================================
 
@@ -45,8 +45,8 @@ RESERVED_WORDS = set(["id", "label", "name", "weight", "partition", "partition_e
     Description
     -------------------
     Pangenomes are generally stored in a binary matrix denoting the presence or absence of each gene family across organisms. However, this structure does not handle the genomic organization of gene families in each organism. We propose a graph model where nodes represent families and edges chromosomal neighborhood information. Indeed, it is known that core gene families share conserved organizations whereas variable regions are rather randomly distributed along genomes.
-Moreover, our method classifies gene families through an Expectation/Maximization algorithm based on Bernoulli mixture model. This approach splits pangenomes in three groups: (1) persistent genome, equivalent to a relaxed core genome (genes conserved in all but a few genomes); (2) shell genome, genes having intermediate frequencies corresponding to moderately conserved genes potentially associated to environmental adaptation capabilities; (3) cloud genome, genes found at very low frequency.
 
+Moreover, our method classifies gene families through an Expectation/Maximization algorithm based on Bernoulli mixture model. This approach splits pangenomes in three groups: (1) persistent genome, equivalent to a relaxed core genome (genes conserved in all but a few genomes); (2) shell genome, genes having intermediate frequencies corresponding to moderately conserved genes potentially associated to environmental adaptation capabilities; (3) cloud genome, genes found at very low frequency.
 """ 
 
 class PPanGGOLiN:
@@ -117,6 +117,7 @@ class PPanGGOLiN:
                     * partitions["persistent"] contains the list of persistent families
                     * partitions["shell"] contains the list of shell families
                     * partitions["cloud"] contains the list of cloud families
+                    * partitions["undefined"] contains the list of families unable to be classified (probably because the number of organisms is too small)
 
             .. attribute:: BIC
 
@@ -159,6 +160,7 @@ class PPanGGOLiN:
             >>>pan = PPanGGOLiN("file", organisms, gene_families, remove_high_copy_number_families)
             >>>pan = PPanGGOLiN("args", annotations, organisms, circular_contig_size, families_repeted)# load direclty the main attributes
         """ 
+        self.undirected               = False
         self.annotations              = dict()
         self.neighbors_graph          = None
         self.organisms                = OrderedSet()
@@ -185,7 +187,8 @@ class PPanGGOLiN:
             (self.annotations,
              self.organisms,
              self.circular_contig_size,
-             self.families_repeted) = args 
+             self.families_repeted,
+             self.undirected) = args 
         elif init_from == "database":
             logging.getLogger().error("database is not yet implemented")
             pass
@@ -193,17 +196,24 @@ class PPanGGOLiN:
             raise ValueError("init_from parameter is required")
         self.nb_organisms = len(self.organisms)
 
-    def __initialize_from_files(self, organisms_file, families_tsv_file, lim_occurence = 0, infere_singleton = False):
+        logging.getLogger().info("Computing gene neighborhood ...")
+        self.__neighborhood_computation(undirected = self.undirected)
+
+    def __initialize_from_files(self, organisms_file, families_tsv_file, lim_occurence = 0, infere_singleton = False, undirected = False):
         """ 
             :param organisms_file: a file listing organims by compute, first column is organism name, second is path to gff file and optionnally other other to provide the name of circular contig
             :param families_tsv_file: a file listing families. The first element is the family identifier (by convention, we advice to use the identifier of the average gene of the family) and then the next elements are the identifiers of the genes belonging to this family.
             :param lim_occurence: a int containing the threshold of the maximum number copy of each families. Families exceeding this threshold are removed and are listed in the next attribute.
             :param infere_singleton: a bool specifying if singleton must be explicitely present in the families_tsv_file (False) or if single gene in gff files must be automatically infered as a singleton family (True)
+            :param undirected: a bool specifying if the pangenome graph is undirected or directed
             :type file: 
             :type file: 
             :type int: 
             :type bool: 
+            :type bool: 
         """ 
+        self.undirected = undirected
+
         logging.getLogger().info("Reading "+families_tsv_file.name+" families file ...")
         families    = dict()
         first_iter  = True
@@ -239,6 +249,9 @@ class PPanGGOLiN:
             logging.getLogger().error("""
                 The following identifiers of circular contigs in the file listing organisms have not been found in any region feature of the gff files: """+"\t".join(check_circular_contigs.keys()))
             exit()
+
+        
+
     def __load_gff(self, gff_file_path, families, organism, lim_occurence = 0, infere_singleton = False):
         """
             Load the content of a gff file
@@ -418,7 +431,7 @@ class PPanGGOLiN:
         except KeyError:
             self.neighbors_graph[fam_id][fam_id_nei]["length"]=set([length])
 
-    def neighborhood_computation(self, undirected = False, light = False):#, untangle_multi_copy_families = False
+    def __neighborhood_computation(self, undirected = False, light = False):#, untangle_multi_copy_families = False
         """ Use the information already loaded (annotation) to build the pangenome graph
             :param undirected: a bool specifying if the graph is directed or undirected
             :param light: a bool specifying is the annotation attribute must be detroyed at each step to save memory
@@ -429,10 +442,13 @@ class PPanGGOLiN:
                 self.neighbors_graph = nx.Graph()
             else:
                 self.neighbors_graph = nx.DiGraph()
-        elif self.is_partitionned:
-            raise Exception("The pangenome graph is already built and partionned, please use the function delete pangenome graph before build it again")
 
-        for organism in list(self.annotations):
+        bar = tqdm(list(self.annotations),total=len(self.annotations),unit = "organism", unit_scale = True)
+        for organism in bar:
+
+            bar.set_description("Processing "+organism)
+            bar.refresh()
+
             for contig, contig_annot in self.annotations[organism].items():
                 
                 try:
@@ -504,10 +520,11 @@ class PPanGGOLiN:
             if inplace:
                 raise Exception("inplace can't be true if the organisms parameter has not the same size than organisms attribute")
 
-        if self.neighbors_graph is None:
-            raise Exception("The neighbors_graph is not built, please use the function neighborhood_computation before")
-        elif self.is_partitionned and inplace:
-            raise Exception("The pangenome is already partionned, use the parameter inplace=false to partition again the pangenome graph")
+        # if self.neighbors_graph is None:
+        #     raise Exception("The neighbors_graph is not built, please use the function neighborhood_computation before")
+        if self.is_partitionned and inplace:
+            self.delete_nem_intermediate_files()
+            logging.getLogger().warning("The pangenome was already partionned, inplace=true parameter erase previous nem file intermediate files")
 
         if not os.path.exists(nem_dir_path):
             #NEM requires 5 files: nem_file.index, nem_file.str, nem_file.dat, nem_file.m and nem_file.nei
@@ -531,7 +548,7 @@ class PPanGGOLiN:
 
             cpt_partition = OrderedDict()
             for fam in self.neighbors_graph.nodes():
-                cpt_partition[fam]= {"persistent":0,"shell":0,"cloud":0,"unclassified":0}
+                cpt_partition[fam]= {"P":0,"S":0,"C":0,"U":0}
             
             total_BIC = 0
             with Pool(nb_process) as pool:
@@ -716,7 +733,7 @@ class PPanGGOLiN:
 
             
             
-            classification = ["undefined"] * len(index_fam)
+            classification = ["U"] * len(index_fam)
             try:
                 with open(nem_dir_path+"/nem_file.uf","r") as classification_nem_file, open(nem_dir_path+"/nem_file.mf","r") as parameter_nem_file:
                     sum_mu_k = []
@@ -766,9 +783,9 @@ class PPanGGOLiN:
                     logging.getLogger().debug(cloud_k)
 
                     partition                 = {}
-                    partition[persistent_k] = "persistent"
-                    partition[shell_k]      = "shell"
-                    partition[cloud_k]      = "cloud"
+                    partition[persistent_k] = "P"#PERSISTENT
+                    partition[shell_k]      = "S"#SHELL
+                    partition[cloud_k]      = "C"#CLOUD
 
                     for i, line in enumerate(classification_nem_file):
                         elements = [float(el) for el in line.split()]
@@ -778,7 +795,7 @@ class PPanGGOLiN:
                         logging.getLogger().debug(i)
 
                         if (len(positions_max_prob)>1):
-                            classification[i]="shell"# in case of doubt (equiprobable partition), gene families is attributed to shell
+                            classification[i]="S"#SHELL in case of doubt (equiprobable partition), gene families is attributed to shell
                         else:
                             classification[i] = partition[positions_max_prob.pop()]
 
@@ -787,45 +804,47 @@ class PPanGGOLiN:
             except FileNotFoundError:
                 logging.getLogger().warning("The number of organisms is too low ("+str(len(organisms))+" organisms used) to partition the pangenome graph in persistent, shell, cloud partition, traditional partitions only (Core and Accessory genome) will be provided")
         if inplace:
+
             self.BIC = BIC
             for node, nem_class in zip(self.neighbors_graph.nodes(), classification):
                 nb_orgs=0
                 for key in list(self.neighbors_graph.node[node].keys()):
-                    try:
-                        self.neighbors_graph.node[node][key]="|".join(self.neighbors_graph.node[node][key])
-                    except TypeError:
-                        if key == "length":
-                            l = list(self.neighbors_graph.node[node][key])
-                            self.neighbors_graph.node[node]["length_avg"] = float(np.mean(l))
-                            self.neighbors_graph.node[node]["length_med"] = float(np.median(l))
-                            self.neighbors_graph.node[node]["length_min"] = min(l)
-                            self.neighbors_graph.node[node]["length_max"] = max(l)
-                            del self.neighbors_graph.node[node]["length"]
+                    if not self.is_partitionned:
+                        try:
+                            self.neighbors_graph.node[node][key]="|".join(self.neighbors_graph.node[node][key])
+                        except TypeError:
+                            if key == "length":
+                                l = list(self.neighbors_graph.node[node][key])
+                                self.neighbors_graph.node[node]["length_avg"] = float(0)#np.mean(l)
+                                self.neighbors_graph.node[node]["length_med"] = float(0)#np.median(l)
+                                self.neighbors_graph.node[node]["length_min"] = min(l)
+                                self.neighbors_graph.node[node]["length_max"] = max(l)
+                                del self.neighbors_graph.node[node]["length"]
 
                     if key not in RESERVED_WORDS:
-                        last_org = key
                         #self.partitions_by_organisms[key][partition[int(nem_class)]].add(self.neighbors_graph.node[node][key])
                         nb_orgs+=1
 
                 self.neighbors_graph.node[node]["partition"]=nem_class
-                self.partitions[nem_class].append(node)
+                self.partitions[SHORT_TO_LONG[nem_class]].append(node)
 
                 if nb_orgs == self.nb_organisms:
-                    self.partitions["core_exact"].append(node)
+                    self.partitions["core_exact"].append(node)#CORE EXACT
                     self.neighbors_graph.node[node]["partition_exact"]="core_exact"
                 elif nb_orgs < self.nb_organisms:
-                    self.partitions["accessory"].append(node)
+                    self.partitions["accessory"].append(node)#ACCESSORY
                     self.neighbors_graph.node[node]["partition_exact"]="accessory"
                 else:
                     logging.getLogger().error("nb_orgs can't be > to self.nb_organisms")
                     exit(1)
 
-            for node_i, node_j, data in self.neighbors_graph.edges(data = True):
-                l = list(data["length"])
-                self.neighbors_graph[node_i][node_j]["length_avg"] = float(np.mean(l))
-                self.neighbors_graph[node_i][node_j]["length_med"] = float(np.median(l))
-                self.neighbors_graph[node_i][node_j]["length_min"] = min(l)
-                self.neighbors_graph[node_i][node_j]["length_max"] = max(l)
+            if not self.is_partitionned:
+                for node_i, node_j, data in self.neighbors_graph.edges(data = True):
+                    l = list(data["length"])
+                    self.neighbors_graph[node_i][node_j]["length_avg"] = float(0)#np.mean(l)
+                    self.neighbors_graph[node_i][node_j]["length_med"] = float(0)#np.median(l)
+                    self.neighbors_graph[node_i][node_j]["length_min"] = min(l)
+                    self.neighbors_graph[node_i][node_j]["length_max"] = max(l)
 
                 del self.neighbors_graph[node_i][node_j]["length"]
 
@@ -840,7 +859,7 @@ class PPanGGOLiN:
         else:
             if just_stats:
                 for node_name, nem_class in zip(self.neighbors_graph.nodes(data=False), classification):
-                    stats[nem_class]+=1
+                    stats[SHORT_TO_LONG[nem_class]]+=1
                 return stats
             else:
                 return (BIC,dict(zip(index_fam.keys(), classification)))
@@ -856,156 +875,145 @@ class PPanGGOLiN:
             :type bool: 
         """ 
 
-        if self.neighbors_graph is None:
-            logging.getLogger().error("neighbors_graph is not built, please use the function neighborhoodComputation before")
-        elif not self.is_partitionned:
-            logging.getLogger().warnings("the pangenome graph is not partionned, please use the function partition before")
-        else:
+        # if self.neighbors_graph is None:
+        #     logging.getLogger().error("neighbors_graph is not built, please use the function neighborhoodComputation before")
+        # elif not self.is_partitionned:
+        #     logging.getLogger().warnings("the pangenome graph is not partionned, please use the function partition before")
+        # else:
             # if compute_layout:
             #     from fa2l import force_atlas2_layout
             #     logging.getLogger().info("Compute Force Atlas layout")
             #     positions = force_atlas2_layout(self.neighbors_graph,None, iterations=1000, edge_weight_influence=0.7, jitter_tolerance = 20, barnes_hut_theta=1.2)
             #     print(positions)
             #     exit()
-            logging.getLogger().info("Writing GEXF file")
-            if compressed:
-                graph_output_path = gzip.open(graph_output_path,"w")
-            nx.write_gexf(self.neighbors_graph, graph_output_path)
+        logging.getLogger().info("Writing GEXF file")
+        if compressed:
+            graph_output_path = gzip.open(graph_output_path,"w")
+        nx.write_gexf(self.neighbors_graph, graph_output_path)
 
-    def import_from_GEXF(self, path_graph_to_update):
+    # def import_from_GEXF(self, path_graph_to_update):
+    #     """
+    #         Import an already built Partionned Pangenome Graph Of Linked Neighbors from a GEXF file  
+    #         :param nem_dir_path: a str containing the path of the GEXF input file (compressed or not)
+    #         :type str: 
+
+    #         .. warning:: please import a full GEXF input file having all the attributes
+    #     """ 
+    #     file = gzip.open(path_graph_to_update.name,"r")
+    #     try:
+    #         file.readline()
+    #         file.seek(0)
+    #         self.neighbors_graph = nx.read_gexf(file)
+    #     except IOError as e:
+    #         if e.message == "Not a gzipped file":
+    #             self.neighbors_graph = nx.read_gexf(path_graph_to_update)
+    #         else:
+    #             logging.getLogger().error("Unable to open file "+path_graph_to_update)
+
+    #     for node, data in self.neighbors_graph.nodes(data=True):
+    #         for key, value in data.items():
+    #             new_value = set(value.split('|'))
+    #             self.neighbors_graph.node[node][key]=new_value
+    #             if key not in RESERVED_WORDS:
+    #                 self.organisms.add(key)
+    #         if len(self.organisms) == 0:
+    #             logging.getLogger().error("No attributes containing organisms names found on this node: "+str(node))
+    #     logging.getLogger().debug(self.organisms)
+    #     self.nb_organisms = len(self.organisms)
+
+    #     for source, target, data in self.neighbors_graph.edges(data=True):
+    #         try:
+    #             del self.neighbors_graph[source][target]['id']
+    #         except KeyError:
+    #             logging.getLogger().warnings("No previous edge id found in gexf input file for edge: "+source+" <-> "+target)
+
+    def write_matrix(self, path, header=True, csv = True, Rtab = True):
         """
-            Import an already built Partionned Pangenome Graph Of Linked Neighbors from a GEXF file  
-            :param nem_dir_path: a str containing the path of the GEXF input file (compressed or not)
-            :type str: 
-
-            .. warning:: please import a full GEXF input file having all the attributes
-        """ 
-        file = gzip.open(path_graph_to_update.name,"r")
-        try:
-            file.readline()
-            file.seek(0)
-            self.neighbors_graph = nx.read_gexf(file)
-        except IOError as e:
-            if e.message == "Not a gzipped file":
-                self.neighbors_graph = nx.read_gexf(path_graph_to_update)
-            else:
-                logging.getLogger().error("Unable to open file "+path_graph_to_update)
-
-        for node, data in self.neighbors_graph.nodes(data=True):
-            for key, value in data.items():
-                new_value = set(value.split('|'))
-                self.neighbors_graph.node[node][key]=new_value
-                if key not in RESERVED_WORDS:
-                    self.organisms.add(key)
-            if len(self.organisms) == 0:
-                logging.getLogger().error("No attributes containing organisms names found on this node: "+str(node))
-        logging.getLogger().debug(self.organisms)
-        self.nb_organisms = len(self.organisms)
-
-        for source, target, data in self.neighbors_graph.edges(data=True):
-            try:
-                del self.neighbors_graph[source][target]['id']
-            except KeyError:
-                logging.getLogger().warnings("No previous edge id found in gexf input file for edge: "+source+" <-> "+target)
-
-    def csv_matrix(self, path, sep=",", header=True):
-        """
-            Exported the pangenome as a csv_matrix similar to the csv matrix exported by Roary (https://sanger-pathogens.github.io/Roary/)
-            :param nem_dir_path: a str containing the path of the csv out file
-            :param sep: a str containing the separator
+            Exported the pangenome as a csv_matrix similar to the csv et Rtab matrix exported by Roary (https://sanger-pathogens.github.io/Roary/)
+            :param nem_dir_path: a str containing the path of the out files (csv+Rtab)
             :param header: a bool specifying if the header must be added to the file or not
-            :type str: 
             :type str: 
             :type bool: 
         """ 
-        logging.getLogger().info("Writing csv matrix")
-        with open(path,"w") as matrix:
-            if header:
-                matrix.write(sep.join(["family",
-                                       "partition",
-                                       "exact",
-                                       "in_nb_org",
-                                       "ratio_copy",
-                                       "product",
-                                       "length_avg",
-                                       "length_med",
-                                       "length_min",
-                                       "length_max"]
-                                       +list(self.organisms))+"\n")
 
-            for node, data in self.neighbors_graph.nodes(data=True):
-                genes  = [data[org] if org in data else "" for org in self.organisms]
-                nb_org = len([gene for gene in genes if gene != ""])
-                matrix.write(sep.join([node,
-                                       data["partition"],
-                                       data["partition_exact"],
-                                       str(nb_org),
-                                       str(round(data["nb_gene"]/nb_org,2)),
-                                       data["product"],
-                                       str(round(data["length_avg"],2)),
-                                       str(round(data["length_med"],2)),
-                                       str(data["length_min"]),
-                                       str(data["length_max"])]
-                                       +genes)+"\n")
+        def write_file(ext, gene_or_not, sep):
+            with open(path+"."+ext,"w") as matrix:
+                if header:
+                    matrix.write(sep.join(["family",
+                                           "partition",
+                                           "exact",
+                                           "in_nb_org",
+                                           "ratio_copy",
+                                           "product",
+                                           "length_avg",
+                                           "length_med",
+                                           "length_min",
+                                           "length_max"]
+                                           +list(self.organisms))+"\n")
 
-    # def sample(self, n = None, organisms = None):
+                for node, data in self.neighbors_graph.nodes(data=True):
+                    genes  = [(data[org] if gene_or_not else "1") if org in data else ("" if gene_or_not else "0") for org in self.organisms]
+                    nb_org = len([gene for gene in genes if gene != ""])
+                    matrix.write(sep.join([node,
+                                           data["partition"],
+                                           data["partition_exact"],
+                                           str(nb_org),
+                                           str(round(data["nb_gene"]/nb_org,2)),
+                                           data["product"],
+                                           str(round(data["length_avg"],2)),
+                                           str(round(data["length_med"],2)),
+                                           str(data["length_min"]),
+                                           str(data["length_max"])]
+                                           +genes)+"\n")
+        if csv:
+            logging.getLogger().info("Writing csv matrix")
+            write_file("csv",True,",")
+        if Rtab:
+            logging.getLogger().info("Writing Rtab matrix")
+            write_file("Rtab",False,"\t")
 
-    #     if organisms is None and n is None:
-    #         return self
-    #     elif organisms is None:
-    #         list_org  = list(self.organisms)
-    #         shuffle(list_org)
-    #         organisms = list_org[0:n]
+    # def delete_pangenome_graph(self, delete_NEM_files = False):
+    #     """
+    #         Delete all the pangenome graph of eventuelly the statistic of the partionning process (including the temporary file)
+    #     """ 
+    #     if delete_NEM_files:
+    #         self.delete_nem_intermediate_files()
 
-    #     return PPanGGOLiN("args",
-    #                       {org:self.annotations[org] for org in organisms},
-    #                        OrderedSet(organisms),
-    #                        self.circular_contig_size,
-    #                        self.families_repeted)
-
-    def delete_pangenome_graph(self, delete_NEM_files = False):
-        """
-            Delete all the pangenome graph of eventuelly the statistic of the partionning process (including the temporary file)
-        """ 
-        if delete_NEM_files:
-            self.delete_nem_intermediate_files()
-
-        self.nem_output               = None
-        self.neighbors_graph          = None
-        self.pan_size                 = 0
-        self.nem_output               = None
-        self.is_partitionned          = False
-        self.partitions               = {}
-        self.partitions["undefined"]  = list()
-        self.partitions["persistent"] = list()
-        self.partitions["shell"]      = list()
-        self.partitions["cloud"]      = list()
-        self.partitions["core_exact"] = list()
-        self.partitions["accessory"]  = list()
-        self.BIC                      = None
-        #self.partitions_by_organisms  = defaultdict(lambda: defaultdict(set))
+    #     self.nem_output               = None
+    #     self.neighbors_graph          = None
+    #     self.pan_size                 = 0
+    #     self.nem_output               = None
+    #     self.is_partitionned          = False
+    #     self.partitions               = {}
+    #     self.partitions["undefined"]  = list()
+    #     self.partitions["persistent"] = list()
+    #     self.partitions["shell"]      = list()
+    #     self.partitions["cloud"]      = list()
+    #     self.partitions["core_exact"] = list()
+    #     self.partitions["accessory"]  = list()
+    #     self.BIC                      = None
+    #     #self.partitions_by_organisms  = defaultdict(lambda: defaultdict(set))
 
     def delete_nem_intermediate_files(self):
         """
             Delete all the tempory files used to partion the pangenome
         """ 
-        
         if self.nem_intermediate_files is not None:
             logging.getLogger().info("delete "+self.nem_intermediate_files)
             shutil.rmtree(self.nem_intermediate_files)
             self.nem_intermediate_files = None
 
-    def identify_communities_in_each_partition(self):
-        """
-            Use the Louvain's algorithm to label the nodes by their community in each partition
-        """ 
-        size_communities=defaultdict(lambda : defaultdict(int))
-        for partition in ["persistent","shell", "cloud"]:
-            subgraph = self.neighbors_graph.subgraph([nodes for nodes,data in self.neighbors_graph.nodes(data=True) if data['partition']==partition])
-            comm = community.best_partition(subgraph)# = nx.algorithms.community.asyn_fluidc(subgraph, 100)
-            for node, id_com in comm.items():
-                self.neighbors_graph.node[node]['community'] = partition+"_"+str(id_com)
-                size_communities[partition][id_com]+=1
+    # def identify_communities_in_each_partition(self):
+    #     """
+    #         Use the Louvain's algorithm to label the nodes by their community in each partition
+    #     """ 
+    #     size_communities=defaultdict(lambda : defaultdict(int))
+    #     for partition in ["persistent","shell", "cloud"]:
+    #         subgraph = self.neighbors_graph.subgraph([nodes for nodes,data in self.neighbors_graph.nodes(data=True) if data['partition']==partition])
+    #         comm = community.best_partition(subgraph)# = nx.algorithms.community.asyn_fluidc(subgraph, 100)
+    #         for node, id_com in comm.items():
+    #             self.neighbors_graph.node[node]['community'] = partition+"_"+str(id_com)
+    #             size_communities[partition][id_com]+=1
 
     # def identify_shell_subpaths(self, k_range = range(2,10),nem_dir_path = tempfile.mkdtemp()):
         

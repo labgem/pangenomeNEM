@@ -12,9 +12,25 @@ import sys
 import networkx as nx
 from ordered_set import OrderedSet
 
+#import numpy as np
 from ppanggolin import *
 
 __version__ = "0.0.1"
+
+### PATH AND FILE NAME
+OUTPUTDIR                  = None 
+NEM_DIR                    = "/NEM_results/"
+FIGURE_DIR                 = "/figures/"
+PROJECTION_DIR             = "/projections/"
+EVOLUTION_DIR              = "/evolutions/"
+PARTITION_DIR              = "/partitions/"
+GRAPH_FILE_PREFIX          = "/graph"
+MATRIX_FILES_PREFIX        = "/matrix"
+USHAPE_PLOT_PREFIX         = "/Ushaped_plot"
+MATRIX_PLOT_PREFIX         = "/Presence_absence_matrix_plot"
+EVOLUTION_CURVE_PREFIX     = "/evolution_curve"
+EVOLUTION_STAT_FILE_PREFIX = "/stat_evol"
+SCRIPT_R_FIGURE            = "/generate_plots.R"
 
 # Calcul du nombre de combinaisons de k elements parmi n
 def combinationNb(k,n):
@@ -27,62 +43,63 @@ def combinationNb(k,n):
 
 # Calcul du nombre total de combinaisons uniques de n elements
 def combinationTotalNb(size):
-        return pow(2,size)-1
+    return pow(2,size)-1
 
 # Generation d'une sous-liste aléatoire de taille n
 def randomSublist(items,n):
-        item_array = np.array(items)
-        index_array = np.arange(item_array.size)
-        np.random.shuffle(index_array)
-        ordered_index_array = sorted(index_array[:n])
-        return list(item_array[ordered_index_array])
+    return(items)
+    # item_array = np.array(items)
+    # index_array = np.arange(item_array.size)
+    # np.random.shuffle(index_array)
+    # ordered_index_array = sorted(index_array[:n])
+    # return list(item_array[ordered_index_array])
 
 # Generation de toutes les combinaisons uniques (sans notion d'ordre) d'elements donnes
 def exactCombinations(items):
-        len_item  = len(items);
-        combinations = defaultdict(list)
-        for i in range(1, 1<<len_item):
-                c = []
-                for j in range(0, len_item):
-                        if(i & (1 << j)):
-                                c.append(items[j])
-                combinations[len(c)].append(c)
-        return combinations
+    len_item  = len(items);
+    combinations = defaultdict(list)
+    for i in range(1, 1<<len_item):
+            c = []
+            for j in range(0, len_item):
+                    if(i & (1 << j)):
+                            c.append(items[j])
+            combinations[len(c)].append(c)
+    return combinations
 
 # Echantillonage proportionnel d'un nombre donne de combinaisons (sans remise)
 def samplingCombinations(items, sample_thr, sample_min):
-        samplingCombinationList = defaultdict(list)
-        item_size = len(items)
-        combTotNb = combinationTotalNb(item_size)
-        combTotNb = float(combTotNb) if combTotNb < sys.float_info.max else float(sys.float_info.max)
-        sample_coeff = (combTotNb/sample_thr)
-        for k in range(1,item_size+1):
-                tmp_comb = []
-                combNb = combinationNb(k,item_size)
-                combNb = float(combNb) if combNb < sys.float_info.max else float(sys.float_info.max)
-                combNb_sample = math.ceil(combNb/sample_coeff)
-                # Plus petit echantillonage possible pour un k donné = sample_min
-                if ((combNb_sample < sample_min) and k != item_size):
-                        combNb_sample = sample_min
-                i = 0;
-                while (i < combNb_sample):
-                        comb = randomSublist(items,k)
-                        # Echantillonnage sans remise
-                        if (comb not in tmp_comb):
-                                tmp_comb.append(comb)
-                                samplingCombinationList[len(comb)].append(comb)
-                                i+=1
-        return samplingCombinationList
+    samplingCombinationList = defaultdict(list)
+    item_size = len(items)
+    combTotNb = combinationTotalNb(item_size)
+    combTotNb = float(combTotNb) if combTotNb < sys.float_info.max else float(sys.float_info.max)
+    sample_coeff = (combTotNb/sample_thr)
+    for k in range(1,item_size+1):
+            tmp_comb = []
+            combNb = combinationNb(k,item_size)
+            combNb = float(combNb) if combNb < sys.float_info.max else float(sys.float_info.max)
+            combNb_sample = math.ceil(combNb/sample_coeff)
+            # Plus petit echantillonage possible pour un k donné = sample_min
+            if ((combNb_sample < sample_min) and k != item_size):
+                    combNb_sample = sample_min
+            i = 0;
+            while (i < combNb_sample):
+                    comb = randomSublist(items,k)
+                    # Echantillonnage sans remise
+                    if (comb not in tmp_comb):
+                            tmp_comb.append(comb)
+                            samplingCombinationList[len(comb)].append(comb)
+                            i+=1
+    return samplingCombinationList
 
 # Generate list of combinations of organisms exaustively or following a binomial coeficient
 def organismsCombinations(orgs, nbOrgThr, sample_thr, sample_min):
-        if (len(orgs) <= nbOrgThr):
-                comb_list = exactCombinations(orgs)
-        else:
-                comb_list = samplingCombinations(orgs, sample_thr, sample_min)
-        return comb_list
+    if (len(orgs) <= nbOrgThr):
+            comb_list = exactCombinations(orgs)
+    else:
+            comb_list = samplingCombinations(orgs, sample_thr, sample_min)
+    return comb_list
 
-def plot_Rscript(script_outfile, nem_dir, outpdf_Ushape, outpdf_matrix, evoltion_dir, outpdf_evolution, projection_dir, outputdir_pdf_projection, run_script = True):
+def plot_Rscript(script_outfile, run_script = True):
     """
     run r script
     required the following package to be instaled : ggplot2, reshape2, data.table, ggrepel (last version)
@@ -93,34 +110,21 @@ def plot_Rscript(script_outfile, nem_dir, outpdf_Ushape, outpdf_matrix, evoltion
 #!/usr/bin/env R
 options(show.error.locations = TRUE)
 
-if(!require("ggplot2")) {{ install.packages("ggplot2", dep = TRUE,repos = "http://cran.us.r-project.org") }}
+if(!require("ggplot2")) { install.packages("ggplot2", dep = TRUE,repos = "http://cran.us.r-project.org") }
 library("ggplot2")
-if(!require("reshape2")) {{ install.packages("reshape2", dep = TRUE,repos = "http://cran.us.r-project.org") }}
+if(!require("reshape2")) { install.packages("reshape2", dep = TRUE,repos = "http://cran.us.r-project.org") }
 library("reshape2")
 
 color_chart = c(pangenome="black", "accessory"="#EB37ED", "core_exact" ="#FF2828", shell = "#00D860", persistent="#F7A507", cloud = "#79DEFF")
 
 ########################### START U SHAPED PLOT #################################
 
-binary_matrix         <- read.table("{nem_dir}/nem_file.dat", header=FALSE)
+binary_matrix         <- read.table('"""+OUTPUTDIR+MATRIX_FILES_PREFIX+""".Rtab', header=TRUE, sep '\\t')
+data_header <- c("family", "partition", "exact", "in_nb_org", "ratio_copy", "product", "length_avg", "length_med", "length_min", "length_max") 
+family_data           <- binary_matrix[,colnames(binary_matrix) %in% data_header]
+binary_matrix         <- binary_matrix[,!(colnames(binary_matrix) %in% data_header)]
 occurences            <- rowSums(binary_matrix)
-classification_vector <- apply (read.table("{nem_dir}/nem_file.uf", header=FALSE),1, FUN = function(x){{
-ret = which(x==max(x))
-if(length(ret)>1){{ret=2}}
-return(ret)
-}})
-
-means <- data.frame(partition = c("1","2","3"), mean = rep(NA,3))
-
-means[means$partition == "1","mean"] <- mean(occurences[classification_vector == "1"])
-means[means$partition == "2","mean"] <- mean(occurences[classification_vector == "2"])
-means[means$partition == "3","mean"] <- mean(occurences[classification_vector == "3"])
-
-means <- means[order(means$mean),]
-
-classification_vector[classification_vector == means[1,"partition"]] <- "cloud"
-classification_vector[classification_vector == means[2,"partition"]] <- "shell"
-classification_vector[classification_vector == means[3,"partition"]] <- "persistent"
+classification_vector <- family_data$partition
 
 c = data.frame(nb_org = occurences, partition = classification_vector)
 
@@ -131,14 +135,12 @@ plot <- ggplot(data = c) +
     xlab("# of organisms in which each familly is present")+
     ylab("# of families")
 
-ggsave("{outpdf_Ushape}", device = "pdf", height= (par("din")[2]*1.5),plot)
+ggsave('"""+OUTPUTDIR+FIGURE_DIR+USHAPE_PLOT_PREFIX+""".pdf', device = "pdf", height= (par("din")[2]*1.5),plot)
 
 ########################### END U SHAPED PLOT #################################
 
 ########################### START RESENCE/ABSENCE MATRIX #################################
 
-organism_names          <- unlist(strsplit(readLines("{nem_dir}/column_org_file")," "))
-colnames(binary_matrix) <- organism_names
 nb_org                  <- ncol(binary_matrix)
 
 binary_matrix_hclust    <- hclust(dist(t(binary_matrix), method="binary"))
@@ -163,20 +165,20 @@ plot <- ggplot(data = data)+
         scale_fill_manual(values = c("presence"="green","absence"="grey80",color_chart)) +
         theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5), panel.border = element_blank(), panel.background = element_blank())
 
-ggsave("{outpdf_matrix}", device = "pdf", plot)
+ggsave('"""+OUTPUTDIR+FIGURE_DIR+MATRIX_PLOT_PREFIX+""".pdf', device = "pdf", plot)
 
 ########################### END PRESENCE/ABSENCE MATRIX #################################
 
 ########################### START EVOLUTION CURVE #################################
 
-if(!require("ggrepel") || packageVersion("ggrepel") < "0.6.6") {{ install.packages("ggrepel", dep = TRUE, repos = "http://cran.us.r-project.org") }}
+if(!require("ggrepel") || packageVersion("ggrepel") < "0.6.6") { install.packages("ggrepel", dep = TRUE, repos = "http://cran.us.r-project.org") }
 library("ggrepel")
 
-if(!require("data.table")) {{ install.packages("data.table", dep = TRUE,repos = "http://cran.us.r-project.org") }}
+if(!require("data.table")) { install.packages("data.table", dep = TRUE,repos = "http://cran.us.r-project.org") }
 library("data.table")
 
-if (file.exists("{evoltion_dir}/stat_evol.txt")){{
-    data <- read.table("{evoltion_dir}/stat_evol.txt", header = TRUE)
+if (file.exists('"""+OUTPUTDIR+EVOLUTION_DIR+EVOLUTION_STAT_FILE_PREFIX+"""')){
+    data <- read.table('"""+OUTPUTDIR+EVOLUTION_DIR+EVOLUTION_STAT_FILE_PREFIX+""".txt', header = TRUE)
     data <- melt(data, id = "nb_org")
     colnames(data) <- c("nb_org","partition","value")
 
@@ -188,11 +190,11 @@ if (file.exists("{evoltion_dir}/stat_evol.txt")){{
     median_by_nb_org <- setDT(data)[,list(med=as.numeric(median(value))), by=c("nb_org","partition")]
     colnames(median_by_nb_org) <- c("nb_org_comb","partition","med")
 
-    for (part in as.character(final_state$partition)){{
+    for (part in as.character(final_state$partition)){
         regression  <- nls(med~kapa*(nb_org_comb^gama),median_by_nb_org[which(median_by_nb_org$partition == part),],start=list(kapa=1000,gama=1))
         coefficient <- coef(regression)
-        final_state[final_state$partition == part,"formula" ] <- paste0("n == ", format(coefficient["kapa"],decimal.mark = ",",digits =2),"~N^{{",format(coefficient["gama"],digits =2),"}}")
-    }}
+        final_state[final_state$partition == part,"formula" ] <- paste0("n == ", format(coefficient["kapa"],decimal.mark = ",",digits =2),"~N^{",format(coefficient["gama"],digits =2),"}")
+    }
 
     plot <- ggplot(data = data, aes_string(x="nb_org",y="value", colour = "partition"))+
             ggtitle(bquote(list("Rarefaction curve. Heap's law parameters based on Tettelin et al. 2008 approach", n == kappa~N^gamma)))+
@@ -204,7 +206,7 @@ if (file.exists("{evoltion_dir}/stat_evol.txt")){{
                         size        = 1.5,
                         se          = FALSE,
                         show.legend = FALSE)+
-            stat_summary(fun.ymin = function(z) {{ quantile(z,0.25) }},  fun.ymax = function(z) {{ quantile(z,0.75) }}, geom="ribbon", alpha=0.1,size=0.1, linetype="dashed", show.legend = FALSE)+
+            stat_summary(fun.ymin = function(z) { quantile(z,0.25) },  fun.ymax = function(z) { quantile(z,0.75) }, geom="ribbon", alpha=0.1,size=0.1, linetype="dashed", show.legend = FALSE)+
             stat_summary(fun.y=median, geom="line",size=0.5)+
             stat_summary(fun.y=median, geom="point",shape=4,size=1, show.legend = FALSE)+
             stat_summary(fun.ymax=max,fun.ymin=min,geom="errorbar",linetype="dotted",size=0.1,width=0.2)+
@@ -222,21 +224,21 @@ if (file.exists("{evoltion_dir}/stat_evol.txt")){{
             ylab("# of families")+
             ggplot2::theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
     
-    ggsave("{outpdf_evolution}", device = "pdf", width = (par("din")[1]*2) ,plot)
+    ggsave('"""+OUTPUTDIR+FIGURE_DIR+EVOLUTION_CURVE_PREFIX+""".pdf', device = "pdf", width = (par("din")[1]*2) ,plot)
 
-}}
+}
 ########################### END EVOLUTION CURVE #################################
 
 ########################### START PROJECTION #################################
 
-for (org_csv in list.files(path = "{projection_dir}", pattern = "*.csv$")){{
-    
-    data <- read.table(paste0("{projection_dir}/",org_csv), header = T)
+for (org_csv in list.files(path = '"""+OUTPUTDIR+PROJECTION_DIR+"""', pattern = "*.csv$", full.names = T)){
+    org_name <- tools::file_path_sans_ext(basename(org_csv))
+    data <- read.table(org_csv, header = T)
     data <- cbind(data, pos = seq(nrow(data)))
 
-    max_degree_log2p1 <- max(apply(data,1,FUN = function(x){{
+    max_degree_log2p1 <- max(apply(data,1,FUN = function(x){
             sum(log2(as.numeric(x[6:8])+1))
-        }}))
+        }))
 
     ori <- which(data$ori == T, arr.ind=T)
     data$ori <- NULL
@@ -257,7 +259,7 @@ for (org_csv in list.files(path = "{projection_dir}", pattern = "*.csv$")){{
     data_melted$value <- log2(data_melted$value+1)
 
     plot = ggplot(data = data_melted)+
-    ggtitle(paste0("plot corresponding to the file", org_csv))+
+    ggtitle(paste0("plot corresponding to the file", org_name))+
     geom_bar(aes_string(x = "gene", y = "value", fill = "variable"),stat="identity", show.legend = FALSE)+
     scale_y_continuous(limits = c(-30, max_degree_log2p1), breaks = seq(0,ceiling(max_degree_log2p1)))+
     geom_hline(yintercept = 0)+
@@ -282,19 +284,12 @@ for (org_csv in list.files(path = "{projection_dir}", pattern = "*.csv$")){{
                         plot.margin      = grid::unit(c(0,0,0,0), "cm"),
                         panel.spacing    = grid::unit(c(0,0,0,0), "cm"))
 
-    ggsave(paste0("{outputdir_pdf_projection}/projection_",org_csv,".pdf"), device = "pdf", height= 40, width = 49, plot)
+    ggsave(paste0('"""+OUTPUTDIR+FIGURE_DIR+"""',org_name,'.pdf'), device = "pdf", height= 40, width = 49, plot)
 
-}}
-
+}
 ########################### END PROJECTION #################################
 
-    """.format(nem_dir                  = nem_dir,
-               outpdf_Ushape            = outpdf_Ushape,
-               outpdf_matrix            = outpdf_matrix,
-               evoltion_dir             = evoltion_dir,
-               outpdf_evolution         = outpdf_evolution,
-               projection_dir           = projection_dir,
-               outputdir_pdf_projection = outputdir_pdf_projection)
+    """
     logging.getLogger().info("Writing R script generating plot")
     with open(script_outfile,"w") as script_file:
         script_file.write(rscript)
@@ -428,56 +423,49 @@ def __main__():
     logging.getLogger().info("Command: "+" ".join([arg for arg in sys.argv]))
     logging.getLogger().info("Python version: "+sys.version)
     logging.getLogger().info("Networkx version: "+nx.__version__)
-
+    global OUTPUTDIR
     OUTPUTDIR       = options.output_directory[0]
-    NEMOUTPUTDIR    = OUTPUTDIR+"/NEM_results/"
-    FIGUREOUTPUTDIR = OUTPUTDIR+"/figures/"
-    PROJECTION      = OUTPUTDIR+"/projection/"
-    global EVOLUTION
-    EVOLUTION       = OUTPUTDIR+"/evolution/"
 
-    list_dir        = [OUTPUTDIR,NEMOUTPUTDIR,FIGUREOUTPUTDIR]
+    list_dir        = [NEM_DIR,FIGURE_DIR,PARTITION_DIR]
     if options.projection:
-        list_dir.append(PROJECTION)
+        list_dir.append(PROJECTION_DIR)
     if options.evolution:
-        list_dir.append(EVOLUTION)
-        EVOLUTION_STAT_FILE = EVOLUTION+"/"+"stat_evol.txt"
+        list_dir.append(EVOLUTION_DIR)
         (RESAMPLING_MIN, RESAMPLING_MAX, STEP) = options.evolution_resampling_param
+
     for directory in list_dir:
         if not os.path.exists(directory):
-            os.makedirs(directory)
+            os.makedirs(OUTPUTDIR+directory)
         elif not options.force:
-            logging.getLogger().error(directory+" already exist")
+            logging.getLogger().error(OUTPUTDIR+directory+" already exist")
             exit(1)
 
-    GEXF_GRAPH_FILE     = OUTPUTDIR+"/"+"graph.gexf"
-    MATRIX_CSV_FILE     = OUTPUTDIR+"/matrix.csv"
-
     #-------------
-    start_loading_file = time.time()
+    start_loading = time.time()
     global pan
     pan = PPanGGOLiN("file",
                      options.organisms[0],
                      options.gene_families[0],
                      options.remove_high_copy_number_families[0],
-                     options.infere_singleton)
+                     options.infere_singleton,
+                     options.undirected)
 
-    # if options.update is not None:
-    #     pan.import_from_GEXF(options.update[0])
-    end_loading_file = time.time()
-    #-------------
+    # # if options.update is not None:
+    # #     pan.import_from_GEXF(options.update[0])
+    # end_loading_file = time.time()
+    # #-------------
 
-    #-------------
-    logging.getLogger().info("Neighborhood Computation...")
-    start_neighborhood_computation = time.time()
-    pan.neighborhood_computation(options.undirected, options.ligth)
-    end_neighborhood_computation = time.time()
+    # #-------------
+    
+    # start_neighborhood_computation = time.time()
+    # #pan.neighborhood_computation(options.undirected, options.ligth)
+    end_loading = time.time()
     #-------------
 
     #-------------
     logging.getLogger().info("Partitionning...")
     start_partitioning = time.time()
-    pan.partition(nem_dir_path = NEMOUTPUTDIR,
+    pan.partition(nem_dir_path = OUTPUTDIR+NEM_DIR,
                   beta = options.beta_smoothing[0],
                   organisms = None,
                   free_dispersion = options.free_dispersion,
@@ -522,18 +510,16 @@ def __main__():
     #-------------
     start_writing_output_file = time.time()
     if options.compress_graph:
-        pan.export_to_GEXF(GEXF_GRAPH_FILE+".gz", compressed=True)
-    else:
-        pan.export_to_GEXF(GEXF_GRAPH_FILE, compressed=False)
-    for filename, families in pan.partitions.items(): 
-        file = open(OUTPUTDIR+"/"+filename+".txt","w")
+        pan.export_to_GEXF(OUTPUTDIR+GRAPH_FILE_PREFIX+(".gz" if options.compress_graph else ""), options.compress_graph)
+    for partition, families in pan.partitions.items(): 
+        file = open(OUTPUTDIR+PARTITION_DIR+"/"+partition+".txt","w")
         file.write("\n".join(families))
         file.close()
-    pan.csv_matrix(MATRIX_CSV_FILE)
+    pan.write_matrix(OUTPUTDIR+MATRIX_FILES_PREFIX)
     if options.projection:
         logging.getLogger().info("Projection...")
         start_projection = time.time()
-        pan.projection_polar_histogram(PROJECTION, [pan.organisms.__getitem__(index-1) for index in options.projection] if options.projection[0] >   0 else list(pan.organisms))
+        pan.projection_polar_histogram(OUTPUTDIR+PROJECTION_DIR, [pan.organisms.__getitem__(index-1) for index in options.projection] if options.projection[0] > 0 else list(pan.organisms))
         end_projection = time.time()
     end_writing_output_file = time.time()
 
@@ -568,7 +554,7 @@ def __main__():
         random.shuffle(shuffled_comb)
 
         global evol
-        evol =  open(EVOLUTION_STAT_FILE,"w")
+        evol =  open(OUTPUTDIR+EVOLUTION_STAT_FILE,"w")
 
         evol.write("nb_org\tpersistent\tshell\tcloud\tcore_exact\taccessory\tpangenome\n")
         evol.write("\t".join([str(pan.nb_organisms),
@@ -596,32 +582,25 @@ def __main__():
     #-------------
 
     logging.getLogger().info("\n"+
-    "Execution time of file loading: """ +str(round(end_loading_file-start_loading_file, 2))+" s\n"+
-    "Execution time of neighborhood computation: " +str(round(end_neighborhood_computation-start_neighborhood_computation, 2))+" s\n"+
+    "Execution time of loading: """ +str(round(end_loading-start_loading, 2))+" s\n"+
+    #"Execution time of neighborhood computation: " +str(round(end_neighborhood_computation-start_neighborhood_computation, 2))+" s\n"+
     "Execution time of partitioning: " +str(round(end_partitioning-start_partitioning, 2))+" s\n"+
     #"Execution time of community identification: " +str(round(end_identify_communities-start_identify_communities, 2))+" s\n"+
     "Execution time of writing output files: " +str(round(end_writing_output_file-start_writing_output_file, 2))+" s\n"+
     (("Execution time of evolution: " +str(round(end_evolution-start_evolution, 2))+" s\n") if options.evolution else "")+
 
-    "Total execution time: " +str(round(time.time()-start_loading_file, 2))+" s\n")
+    "Total execution time: " +str(round(time.time()-start_loading, 2))+" s\n")
 
     logging.getLogger().info("""
     The pangenome computation is complete. 
-    Plots will be generated using R (in the directory: """+FIGUREOUTPUTDIR+""").
+    Plots will be generated using R (in the directory: """+OUTPUTDIR+FIGURE_DIR+""").
     If R and the required package (ggplot2, reshape2, ggrepel(>0.6.6), data.table) are not instaled don't worry the R script will be saved in the directory allowing to generate the figures latter""")
 
-    plot_Rscript(script_outfile           = OUTPUTDIR+"/generate_plots.R",
-                 nem_dir                  = NEMOUTPUTDIR,
-                 outpdf_Ushape            = FIGUREOUTPUTDIR+"/Ushaped_plot.pdf",
-                 outpdf_matrix            = FIGUREOUTPUTDIR+"/Presence_absence_matrix_plot.pdf",
-                 evoltion_dir             = EVOLUTION,
-                 outpdf_evolution         = FIGUREOUTPUTDIR+"/evolution.pdf",
-                 projection_dir           = PROJECTION,
-                 outputdir_pdf_projection = FIGUREOUTPUTDIR,
+    plot_Rscript(script_outfile           = OUTPUTDIR+"/"+SCRIPT_R_FIGURE,
                  run_script               = options.plots)
 
     if options.delete_nem_intermediate_files:
-            pan.delete_nem_intermediate_files()   
+            pan.delete_nem_intermediate_files()  
 
     logging.getLogger().info("Finished !")
     exit(0)
