@@ -12,7 +12,7 @@ import sys
 import networkx as nx
 from ordered_set import OrderedSet
 
-#import numpy as np
+import numpy as np
 from ppanggolin import *
 
 __version__ = "0.0.1"
@@ -47,12 +47,11 @@ def combinationTotalNb(size):
 
 # Generation d'une sous-liste aléatoire de taille n
 def randomSublist(items,n):
-    return(items)
-    # item_array = np.array(items)
-    # index_array = np.arange(item_array.size)
-    # np.random.shuffle(index_array)
-    # ordered_index_array = sorted(index_array[:n])
-    # return list(item_array[ordered_index_array])
+    item_array = np.array(items)
+    index_array = np.arange(item_array.size)
+    np.random.shuffle(index_array)
+    ordered_index_array = sorted(index_array[:n])
+    return list(item_array[ordered_index_array])
 
 # Generation de toutes les combinaisons uniques (sans notion d'ordre) d'elements donnes
 def exactCombinations(items):
@@ -119,7 +118,7 @@ color_chart = c(pangenome="black", "accessory"="#EB37ED", "core_exact" ="#FF2828
 
 ########################### START U SHAPED PLOT #################################
 
-binary_matrix         <- read.table('"""+OUTPUTDIR+MATRIX_FILES_PREFIX+""".Rtab', header=TRUE, sep '\\t')
+binary_matrix         <- read.table('"""+OUTPUTDIR+MATRIX_FILES_PREFIX+""".Rtab', header=TRUE, sep='\\t')
 data_header <- c("family", "partition", "exact", "in_nb_org", "ratio_copy", "product", "length_avg", "length_med", "length_min", "length_max") 
 family_data           <- binary_matrix[,colnames(binary_matrix) %in% data_header]
 binary_matrix         <- binary_matrix[,!(colnames(binary_matrix) %in% data_header)]
@@ -133,7 +132,8 @@ plot <- ggplot(data = c) +
     scale_fill_manual(name = "partition", values = color_chart, breaks=c("persistent","shell","cloud")) +
     scale_x_discrete(limits = seq(1, ncol(binary_matrix))) +
     xlab("# of organisms in which each familly is present")+
-    ylab("# of families")
+    ylab("# of families")+
+    ggplot2::theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
 
 ggsave('"""+OUTPUTDIR+FIGURE_DIR+USHAPE_PLOT_PREFIX+""".pdf', device = "pdf", height= (par("din")[2]*1.5),plot)
 
@@ -177,7 +177,7 @@ library("ggrepel")
 if(!require("data.table")) { install.packages("data.table", dep = TRUE,repos = "http://cran.us.r-project.org") }
 library("data.table")
 
-if (file.exists('"""+OUTPUTDIR+EVOLUTION_DIR+EVOLUTION_STAT_FILE_PREFIX+"""')){
+if (file.exists('"""+OUTPUTDIR+EVOLUTION_DIR+EVOLUTION_STAT_FILE_PREFIX+""".txt')){
     data <- read.table('"""+OUTPUTDIR+EVOLUTION_DIR+EVOLUTION_STAT_FILE_PREFIX+""".txt', header = TRUE)
     data <- melt(data, id = "nb_org")
     colnames(data) <- c("nb_org","partition","value")
@@ -307,10 +307,9 @@ options = None
 EVOLUTION = None
 
 def resample(index):
-    print(index)
     global shuffled_comb
 
-    stats = pan.partition(EVOLUTION+"/nborg"+str(len(shuffled_comb[index]))+"_"+str(index),
+    stats = pan.partition(OUTPUTDIR+EVOLUTION_DIR+"/nborg"+str(len(shuffled_comb[index]))+"_"+str(index),
                           options.beta_smoothing[0],
                           options.free_dispersion,
                           shuffled_comb[index],
@@ -523,6 +522,8 @@ def __main__():
         end_projection = time.time()
     end_writing_output_file = time.time()
 
+    del pan.annotations # no more required for the following process
+
     # print(pan.partitions_by_organisms)
     # partitions_by_organisms_file = open(OUTPUTDIR+"/partitions_by_organisms.txt","w")
     # exact_by_organisms_file = open(OUTPUTDIR+"/exacte_by_organisms.txt","w")
@@ -545,7 +546,6 @@ def __main__():
 
         start_evolution = time.time()
         logging.disable(logging.INFO)# disable message info to not disturb the progess bar
-
         combinations = organismsCombinations(list(pan.organisms), nbOrgThr=1, sample_thr=RESAMPLING_MAX, sample_min=RESAMPLING_MIN)
         del combinations[pan.nb_organisms]
         del combinations[1]
@@ -554,7 +554,7 @@ def __main__():
         random.shuffle(shuffled_comb)
 
         global evol
-        evol =  open(OUTPUTDIR+EVOLUTION_STAT_FILE,"w")
+        evol =  open(OUTPUTDIR+EVOLUTION_DIR+EVOLUTION_STAT_FILE_PREFIX+".txt","w")
 
         evol.write("nb_org\tpersistent\tshell\tcloud\tcore_exact\taccessory\tpangenome\n")
         evol.write("\t".join([str(pan.nb_organisms),

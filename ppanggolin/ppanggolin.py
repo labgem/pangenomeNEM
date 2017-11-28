@@ -10,7 +10,7 @@ import math
 import logging
 import shutil
 import gzip
-#import numpy as np
+import numpy as np
 #import community
 import tempfile
 import subprocess
@@ -18,12 +18,13 @@ from tqdm import tqdm
 import mmap
 from random import sample
 import time
-from multiprocessing import Pool, Manager, Semaphore
+from multiprocessing.pool import ThreadPool
+from multiprocessing import Semaphore
 
 #import forceatlas2 
 
 NEM_LOCATION  = os.path.dirname(os.path.abspath(__file__))+"/nem_exe"
-NEM_NB_MAX_VARIABLE = 20
+NEM_NB_MAX_VARIABLE = 50
 (TYPE, FAMILY, START, END, STRAND, NAME, PRODUCT) = range(0, 7)#data index in annotation
 (ORGANISM_ID, ORGANISM_GFF_FILE) = range(0, 2)#data index in the file listing organisms 
 
@@ -249,8 +250,6 @@ class PPanGGOLiN:
             logging.getLogger().error("""
                 The following identifiers of circular contigs in the file listing organisms have not been found in any region feature of the gff files: """+"\t".join(check_circular_contigs.keys()))
             exit()
-
-        
 
     def __load_gff(self, gff_file_path, families, organism, lim_occurence = 0, infere_singleton = False):
         """
@@ -551,7 +550,7 @@ class PPanGGOLiN:
                 cpt_partition[fam]= {"P":0,"S":0,"C":0,"U":0}
             
             total_BIC = 0
-            with Pool(nb_process) as pool:
+            with ThreadPool(nb_process) as pool:
                 sem = Semaphore(nb_process)
 
                 validated = set()
@@ -574,10 +573,10 @@ class PPanGGOLiN:
                     if sem.acquire():
                         res = pool.apply_async(self.partition,
                                                args = (nem_dir_path+"/"+str(cpt)+"/",
-                                                     beta,
-                                                     free_dispersion,
-                                                     sample(organisms,NEM_NB_MAX_VARIABLE),
-                                                     False),
+                                                       beta,
+                                                       free_dispersion,
+                                                       sample(organisms, NEM_NB_MAX_VARIABLE),
+                                                       False),
                                                callback = validate_family)
                         cpt +=1
                     else:
@@ -684,7 +683,6 @@ class PPanGGOLiN:
             # BETA           = ["-B",HEURISTIC,"-H",str(STEP_HEURISTIC),str(BETA_MAX),str(DDROP),str(DLOSS),str(LLOSS)] if beta == float('Inf') else ["-b "+str(beta)]
 
             WEIGHTED_BETA = beta*len(organisms)
-
             command = " ".join([NEM_LOCATION, 
                                 nem_dir_path+"/nem_file",
                                 str(Q),
@@ -730,8 +728,6 @@ class PPanGGOLiN:
                 logging.getLogger().info("Reading NEM results...")
             else:
                 logging.getLogger().error("No NEM output file found: "+ nem_dir_path+"/nem_file.uf")
-
-            
             
             classification = ["U"] * len(index_fam)
             try:
@@ -815,8 +811,8 @@ class PPanGGOLiN:
                         except TypeError:
                             if key == "length":
                                 l = list(self.neighbors_graph.node[node][key])
-                                self.neighbors_graph.node[node]["length_avg"] = float(0)#np.mean(l)
-                                self.neighbors_graph.node[node]["length_med"] = float(0)#np.median(l)
+                                self.neighbors_graph.node[node]["length_avg"] = float(np.mean(l))
+                                self.neighbors_graph.node[node]["length_med"] = float(np.median(l))
                                 self.neighbors_graph.node[node]["length_min"] = min(l)
                                 self.neighbors_graph.node[node]["length_max"] = max(l)
                                 del self.neighbors_graph.node[node]["length"]
@@ -825,7 +821,7 @@ class PPanGGOLiN:
                         #self.partitions_by_organisms[key][partition[int(nem_class)]].add(self.neighbors_graph.node[node][key])
                         nb_orgs+=1
 
-                self.neighbors_graph.node[node]["partition"]=nem_class
+                self.neighbors_graph.node[node]["partition"]=SHORT_TO_LONG[nem_class]
                 self.partitions[SHORT_TO_LONG[nem_class]].append(node)
 
                 if nb_orgs == self.nb_organisms:
@@ -841,8 +837,8 @@ class PPanGGOLiN:
             if not self.is_partitionned:
                 for node_i, node_j, data in self.neighbors_graph.edges(data = True):
                     l = list(data["length"])
-                    self.neighbors_graph[node_i][node_j]["length_avg"] = float(0)#np.mean(l)
-                    self.neighbors_graph[node_i][node_j]["length_med"] = float(0)#np.median(l)
+                    self.neighbors_graph[node_i][node_j]["length_avg"] = float(np.mean(l))
+                    self.neighbors_graph[node_i][node_j]["length_med"] = float(np.median(l))
                     self.neighbors_graph[node_i][node_j]["length_min"] = min(l)
                     self.neighbors_graph[node_i][node_j]["length_max"] = max(l)
 
