@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: iso-8859-1 -*-
 
+from collections import defaultdict, OrderedDict
+from ordered_set import OrderedSet
 import argparse
 import logging
 import random 
 import time
+import math
 from random import shuffle
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 import sys
 import networkx as nx
 from ordered_set import OrderedSet
-
 import numpy as np
+from decimal import Decimal
+
 from ppanggolin import *
 
 __version__ = "0.0.1"
@@ -32,20 +36,16 @@ EVOLUTION_CURVE_PREFIX     = "/evolution_curve"
 EVOLUTION_STAT_FILE_PREFIX = "/stat_evol"
 SCRIPT_R_FIGURE            = "/generate_plots.R"
 
-# Calcul du nombre de combinaisons de k elements parmi n
-def combinationNb(k,n):
-        if (k == 0):
-                return 1
-        result = 1
-        for i in range(0, k):
-                result *= float(n - i)/(i + 1);
-        return int(round(result))
+# nCr
+def combinationNb(n,r):
+    f = math.factorial
+    return f(n) / f(r) / f(n-r)
 
 # Calcul du nombre total de combinaisons uniques de n elements
 def combinationTotalNb(size):
     return pow(2,size)-1
 
-# Generation d'une sous-liste aléatoire de taille n
+# Generation d'une sous-liste al<C3><A9>atoire de taille n
 def randomSublist(items,n):
     item_array = np.array(items)
     index_array = np.arange(item_array.size)
@@ -66,37 +66,40 @@ def exactCombinations(items):
     return combinations
 
 # Echantillonage proportionnel d'un nombre donne de combinaisons (sans remise)
-def samplingCombinations(items, sample_thr, sample_min):
+def samplingCombinations(items, sample_ratio, sample_min, sample_max=100, step = 1):
     samplingCombinationList = defaultdict(list)
     item_size = len(items)
     combTotNb = combinationTotalNb(item_size)
-    combTotNb = float(combTotNb) if combTotNb < sys.float_info.max else float(sys.float_info.max)
-    sample_coeff = (combTotNb/sample_thr)
-    for k in range(1,item_size+1):
-            tmp_comb = []
-            combNb = combinationNb(k,item_size)
-            combNb = float(combNb) if combNb < sys.float_info.max else float(sys.float_info.max)
-            combNb_sample = math.ceil(combNb/sample_coeff)
-            # Plus petit echantillonage possible pour un k donné = sample_min
-            if ((combNb_sample < sample_min) and k != item_size):
-                    combNb_sample = sample_min
-            i = 0;
-            while (i < combNb_sample):
-                    comb = randomSublist(items,k)
-                    # Echantillonnage sans remise
-                    if (comb not in tmp_comb):
-                            tmp_comb.append(comb)
-                            samplingCombinationList[len(comb)].append(comb)
-                            i+=1
+    for k in range(1, item_size+1, step):
+        tmp_comb = []
+        combNb = Decimal(combinationNb(item_size, k))
+        combNb = sys.float_info.max if combNb>sys.float_info.max else combNb # to avoid to reach infinit values
+        combNb_sample = math.ceil(Decimal(combNb)/Decimal(sample_ratio))
+        # Plus petit echantillonage possible pour un k donn<C3><A9> = sample_min
+        if ((combNb_sample < sample_min) and k != item_size):
+            combNb_sample = sample_min
+        # Plus grand echantillonage possible
+        if (sample_max != None and (combNb_sample > sample_max)):
+            combNb_sample = sample_max
+        
+        i = 0;
+        while(i < combNb_sample):
+            comb = randomSublist(items,k)
+            # Echantillonnage sans remise
+            if (comb not in tmp_comb):
+                tmp_comb.append(comb)
+                samplingCombinationList[len(comb)].append(comb)
+            i+=1
     return samplingCombinationList
 
 # Generate list of combinations of organisms exaustively or following a binomial coeficient
-def organismsCombinations(orgs, nbOrgThr, sample_thr, sample_min):
+def organismsCombinations(orgs, nbOrgThr, sample_ratio, sample_min, sample_max = 100, step = 1):
     if (len(orgs) <= nbOrgThr):
-            comb_list = exactCombinations(orgs)
+        comb_list = exactCombinations(orgs)
     else:
-            comb_list = samplingCombinations(orgs, sample_thr, sample_min)
+        comb_list = samplingCombinations(orgs, sample_ratio, sample_min, sample_max, step)
     return comb_list
+
 
 def plot_Rscript(script_outfile, run_script = True):
     """
@@ -315,7 +318,7 @@ def resample(index):
                           shuffled_comb[index],
                           False,
                           True)
-
+    print("here")
     evol.write("\t".join([str(len(shuffled_comb[index])),
                           str(stats["persistent"]) if stats["undefined"] == 0 else "NA",
                           str(stats["shell"]) if stats["undefined"] == 0 else "NA",
@@ -400,10 +403,11 @@ def __main__():
     parser.add_argument("-e", "--evolution", default=False, action="store_true", help="""
     Relaunch the script using less and less organism in order to obtain a curve of the evolution of the pangenome metrics
     """)
-    parser.add_argument("-ep", "--evolution_resampling_param", type=int, nargs=3, default=[10,30,1], metavar=('MINIMUN_RESAMPLING','MAXIMUN_RESAMPLING','STEP'), help="""
-    1st argument is the minimun number of resampling for each number of organisms
-    2nd argument is the maximun number of resampling for each number of organisms
-    3rd argument is the step between each number of organisms
+    parser.add_argument("-ep", "--evolution_resampling_param", nargs=4, default=[0.1,10,30,1], metavar=('RESAMPLING_RATIO','MINIMUN_RESAMPLING','MAXIMUN_RESAMPLING','STEP'), help="""
+    1st argument is the resampling ratio (FLOAT)
+    2st argument is the minimun number of resampling for each number of organisms (INTEGER)
+    3nd argument is the maximun number of resampling for each number of organisms (INTEGER)
+    4rd argument is the step between each number of organisms (INTEGER)
     """)
     parser.add_argument("-pr", "--projection", type = int, nargs = "+", metavar=('LINE_NUMBER_OR_ZERO'), help="""
     Project the graph as a circos plot on each organism.
@@ -430,8 +434,8 @@ def __main__():
         list_dir.append(PROJECTION_DIR)
     if options.evolution:
         list_dir.append(EVOLUTION_DIR)
-        (RESAMPLING_MIN, RESAMPLING_MAX, STEP) = options.evolution_resampling_param
-
+        (RESAMPLING_RATIO, RESAMPLING_MIN, RESAMPLING_MAX, STEP) = options.evolution_resampling_param
+        (RESAMPLING_RATIO, RESAMPLING_MIN, RESAMPLING_MAX, STEP) = (float(RESAMPLING_RATIO), int(RESAMPLING_MIN), int(RESAMPLING_MAX), int(STEP))
     for directory in list_dir:
         if not os.path.exists(directory):
             os.makedirs(OUTPUTDIR+directory)
@@ -463,13 +467,14 @@ def __main__():
 
     #-------------
     logging.getLogger().info("Partitionning...")
+
     start_partitioning = time.time()
-    pan.partition(nem_dir_path = OUTPUTDIR+NEM_DIR,
-                  beta = options.beta_smoothing[0],
-                  organisms = None,
+    pan.partition(nem_dir_path    = OUTPUTDIR+NEM_DIR,
+                  beta            = options.beta_smoothing[0],
+                  organisms       = None,
                   free_dispersion = options.free_dispersion,
-                  inplace = True,
-                  nb_process = options.cpu[0])
+                  inplace         = True,
+                  nb_process      = options.cpu[0])
     end_partitioning = time.time()
     #-------------
 
@@ -508,6 +513,9 @@ def __main__():
 
     #-------------
     start_writing_output_file = time.time()
+
+    pan.ushaped_plot(OUTPUTDIR+FIGURE_DIR)
+    pan.tile_plot(OUTPUTDIR+FIGURE_DIR)
     if options.compress_graph:
         pan.export_to_GEXF(OUTPUTDIR+GRAPH_FILE_PREFIX+(".gz" if options.compress_graph else ""), options.compress_graph)
     for partition, families in pan.partitions.items(): 
@@ -546,12 +554,18 @@ def __main__():
 
         start_evolution = time.time()
         logging.disable(logging.INFO)# disable message info to not disturb the progess bar
-        combinations = organismsCombinations(list(pan.organisms), nbOrgThr=1, sample_thr=RESAMPLING_MAX, sample_min=RESAMPLING_MIN)
-        del combinations[pan.nb_organisms]
+        combinations = organismsCombinations(list(pan.organisms), nbOrgThr=1, sample_ratio=RESAMPLING_RATIO, sample_min=RESAMPLING_MIN, sample_max=RESAMPLING_MAX)
+        
+        if pan.nb_organisms in combinations:
+            del combinations[pan.nb_organisms]
         del combinations[1]
+        print(combinations)
         global shuffled_comb
+        shuffled_comb = combinations
         shuffled_comb = [OrderedSet(comb) for nb_org, combs in combinations.items() for comb in combs if nb_org%STEP == 0]
         random.shuffle(shuffled_comb)
+
+        
 
         global evol
         evol =  open(OUTPUTDIR+EVOLUTION_DIR+EVOLUTION_STAT_FILE_PREFIX+".txt","w")

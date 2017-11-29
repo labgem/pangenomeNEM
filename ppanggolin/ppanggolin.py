@@ -21,6 +21,8 @@ import time
 from multiprocessing.pool import ThreadPool
 from multiprocessing import Semaphore
 
+from highcharts import Highchart
+
 #import forceatlas2 
 
 NEM_LOCATION  = os.path.dirname(os.path.abspath(__file__))+"/nem_exe"
@@ -33,6 +35,8 @@ NEM_NB_MAX_VARIABLE = 50
 RESERVED_WORDS = set(["id", "label", "name", "weight", "partition", "partition_exact", "length", "length_min", "length_max", "length_avg", "length_avg", "product", 'nb_gene', 'community'])
 
 SHORT_TO_LONG = {'A':'accessory','CE':'core_exact','P':'persistent','S':'shell','C':'cloud','U':'undefined'}
+
+COLORS = {"pangenome":"black", "accessory":"#EB37ED", "core_exact" :"#FF2828", "shell": "#00D860", "persistent":"#F7A507", "cloud":"#79DEFF"}
 
 """
     :mod:`ppanggolin` -- Depict microbial diversity
@@ -931,43 +935,52 @@ class PPanGGOLiN:
             :type str: 
             :type bool: 
         """ 
+        if self.is_partitionned:
+            def write_file(ext, gene_or_not, sep):
+                with open(path+"."+ext,"w") as matrix:
+                    if header:
+                        matrix.write(sep.join(['"Gene"',#1
+                                               '"Non-unique Gene name"',#2
+                                               '"Annotation"',#3
+                                               '"No. isolates"',#4
+                                               '"No. sequences"',#5
+                                               '"Avg sequences per isolate"',#6
+                                               '"Accessory Fragment"',#7
+                                               '"Genome Fragment"',#8
+                                               '"Order within Fragment"',#9
+                                               '"Accessory Order with Fragment"',#10
+                                               '"QC"',#11
+                                               '"Min group size nuc"',#12
+                                               '"Max group size nuc"',#13
+                                               '"Avg group size nuc"']#14
+                                               +['"'+org+'"' for org in list(self.organisms)])+"\n")#15
 
-        def write_file(ext, gene_or_not, sep):
-            with open(path+"."+ext,"w") as matrix:
-                if header:
-                    matrix.write(sep.join(["family",
-                                           "partition",
-                                           "exact",
-                                           "in_nb_org",
-                                           "ratio_copy",
-                                           "product",
-                                           "length_avg",
-                                           "length_med",
-                                           "length_min",
-                                           "length_max"]
-                                           +list(self.organisms))+"\n")
-
-                for node, data in self.neighbors_graph.nodes(data=True):
-                    genes  = [(data[org] if gene_or_not else "1") if org in data else ("" if gene_or_not else "0") for org in self.organisms]
-                    nb_org = len([gene for gene in genes if gene != ""])
-                    matrix.write(sep.join([node,
-                                           data["partition"],
-                                           data["partition_exact"],
-                                           str(nb_org),
-                                           str(round(data["nb_gene"]/nb_org,2)),
-                                           data["product"],
-                                           str(round(data["length_avg"],2)),
-                                           str(round(data["length_med"],2)),
-                                           str(data["length_min"]),
-                                           str(data["length_max"])]
-                                           +genes)+"\n")
-        if csv:
-            logging.getLogger().info("Writing csv matrix")
-            write_file("csv",True,",")
-        if Rtab:
-            logging.getLogger().info("Writing Rtab matrix")
-            write_file("Rtab",False,"\t")
-
+                    for node, data in self.neighbors_graph.nodes(data=True):
+                        genes  = [('"'+data[org]+'"' if gene_or_not else "1") if org in data else ('""' if gene_or_not else "0") for org in self.organisms]
+                        nb_org = len([gene for gene in genes if gene != '""'])
+                        matrix.write(sep.join([node,#1
+                                               data["partition"],#2
+                                               data["product"],#3
+                                               str(nb_org),#4
+                                               str(data["nb_gene"]),#5
+                                               str(round(data["nb_gene"]/nb_org,2)),#6
+                                               '""',#7
+                                               '""',#8
+                                               '""',#9
+                                               str(round(data["length_med"],2)),#10
+                                               '""',#11
+                                               str(data["length_min"]),#12
+                                               str(data["length_max"]),#13
+                                               str(round(data["length_avg"],2))]#14
+                                               +genes)+"\n")#15
+            if csv:
+                logging.getLogger().info("Writing csv matrix")
+                write_file("csv",True,",")
+            if Rtab:
+                logging.getLogger().info("Writing Rtab matrix")
+                write_file("Rtab",False,"\t")
+        else:
+            logging.getLogger().error("The pangenome need to be partionned before being exported to a file matrix")
     # def delete_pangenome_graph(self, delete_NEM_files = False):
     #     """
     #         Delete all the pangenome graph of eventuelly the statistic of the partionning process (including the temporary file)
@@ -998,6 +1011,75 @@ class PPanGGOLiN:
             logging.getLogger().info("delete "+self.nem_intermediate_files)
             shutil.rmtree(self.nem_intermediate_files)
             self.nem_intermediate_files = None
+
+    def ushaped_plot(self, outdir):
+        ushaped_plot = Highchart(width = 1800, height = 800)
+
+        count = defaultdict(lambda : defaultdict(int))
+
+        for node, data in self.neighbors_graph.nodes(data=True):
+            nb_org  = len([True for org in self.organisms if org in data])
+            count[nb_org][data["partition"]]+=1
+            if nb_org == 0:
+                print("here")
+                exit()
+
+        persistent_values = []
+        shell_values      = []
+        cloud_values      = []
+
+        for nb_org in range(1,self.nb_organisms+1):
+            persistent_values.append(count[nb_org]["persistent"])
+            shell_values.append(count[nb_org]["shell"])
+            cloud_values.append(count[nb_org]["cloud"])
+        
+        options_ushaped_plot={
+        'title': {'text':'Distribution of gene families frequency in the pangenome'},
+        'xAxis': {'tickInterval': 1, 'categories': list(range(1,self.nb_organisms+1)), 'title':{'text':'# of organisms in which each family is present'}},
+        'yAxis': {'allowDecimals': False, 'title' : {'text':'# of families'}},
+        'tooltip': {'headerFormat': '<span style="font-size:11px"># of orgs: <b>{point.x}</b></span><br>',
+                    'pointFormat': '<span style="color:{point.color}">{series.name}</span>: {point.y}<br/>',
+                    'shared': True},
+        'plotOptions': {'column': {'stacking': 'normal'}}
+        }
+        ushaped_plot.set_dict_options(options_ushaped_plot)
+        ushaped_plot.add_data_set(persistent_values,'column','Persistent', color = COLORS["persistent"])
+        ushaped_plot.add_data_set(shell_values,'column','Shell', color = COLORS["shell"])
+        ushaped_plot.add_data_set(cloud_values,'column','Cloud', color = COLORS["cloud"])
+
+        ushaped_plot.save_file(filename = outdir+"/ushaped_plot")
+
+    def tile_plot(self, outdir):
+        tile_plot = Highchart(width = 1600, height = 1280)
+
+        binary_data = []
+        fam_order = []
+        cpt = 1
+        for node, data in self.neighbors_graph.nodes(data=True):
+            fam_order.append(node)
+            v = [[1,2,3] if org in data else [0,0,0] for org in self.organisms]
+            binary_data.append(v)
+            cpt+=1
+            if cpt>50:
+                break
+     
+        print(binary_data)
+        options_tile_plot={
+        'chart': {'type': 'heatmap', 'plotBorderWidth': 1},
+        'title': {'text':'Presence/Absence matrix'},
+        'xAxis': {'categories': fam_order},
+        'yAxis': {'categories': list(self.organisms)},
+        'colorAxis': {'min': 0, 'max': 1, 'minColor': '#FFFFFF', 'maxColor': '#7CB5EC'}
+        # ,
+        # 'legend', {'align': 'right', 'layout': 'vertical', 'margin': 0, 'verticalAlign': 'top', 'y': 25, 'symbolHeight': 280}   
+        }
+        print(options_tile_plot)
+        tile_plot.set_dict_options(options_tile_plot)
+        tile_plot.add_data_set(binary_data)
+
+        tile_plot.save_file(filename = outdir+"/tile_plot")
+
+        ##########
 
     # def identify_communities_in_each_partition(self):
     #     """
