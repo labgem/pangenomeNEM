@@ -26,7 +26,7 @@ from highcharts import Highchart
 #import forceatlas2 
 
 NEM_LOCATION  = os.path.dirname(os.path.abspath(__file__))+"/nem_exe"
-NEM_NB_MAX_VARIABLE = 50
+NEM_NB_MAX_VARIABLE = 200
 (TYPE, FAMILY, START, END, STRAND, NAME, PRODUCT) = range(0, 7)#data index in annotation
 (ORGANISM_ID, ORGANISM_GFF_FILE) = range(0, 2)#data index in the file listing organisms 
 

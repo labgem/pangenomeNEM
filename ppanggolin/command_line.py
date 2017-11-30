@@ -70,7 +70,7 @@ def samplingCombinations(items, sample_ratio, sample_min, sample_max=100, step =
     combTotNb = combinationTotalNb(item_size)
     for k in range(1, item_size+1, step):
         tmp_comb = []
-        combNb = Decimal(scipy.special.comb(item_size, k))
+        combNb = Decimal(comb(item_size, k))
         combNb = sys.float_info.max if combNb>sys.float_info.max else combNb # to avoid to reach infinit values
         combNb_sample = math.ceil(Decimal(combNb)/Decimal(sample_ratio))
         # Plus petit echantillonage possible pour un k donn<C3><A9> = sample_min
@@ -82,11 +82,11 @@ def samplingCombinations(items, sample_ratio, sample_min, sample_max=100, step =
         
         i = 0;
         while(i < combNb_sample):
-            comb = randomSublist(items,k)
+            comb_sub = randomSublist(items,k)
             # Echantillonnage sans remise
-            if (comb not in tmp_comb):
+            if (comb_sub not in tmp_comb):
                 tmp_comb.append(comb)
-                samplingCombinationList[len(comb)].append(comb)
+                samplingCombinationList[len(comb_sub)].append(comb_sub)
             i+=1
     return samplingCombinationList
 
