@@ -16,7 +16,7 @@ import networkx as nx
 from ordered_set import OrderedSet
 import numpy as np
 from decimal import Decimal
-import scipy 
+from scipy.special import comb
 
 from ppanggolin import *
 
@@ -70,7 +70,7 @@ def samplingCombinations(items, sample_ratio, sample_min, sample_max=100, step =
     combTotNb = combinationTotalNb(item_size)
     for k in range(1, item_size+1, step):
         tmp_comb = []
-        combNb = Decimal(scipy.misc.comb(item_size, k))
+        combNb = Decimal(comb(item_size, k))
         combNb = sys.float_info.max if combNb>sys.float_info.max else combNb # to avoid to reach infinit values
         combNb_sample = math.ceil(Decimal(combNb)/Decimal(sample_ratio))
         # Plus petit echantillonage possible pour un k donn<C3><A9> = sample_min
