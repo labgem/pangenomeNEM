@@ -514,6 +514,7 @@ def __main__():
 
     pan.ushaped_plot(OUTPUTDIR+FIGURE_DIR)
     pan.tile_plot(OUTPUTDIR+FIGURE_DIR)
+    print(OUTPUTDIR+GRAPH_FILE_PREFIX+(".gz" if options.compress_graph else ""))
     pan.export_to_GEXF(OUTPUTDIR+GRAPH_FILE_PREFIX+(".gz" if options.compress_graph else ""), options.compress_graph)
     for partition, families in pan.partitions.items(): 
         file = open(OUTPUTDIR+PARTITION_DIR+"/"+partition+".txt","w")

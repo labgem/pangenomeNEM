@@ -820,7 +820,6 @@ class PPanGGOLiN:
                                 self.neighbors_graph.node[node]["length_min"] = min(l)
                                 self.neighbors_graph.node[node]["length_max"] = max(l)
                                 del self.neighbors_graph.node[node]["length"]
-
                     if key not in RESERVED_WORDS:
                         #self.partitions_by_organisms[key][partition[int(nem_class)]].add(self.neighbors_graph.node[node][key])
                         nb_orgs+=1
@@ -846,7 +845,7 @@ class PPanGGOLiN:
                     self.neighbors_graph[node_i][node_j]["length_min"] = min(l)
                     self.neighbors_graph[node_i][node_j]["length_max"] = max(l)
 
-                del self.neighbors_graph[node_i][node_j]["length"]
+                    del self.neighbors_graph[node_i][node_j]["length"]
 
             if len(self.families_repeted)>0:
                 logging.getLogger().info("Discarded families are:\t"+" ".join(self.families_repeted))
@@ -889,6 +888,7 @@ class PPanGGOLiN:
         logging.getLogger().info("Writing GEXF file")
         if compressed:
             graph_output_path = gzip.open(graph_output_path,"w")
+
         nx.write_gexf(self.neighbors_graph, graph_output_path)
 
     # def import_from_GEXF(self, path_graph_to_update):
