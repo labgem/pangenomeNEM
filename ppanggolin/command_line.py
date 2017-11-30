@@ -15,7 +15,9 @@ import sys
 import networkx as nx
 from ordered_set import OrderedSet
 import numpy as np
+from numpy
 from decimal import Decimal
+from scipy.misc import comb
 
 from ppanggolin import *
 
@@ -36,10 +38,7 @@ EVOLUTION_CURVE_PREFIX     = "/evolution_curve"
 EVOLUTION_STAT_FILE_PREFIX = "/stat_evol"
 SCRIPT_R_FIGURE            = "/generate_plots.R"
 
-# nCr
-def combinationNb(n,r):
-    f = math.factorial
-    return f(n) / f(r) / f(n-r)
+
 
 # Calcul du nombre total de combinaisons uniques de n elements
 def combinationTotalNb(size):
@@ -72,7 +71,7 @@ def samplingCombinations(items, sample_ratio, sample_min, sample_max=100, step =
     combTotNb = combinationTotalNb(item_size)
     for k in range(1, item_size+1, step):
         tmp_comb = []
-        combNb = Decimal(combinationNb(item_size, k))
+        combNb = Decimal(comb(item_size, k))
         combNb = sys.float_info.max if combNb>sys.float_info.max else combNb # to avoid to reach infinit values
         combNb_sample = math.ceil(Decimal(combNb)/Decimal(sample_ratio))
         # Plus petit echantillonage possible pour un k donn<C3><A9> = sample_min
