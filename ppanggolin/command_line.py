@@ -119,8 +119,8 @@ color_chart = c(pangenome="black", "accessory"="#EB37ED", "core_exact" ="#FF2828
 
 ########################### START U SHAPED PLOT #################################
 
-binary_matrix         <- read.table('"""+OUTPUTDIR+MATRIX_FILES_PREFIX+""".Rtab', header=TRUE, sep='\\t')
-data_header <- c("family", "partition", "exact", "in_nb_org", "ratio_copy", "product", "length_avg", "length_med", "length_min", "length_max") 
+binary_matrix         <- read.table('"""+OUTPUTDIR+MATRIX_FILES_PREFIX+""".Rtab', header=TRUE, sep='\\t', check.names = FALSE)
+data_header           <- c("Gene","Non-unique Gene name","Annotation","No. isolates","No. sequences","Avg sequences per isolate","Accessory Fragment","Genome Fragment","Order within Fragment","Accessory Order with Fragment","QC","Min group size nuc","Max group size nuc","Avg group size nuc") 
 family_data           <- binary_matrix[,colnames(binary_matrix) %in% data_header]
 binary_matrix         <- binary_matrix[,!(colnames(binary_matrix) %in% data_header)]
 occurences            <- rowSums(binary_matrix)
@@ -309,14 +309,15 @@ EVOLUTION = None
 
 def resample(index):
     global shuffled_comb
+    stats = pan.partition(nem_dir_path    = OUTPUTDIR+EVOLUTION_DIR+"/nborg"+str(len(shuffled_comb[index]))+"_"+str(index),
+                          organisms       = shuffled_comb[index],
+                          beta            = options.beta_smoothing[0],
+                          free_dispersion = options.free_dispersion,
+                          chunck_size     = options.chunck_size[0],
+                          inplace         = False,
+                          just_stats      = True,
+                          nb_threads      = 1)
 
-    stats = pan.partition(OUTPUTDIR+EVOLUTION_DIR+"/nborg"+str(len(shuffled_comb[index]))+"_"+str(index),
-                          options.beta_smoothing[0],
-                          options.free_dispersion,
-                          shuffled_comb[index],
-                          False,
-                          True)
-    print("here")
     evol.write("\t".join([str(len(shuffled_comb[index])),
                           str(stats["persistent"]) if stats["undefined"] == 0 else "NA",
                           str(stats["shell"]) if stats["undefined"] == 0 else "NA",
@@ -373,7 +374,7 @@ def __main__():
     if this argument is not set, the program will raise KeyError exception if a gene id found in a gff file is absent of the gene families file.""")
     #    parser.add_argument("-u", "--update", default = None, type=argparse.FileType('r'), nargs=1, help="""
     # Pangenome Graph to be updated (in gexf format)""")
-    parser.add_argument("-b", "--beta_smoothing", default = [float("inf")], type=float, nargs=1, metavar=('BETA_VALUE'), help = """
+    parser.add_argument("-b", "--beta_smoothing", default = [float("0.5")], type=float, nargs=1, metavar=('BETA_VALUE'), help = """
     Coeficient of smoothing all the partionning based on the Markov Random Feild leveraging the weigthed pangenome graph. A positive float, 0.0 means to discard spatial smoothing and 1.00 means strong smoothing (can be more but it is not advised), 0.5 is generally advised as a good trad off.
     """)
     parser.add_argument("-fd", "--free_dispersion", default = False, action="store_true", help = """
@@ -411,6 +412,9 @@ def __main__():
     Project the graph as a circos plot on each organism.
     Expected parameters are the line number (1 based) of each organism on which the graph will be projected providing a circos plot (well assembled representative organisms must be prefered).
     0 means all organisms (it is discouraged to use -p and -pr 0 in the same time because the projection of the graph on all the organisms can take a long time).
+    """)
+    parser.add_argument("-ck", "--chunck_size", type = int, nargs = 1, default = [200], metavar=('SIZE'), help="""
+    Size of the chunks to performs multiple resampling
     """)
     global options
     options = parser.parse_args()
@@ -469,10 +473,10 @@ def __main__():
     start_partitioning = time.time()
     pan.partition(nem_dir_path    = OUTPUTDIR+NEM_DIR,
                   beta            = options.beta_smoothing[0],
-                  organisms       = None,
                   free_dispersion = options.free_dispersion,
+                  chunck_size     = options.chunck_size[0],
                   inplace         = True,
-                  nb_process      = options.cpu[0])
+                  nb_threads      = options.cpu[0])
     end_partitioning = time.time()
     #-------------
 
@@ -513,7 +517,7 @@ def __main__():
     start_writing_output_file = time.time()
 
     pan.ushaped_plot(OUTPUTDIR+FIGURE_DIR)
-    pan.tile_plot(OUTPUTDIR+FIGURE_DIR)
+    #pan.tile_plot(OUTPUTDIR+FIGURE_DIR)
     print(OUTPUTDIR+GRAPH_FILE_PREFIX+(".gz" if options.compress_graph else ""))
     pan.export_to_GEXF(OUTPUTDIR+GRAPH_FILE_PREFIX+(".gz" if options.compress_graph else ""), options.compress_graph)
     for partition, families in pan.partitions.items(): 
@@ -554,17 +558,14 @@ def __main__():
         logging.disable(logging.INFO)# disable message info to not disturb the progess bar
         combinations = organismsCombinations(list(pan.organisms), nbOrgThr=1, sample_ratio=RESAMPLING_RATIO, sample_min=RESAMPLING_MIN, sample_max=RESAMPLING_MAX)
         
-        if pan.nb_organisms in combinations:
-            del combinations[pan.nb_organisms]
+        del combinations[pan.nb_organisms]
         del combinations[1]
-        print(combinations)
         global shuffled_comb
         shuffled_comb = combinations
         shuffled_comb = [OrderedSet(comb) for nb_org, combs in combinations.items() for comb in combs if nb_org%STEP == 0]
         random.shuffle(shuffled_comb)
 
-        
-
+    
         global evol
         evol =  open(OUTPUTDIR+EVOLUTION_DIR+EVOLUTION_STAT_FILE_PREFIX+".txt","w")
 

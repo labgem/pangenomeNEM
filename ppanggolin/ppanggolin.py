@@ -26,7 +26,6 @@ from highcharts import Highchart
 #import forceatlas2 
 
 NEM_LOCATION  = os.path.dirname(os.path.abspath(__file__))+"/nem_exe"
-NEM_NB_MAX_VARIABLE = 200
 (TYPE, FAMILY, START, END, STRAND, NAME, PRODUCT) = range(0, 7)#data index in annotation
 (ORGANISM_ID, ORGANISM_GFF_FILE) = range(0, 2)#data index in the file listing organisms 
 
@@ -496,7 +495,14 @@ class PPanGGOLiN:
 
         self.pan_size = nx.number_of_nodes(self.neighbors_graph)
 
-    def partition(self, nem_dir_path = tempfile.mkdtemp(), beta = 1.00, free_dispersion = False, organisms = None, inplace = True, just_stats = False, nb_process = 1):#tempfile.mkdtemp()
+    def partition(self, nem_dir_path    = tempfile.mkdtemp(),
+                        organisms       = None,
+                        beta            = 0.5,
+                        free_dispersion = False,
+                        chunck_size     = 200,
+                        inplace         = True,
+                        just_stats      = False,
+                        nb_threads      = 1):#tempfile.mkdtemp()
         """
             Use the graph topology and the presence or absence of genes from each organism into families to partition the pangenome in three groups ('persistent', 'shell' and 'cloud')
             . seealso:: Read the Mo Dang's thesis to understand NEM and Bernouilli Mixture Model, a summary is available here : http://www.kybernetika.cz/content/1998/4/393/paper.pdf
@@ -506,6 +512,7 @@ class PPanGGOLiN:
             :param free_dispersion: a bool specyfing if the dispersion around the centroid vector of each paritition is the same for all the organisms or if the dispersion is free
             :param organisms: a list of organism to used to obtain the partition (must be included in the organisms attribute of the object) or None to used all organisms in the object
             :param inplace: a boolean specifying if the partition must be stored in the object of returned (throw an error if inplace is true and organisms parameter i not None)
+            :param chunck_size: an int specifying the size of the chunks
             :type str: 
             :type float: 
             :type bool: 
@@ -537,7 +544,7 @@ class PPanGGOLiN:
 
         stats = defaultdict(int)
         classification = []
-        if just_stats or len(organisms) > NEM_NB_MAX_VARIABLE:
+        if just_stats or len(organisms) > chunck_size:
             for node_name, node_organisms in self.neighbors_graph.nodes(data=True):
                         compressed_vector = set([True if org in node_organisms else False for org in organisms])
                         if len(compressed_vector)>1:
@@ -547,15 +554,15 @@ class PPanGGOLiN:
 
         BIC = 0
 
-        if len(organisms) > NEM_NB_MAX_VARIABLE:
+        if len(organisms) > chunck_size:
 
             cpt_partition = OrderedDict()
             for fam in self.neighbors_graph.nodes():
                 cpt_partition[fam]= {"P":0,"S":0,"C":0,"U":0}
             
             total_BIC = 0
-            with ThreadPool(nb_process) as pool:
-                sem = Semaphore(nb_process)
+            with ThreadPool(nb_threads) as pool:
+                sem = Semaphore(nb_threads)
 
                 validated = set()
                 cpt=0
@@ -568,7 +575,7 @@ class PPanGGOLiN:
                         for node,nem_class in partitions.items():
                             cpt_partition[node][nem_class]+=1
                             sum_partionning = sum(cpt_partition[node].values()) 
-                            if sum_partionning > len(organisms)/NEM_NB_MAX_VARIABLE and max(cpt_partition[node].values()) > sum_partionning*0.5:
+                            if sum_partionning > len(organisms)/chunck_size and max(cpt_partition[node].values()) > sum_partionning*0.5:
                                 validated.add(node)
                     finally:
                         sem.release()
@@ -579,12 +586,12 @@ class PPanGGOLiN:
                                                args = (nem_dir_path+"/"+str(cpt)+"/",
                                                        beta,
                                                        free_dispersion,
-                                                       sample(organisms, NEM_NB_MAX_VARIABLE),
+                                                       sample(organisms, chunck_size),
                                                        False),
                                                callback = validate_family)
                         cpt +=1
                     else:
-                        time.sleep(0.5)
+                        time.sleep(0.01)
 
                 BIC = total_BIC/cpt
             classification = list()
@@ -886,8 +893,9 @@ class PPanGGOLiN:
             #     print(positions)
             #     exit()
         logging.getLogger().info("Writing GEXF file")
+        graph_output_path = graph_output_path+".gexf"
         if compressed:
-            graph_output_path = gzip.open(graph_output_path,"w")
+            graph_output_path = gzip.open(graph_output_path+".gz","w")
 
         nx.write_gexf(self.neighbors_graph, graph_output_path)
 
@@ -1020,9 +1028,6 @@ class PPanGGOLiN:
         for node, data in self.neighbors_graph.nodes(data=True):
             nb_org  = len([True for org in self.organisms if org in data])
             count[nb_org][data["partition"]]+=1
-            if nb_org == 0:
-                print("here")
-                exit()
 
         persistent_values = []
         shell_values      = []
