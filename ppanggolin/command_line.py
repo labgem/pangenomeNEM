@@ -15,7 +15,6 @@ import sys
 import networkx as nx
 from ordered_set import OrderedSet
 import numpy as np
-from numpy
 from decimal import Decimal
 from scipy.misc import comb
 
