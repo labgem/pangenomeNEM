@@ -966,9 +966,9 @@ class PPanGGOLiN:
                     for node, data in self.neighbors_graph.nodes(data=True):
                         genes  = [('"'+data[org]+'"' if gene_or_not else "1") if org in data else ('""' if gene_or_not else "0") for org in self.organisms]
                         nb_org = len([gene for gene in genes if gene != '""'])
-                        matrix.write(sep.join([node,#1
-                                               data["partition"],#2
-                                               data["product"],#3
+                        matrix.write(sep.join(['"'+node+'"',#1
+                                               '"'+data["partition"]+'"',#2
+                                               '"'+data["product"]+'"',#3
                                                str(nb_org),#4
                                                str(data["nb_gene"]),#5
                                                str(round(data["nb_gene"]/nb_org,2)),#6

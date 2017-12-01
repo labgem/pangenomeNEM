@@ -122,9 +122,12 @@ color_chart = c(pangenome="black", "accessory"="#EB37ED", "core_exact" ="#FF2828
 binary_matrix         <- read.table('"""+OUTPUTDIR+MATRIX_FILES_PREFIX+""".Rtab', header=TRUE, sep='\\t', check.names = FALSE)
 data_header           <- c("Gene","Non-unique Gene name","Annotation","No. isolates","No. sequences","Avg sequences per isolate","Accessory Fragment","Genome Fragment","Order within Fragment","Accessory Order with Fragment","QC","Min group size nuc","Max group size nuc","Avg group size nuc") 
 family_data           <- binary_matrix[,colnames(binary_matrix) %in% data_header]
+family_data           <- binary_matrix[,colnames(binary_matrix)[1:14]]
 binary_matrix         <- binary_matrix[,!(colnames(binary_matrix) %in% data_header)]
+binary_matrix           <- binary_matrix[,colnames(binary_matrix)[15:ncol(binary_matrix)]]
 occurences            <- rowSums(binary_matrix)
 classification_vector <- family_data$partition
+classification_vector <- family_data[,2]
 
 c = data.frame(nb_org = occurences, partition = classification_vector)
 
@@ -164,7 +167,7 @@ data$value <- factor(data$value, levels = c(1,0,"persistent", "shell", "cloud", 
 plot <- ggplot(data = data)+
         geom_raster(aes_string(x="org",y="fam", fill="value"))+
         scale_fill_manual(values = c("presence"="green","absence"="grey80",color_chart)) +
-        theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5), panel.border = element_blank(), panel.background = element_blank())
+        theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size=1), panel.border = element_blank(), panel.background = element_blank())
 
 ggsave('"""+OUTPUTDIR+FIGURE_DIR+MATRIX_PLOT_PREFIX+""".pdf', device = "pdf", plot)
 
