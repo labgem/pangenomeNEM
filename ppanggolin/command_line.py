@@ -479,6 +479,7 @@ def __main__():
                   free_dispersion = options.free_dispersion,
                   chunck_size     = options.chunck_size[0],
                   inplace         = True,
+                  just_stats      = False,
                   nb_threads      = options.cpu[0])
     end_partitioning = time.time()
     #-------------
