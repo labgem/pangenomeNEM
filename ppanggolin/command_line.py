@@ -475,6 +475,7 @@ def __main__():
 
     start_partitioning = time.time()
     pan.partition(nem_dir_path    = OUTPUTDIR+NEM_DIR,
+                  organisms       = None,
                   beta            = options.beta_smoothing[0],
                   free_dispersion = options.free_dispersion,
                   chunck_size     = options.chunck_size[0],

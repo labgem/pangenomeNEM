@@ -582,12 +582,16 @@ class PPanGGOLiN:
                 
                 while len(validated)<(stats["accessory"]+stats["core_exact"]):
                     if sem.acquire():
+
                         res = pool.apply_async(self.partition,
-                                               args = (nem_dir_path+"/"+str(cpt)+"/",
-                                                       beta,
-                                                       free_dispersion,
-                                                       sample(organisms, chunck_size),
-                                                       False),
+                                               args = (nem_dir_path+"/"+str(cpt)+"/",#nem_dir_path
+                                                       sample(organisms, chunck_size),#organisms
+                                                       beta,#beta
+                                                       free_dispersion,#free dispersion
+                                                       chunck_size,#chunck_size
+                                                       False,#inplace
+                                                       False,#just_stats
+                                                       1),#nb_threads
                                                callback = validate_family)
                         cpt +=1
                     else:
