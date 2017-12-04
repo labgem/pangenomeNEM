@@ -332,7 +332,6 @@ def resample(index):
 
 #### END - NEED TO BE AT THE HIGHEST LEVEL OF THE MODULE TO ALLOW MULTIPROCESSING
 
-
 def __main__():
     """
     --organims is a tab delimited files containg at least 2 mandatory fields by row and as many optional field as circular contig. Each row correspond to an organism to be added to the pangenome.
@@ -560,7 +559,8 @@ def __main__():
         logging.getLogger().info("Evolution...")
 
         start_evolution = time.time()
-        logging.disable(logging.INFO)# disable message info to not disturb the progess bar
+        logging.disable(logging.INFO)# disable INFO message to not disturb the progess bar
+        logging.disable(logging.WARNING)# disable WARNING message to not disturb the progess bar
         combinations = organismsCombinations(list(pan.organisms), nbOrgThr=1, sample_ratio=RESAMPLING_RATIO, sample_min=RESAMPLING_MIN, sample_max=RESAMPLING_MAX)
         
         del combinations[pan.nb_organisms]
@@ -596,7 +596,8 @@ def __main__():
         evol.close()
 
         end_evolution = time.time()
-        logging.disable(logging.NOTSET)#restaure message info
+        logging.disable(logging.NOTSET)#restaure info and warning messages 
+
     #-------------
 
     logging.getLogger().info("\n"+
