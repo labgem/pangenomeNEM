@@ -18,9 +18,8 @@ from tqdm import tqdm
 import mmap
 from random import sample
 import time
-from multiprocessing.pool import ThreadPool
+from multiprocessing.pool import ThreadPool, Pool
 from multiprocessing import Semaphore
-from sklearn.preprocessing import MinMaxScaler
 from highcharts import Highchart
 
 #import forceatlas2 
@@ -222,7 +221,7 @@ class PPanGGOLiN:
         families    = dict()
         first_iter  = True
         for line in families_tsv_file:
-            elements = line.split()
+            elements = [el.strip() for el in line.split("\t")]
             for gene in elements[1:]:
                 families[gene]=elements[0]
 
@@ -238,20 +237,19 @@ class PPanGGOLiN:
                 lines += 1
             return lines
 
-        bar = tqdm(organisms_file,total=get_num_lines(organisms_file.name), unit = "gff file", unit_scale = True)
+        bar = tqdm(organisms_file,total=get_num_lines(organisms_file.name), unit = "gff file")
 
         for line in bar:
-            elements = line.split()
+            elements = [el.strip() for el in line.split("\t")]
             bar.set_description("Processing "+elements[ORGANISM_GFF_FILE])
             bar.refresh()
             if len(elements)>2:
                 self.circular_contig_size.update({contig_id: None for contig_id in elements[2:len(elements)]})# size of the circular contig is initialized to None (waiting to read the gff files to fill the dictionnaries with the correct values)
             self.annotations[elements[0]] = self.__load_gff(elements[ORGANISM_GFF_FILE], families, elements[ORGANISM_ID], lim_occurence, infere_singleton)
-
         check_circular_contigs = {contig: size for contig, size in self.circular_contig_size.items() if size == None }
         if len(check_circular_contigs) > 0:
             logging.getLogger().error("""
-                The following identifiers of circular contigs in the file listing organisms have not been found in any region feature of the gff files: """+"\t".join(check_circular_contigs.keys()))
+                The following identifiers of circular contigs in the file listing organisms have not been found in any region feature of the gff files: '"""+"'\t'".join(check_circular_contigs.keys())+"'")
             exit()
 
     def __load_gff(self, gff_file_path, families, organism, lim_occurence = 0, infere_singleton = False):
@@ -272,7 +270,6 @@ class PPanGGOLiN:
         """ 
 
         logging.getLogger().debug("Reading "+gff_file_path+" file ...")
-
         if organism not in self.organisms:
             self.organisms.add(organism)
             annot = defaultdict(OrderedDict)
@@ -284,21 +281,22 @@ class PPanGGOLiN:
 
             with open(gff_file_path,'r') as gff_file:
                 for line in gff_file:
-                    
                     if line.startswith('##',0,2):
-
                         if line.startswith('FASTA',2,7):
                             break
                         elif line.startswith('sequence-region',2,17):
-                            fields = line.split(' ')
+                            fields = [el.strip() for el in line.split()]
                             if fields[1] in self.circular_contig_size:
-                                self.circular_contig_size[fields[1]] = fields[3]
+                                self.circular_contig_size[fields[1]] = int(fields[3])
+                            else:
+                                logging.getLogger().debug(fields[1]+" is not circular")
                         continue
-                    gff_fields = line.split('\t')
+                    gff_fields = [el.strip() for el in line.split('\t')]
                     if GFF_feature == 'region':
                         if GFF_seqname in self.circular_contig_size:
                             self.circular_contig_size = int(GFF_end)
                             continue
+
                     elif gff_fields[GFF_feature] == 'CDS':
                         attributes_field = [f for f in gff_fields[GFF_attribute].strip().split(';') if len(f)>0]
                         attributes = {}
@@ -315,7 +313,7 @@ class PPanGGOLiN:
                         except KeyError:
                             if infere_singleton:
                                 families[protein] = protein
-                                family           = families[protein]
+                                family            = families[protein]
                                 logging.getLogger().info("infered singleton: "+protein)
                             else:
                                 raise KeyError("Unknown families:"+protein, ", check your families file or run again the program using the option to infere singleton")
@@ -445,7 +443,7 @@ class PPanGGOLiN:
             else:
                 self.neighbors_graph = nx.DiGraph()
 
-        bar = tqdm(list(self.annotations),total=len(self.annotations),unit = "organism", unit_scale = True)
+        bar = tqdm(list(self.annotations),total=len(self.annotations),unit = "organism")
         for organism in bar:
 
             bar.set_description("Processing "+organism)
@@ -473,7 +471,6 @@ class PPanGGOLiN:
                     logging.getLogger().debug(gene_info)
                     logging.getLogger().debug(gene)
                     if gene_info[FAMILY] not in self.families_repeted:
-
                         self.__add_gene(gene_info[FAMILY],
                                         organism,
                                         gene,
@@ -496,17 +493,18 @@ class PPanGGOLiN:
         self.pan_size = nx.number_of_nodes(self.neighbors_graph)
 
     def partition(self, nem_dir_path    = tempfile.mkdtemp(),
+                        #mode            = "PSC",
                         organisms       = None,
                         beta            = 0.5,
                         free_dispersion = False,
                         chunck_size     = 200,
                         inplace         = True,
                         just_stats      = False,
-                        nb_threads      = 1):#tempfile.mkdtemp()
+                        nb_threads      = 1):
         """
             Use the graph topology and the presence or absence of genes from each organism into families to partition the pangenome in three groups ('persistent', 'shell' and 'cloud')
             . seealso:: Read the Mo Dang's thesis to understand NEM and Bernouilli Mixture Model, a summary is available here : http://www.kybernetika.cz/content/1998/4/393/paper.pdf
-            
+            :param mode : a str specyfying if the pangenome will be parition in 2 partitions ("persistent" and "accessory") or 3 partitions ("persistent", "shell" and "accessory")
             :param nem_dir_path: a str containing a path to store tempory file of the NEM program
             :param beta: a float containing the spatial coefficient of smothing of the clustering results using the weighted graph topology (0.00 turn off the spatial clustering)
             :param free_dispersion: a bool specyfing if the dispersion around the centroid vector of each paritition is the same for all the organisms or if the dispersion is free
@@ -533,8 +531,8 @@ class PPanGGOLiN:
         # if self.neighbors_graph is None:
         #     raise Exception("The neighbors_graph is not built, please use the function neighborhood_computation before")
         if self.is_partitionned and inplace:
+            logging.getLogger().warning("The pangenome was already partionned, inplace=true parameter will erase previous nem file intermediate files")
             self.delete_nem_intermediate_files()
-            logging.getLogger().warning("The pangenome was already partionned, inplace=true parameter erase previous nem file intermediate files")
 
         if not os.path.exists(nem_dir_path):
             #NEM requires 5 files: nem_file.index, nem_file.str, nem_file.dat, nem_file.m and nem_file.nei
@@ -565,7 +563,7 @@ class PPanGGOLiN:
                 cpt_partition[fam]= {"P":0,"S":0,"C":0,"U":0}
             
             total_BIC = 0
-            with ThreadPool(nb_threads) as pool:
+            with Pool(nb_threads) as pool:
                 sem = Semaphore(nb_threads)
 
                 validated = set()
@@ -573,8 +571,11 @@ class PPanGGOLiN:
 
                 proba_sample = OrderedDict(zip(organisms,[len(organisms)]*len(organisms)))
 
-                def validate_family(result):
+                pan_size = stats["accessory"]+stats["core_exact"]
+                if inplace:
+                    bar = tqdm(total = stats["accessory"]+stats["core_exact"], unit = "families partitionned")
 
+                def validate_family(result):                    
                     nonlocal total_BIC
                     try :
                         (BIC, partitions) = result
@@ -582,12 +583,20 @@ class PPanGGOLiN:
                         for node,nem_class in partitions.items():
                             cpt_partition[node][nem_class]+=1
                             sum_partionning = sum(cpt_partition[node].values()) 
-                            if sum_partionning > len(organisms)/chunck_size and max(cpt_partition[node].values()) > sum_partionning*0.5:
-                                validated.add(node)
+                            if sum_partionning > len(organisms) and max(cpt_partition[node].values()) > sum_partionning*0.5:
+                                if  node not in validated:
+                                    bar.update()
+                                    validated.add(node)
+                                    # if max(cpt_partition[node], key=cpt_partition[node].get) == "P" and cpt_partition[node]["S"]==0 and cpt_partition[node]["C"]==0:
+                                    #     validated[node]="P"
+                                    # elif cpt_partition[node]["S"]==0:
+                                    #     validated[node]="C"
+                                    # else:
+                                    #     validated[node]="S" 
                     finally:
                         sem.release()
                 
-                while len(validated)<(stats["accessory"]+stats["core_exact"]):
+                while len(validated)<pan_size:
                     if sem.acquire():
                         # print(organisms)
                         # print(chunck_size)
@@ -602,6 +611,7 @@ class PPanGGOLiN:
                         #     p = list(proba_sample.values())
                         # print(p)
                         s = sum(proba_sample.values())
+                        #orgs = sample(organisms,chunck_size)
                         orgs = np.random.choice(organisms, size = chunck_size, replace = False, p = [p/s for p in proba_sample.values()])#
                         orgs = OrderedSet(orgs)
                         for org, p in proba_sample.items():
@@ -628,11 +638,13 @@ class PPanGGOLiN:
                         #                                False,#inplace
                         #                                False,#just_stats
                         #                                1)
-                        # validate_family(res)
+                        validate_family(res)
 
                         cpt +=1
                     else:
                         time.sleep(0.01)
+
+                pool.terminate()                
 
                 BIC = total_BIC/cpt
             classification = list()
@@ -662,10 +674,10 @@ class PPanGGOLiN:
         else:
             classification = ["U"] * (stats["core_exact"]+stats["accessory"])
 
-            if len(organisms)<=5:# below 5 organisms a statistical computation do not make sence
+            if len(organisms)<=10:# below 10 organisms a statistical computation do not make any sence
                 logging.getLogger().warning("The number of organisms is too low ("+str(len(organisms))+" organisms used) to partition the pangenome graph in persistent, shell, cloud partition, traditional partitions only (Core and Accessory genome) will be provided")
             else:
-                logging.getLogger().info("Writing nem_file.str nem_file.index nem_file.nei nem_file.dat and nem_file.m files")
+                logging.getLogger().debug("Writing nem_file.str nem_file.index nem_file.nei nem_file.dat and nem_file.m files")
                 with open(nem_dir_path+"/nem_file.str", "w") as str_file,\
                      open(nem_dir_path+"/nem_file.index", "w") as index_file,\
                      open(nem_dir_path+"/column_org_file", "w") as org_file,\
@@ -735,7 +747,7 @@ class PPanGGOLiN:
                     str_file.write("S\t"+str(len(index_fam))+"\t"+
                                          str(len(organisms))+"\n")
 
-                logging.getLogger().info("Running NEM...")
+                logging.getLogger().debug("Running NEM...")
                 # weighted_degree = sum(list(self.neighbors_graph.degree(weight="weight")).values())/nx.number_of_edges(self.neighbors_graph)
                 # logging.getLogger().debug("weighted_degree: "+str(weighted_degree))
                 # logging.getLogger().debug("org/weighted_degree: "+str(self.nb_organisms/weighted_degree))    
@@ -773,14 +785,15 @@ class PPanGGOLiN:
                                     "-f fuzzy",
                                     "-l y"])
              
-                logging.getLogger().info(command)
+                logging.getLogger().debug(command)
 
                 proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE if logging.getLogger().getEffectiveLevel() == logging.INFO else None,
                                                             stderr=subprocess.PIPE if logging.getLogger().getEffectiveLevel() == logging.INFO else None)
                 (out,err) = proc.communicate()
-                with open(nem_dir_path+"/out.txt", "wb") as file_out, open(nem_dir_path+"/err.txt", "wb") as file_err:
-                    file_out.write(out)
-                    file_err.write(err)
+                if logging.getLogger().getEffectiveLevel() == logging.INFO:
+                    with open(nem_dir_path+"/out.txt", "wb") as file_out, open(nem_dir_path+"/err.txt", "wb") as file_err:
+                        file_out.write(out)
+                        file_err.write(err)
 
                 logging.getLogger().debug(out)
                 logging.getLogger().debug(err)
@@ -802,7 +815,7 @@ class PPanGGOLiN:
                                     beta_evol_file.write(str(beta)+"\t"+str(Lmix)+"\n")
 
                 if os.path.isfile(nem_dir_path+"/nem_file.uf"):
-                    logging.getLogger().info("Reading NEM results...")
+                    logging.getLogger().debug("Reading NEM results...")
                 else:
                     logging.getLogger().error("No NEM output file found: "+ nem_dir_path+"/nem_file.uf")
                 
@@ -816,7 +829,7 @@ class PPanGGOLiN:
                         parameter = parameter_nem_file.readlines()
                         M = float(parameter[6].split()[3]) # M is markov ps-like
                         BIC = -2 * M - (Q * len(organisms) * 2 + Q - 1) * math.log(len(index_fam))
-                        logging.getLogger().info("The Bayesian Criterion Index of the partionning is "+str(BIC))
+                        logging.getLogger().debug("The Bayesian Criterion Index of the partionning is "+str(BIC))
 
                         for k, line in enumerate(parameter[-3:]):
                             logging.getLogger().debug(line)
@@ -835,18 +848,24 @@ class PPanGGOLiN:
                             sum_epsilon_k.append(sum(epsilon_k))
                             logging.getLogger().debug(sum(epsilon_k))
 
-                        #cloud is defined by a sum of mu_k near of 0 and a low sum of epsilon
-                        #shell is defined by an higher sum of epsilon_k
-                        #persistent is defined by a sum of mu near of nb_organism and a low sum of epsilon
 
+                        
+                        #persistent is defined by a sum of mu near of nb_organism and a low sum of epsilon
                         max_mu_k     = max(sum_mu_k)
                         persistent_k = sum_mu_k.index(max_mu_k)
 
+                        #shell is defined by an higher sum of epsilon_k
                         max_epsilon_k = max(sum_epsilon_k)
                         shell_k       = sum_epsilon_k.index(max_epsilon_k)
 
+                        # the other one should be cloud (basicaly with low sum_mu_k and low epsilon_k)
                         cloud_k = set([0,1,2]) - set([persistent_k, shell_k])
                         cloud_k = list(cloud_k)[0]
+
+                        # but if the difference between epsilon_k of shell and cloud is tiny, we check using the sum of mu_k which basicaly must be lower in cloud
+                        if (sum_epsilon_k[shell_k]-sum_epsilon_k[cloud_k])<0.05 and sum_mu_k[shell_k]<sum_mu_k[cloud_k]:
+                            # otherwise we permutate
+                            (shell_k, cloud_k) = (cloud_k, shell_k)
 
                         logging.getLogger().debug(sum_mu_k)
                         logging.getLogger().debug(sum_epsilon_k)
@@ -879,20 +898,14 @@ class PPanGGOLiN:
         if inplace:
 
             self.BIC = BIC
+
+            if self.is_partitionned:
+                for p in SHORT_TO_LONG.values():
+                    self.partitions[p] = list()# erase older values
+
             for node, nem_class in zip(self.neighbors_graph.nodes(), classification):
                 nb_orgs=0
                 for key in list(self.neighbors_graph.node[node].keys()):
-                    if not self.is_partitionned:
-                        try:
-                            self.neighbors_graph.node[node][key]="|".join(self.neighbors_graph.node[node][key])
-                        except TypeError:
-                            if key == "length":
-                                l = list(self.neighbors_graph.node[node][key])
-                                self.neighbors_graph.node[node]["length_avg"] = float(np.mean(l))
-                                self.neighbors_graph.node[node]["length_med"] = float(np.median(l))
-                                self.neighbors_graph.node[node]["length_min"] = min(l)
-                                self.neighbors_graph.node[node]["length_max"] = max(l)
-                                del self.neighbors_graph.node[node]["length"]
                     if key not in RESERVED_WORDS:
                         #self.partitions_by_organisms[key][partition[int(nem_class)]].add(self.neighbors_graph.node[node][key])
                         nb_orgs+=1
@@ -910,16 +923,6 @@ class PPanGGOLiN:
                     logging.getLogger().error("nb_orgs can't be > to self.nb_organisms")
                     exit(1)
 
-            if not self.is_partitionned:
-                for node_i, node_j, data in self.neighbors_graph.edges(data = True):
-                    l = list(data["length"])
-                    self.neighbors_graph[node_i][node_j]["length_avg"] = float(np.mean(l))
-                    self.neighbors_graph[node_i][node_j]["length_med"] = float(np.median(l))
-                    self.neighbors_graph[node_i][node_j]["length_min"] = min(l)
-                    self.neighbors_graph[node_i][node_j]["length_max"] = max(l)
-
-                    del self.neighbors_graph[node_i][node_j]["length"]
-
             if len(self.families_repeted)>0:
                 logging.getLogger().info("Discarded families are:\t"+" ".join(self.families_repeted))
             else:
@@ -936,34 +939,62 @@ class PPanGGOLiN:
             else:
                 return (BIC,dict(zip(index_fam.keys(), classification)))
 
-    def export_to_GEXF(self, graph_output_path, all_node_attributes = False, compressed=False):
+    def export_to_GEXF(self, graph_output_path, compressed=False, metadata = None, all_node_attributes = True, all_edge_attributes = True):
         """
             Export the Partionned Pangenome Graph Of Linked Neighbors to a GEXF file  
-            :param nem_dir_path: a str containing the path of the GEXF output file
-            :param nem_dir_path: a bool specifying if organisms and genes attributes of each family node must be in the file or not. A GEXF file without this attribute can't be imported again after.
-            :param nem_dir_path: a bool specifying if the file must be compressed in gzip or not
+            :param graph_output_path: a str containing the path of the GEXF output file
+            :param compressed: a bool specifying if the file must be compressed in gzip or not
+            :param metadata: a dict having the organisms as key emcompassing a dict having metadata as keys of its value as value 
+            :param all_node_attributes: a bool specifying if organisms and genes attributes of each family node must be in the file or not.
+            :param all_edge_attributes: a bool specifying if organisms count of each edge must be in the file or not.
             :type str: 
             :type bool: 
             :type bool: 
+            :type dict: 
         """ 
+        graph_to_save = self.neighbors_graph.copy()
 
-        # if self.neighbors_graph is None:
-        #     logging.getLogger().error("neighbors_graph is not built, please use the function neighborhoodComputation before")
-        # elif not self.is_partitionned:
-        #     logging.getLogger().warnings("the pangenome graph is not partionned, please use the function partition before")
-        # else:
-            # if compute_layout:
-            #     from fa2l import force_atlas2_layout
-            #     logging.getLogger().info("Compute Force Atlas layout")
-            #     positions = force_atlas2_layout(self.neighbors_graph,None, iterations=1000, edge_weight_influence=0.7, jitter_tolerance = 20, barnes_hut_theta=1.2)
-            #     print(positions)
-            #     exit()
+        for node in self.neighbors_graph.nodes():            
+            for key in list(self.neighbors_graph.node[node].keys()):
+                try:
+                    graph_to_save.node[node][key]="|".join(self.neighbors_graph.node[node][key])#because networkx and gephi do not support list type in gexf despite it is possible according to the specification using liststring (https://gephi.org/gexf/1.2draft/data.xsd)
+                except TypeError:
+                    if key == "length":
+                        l = list(self.neighbors_graph.node[node][key])
+                        graph_to_save.node[node]["length_avg"] = float(np.mean(l))
+                        graph_to_save.node[node]["length_med"] = float(np.median(l))
+                        graph_to_save.node[node]["length_min"] = min(l)
+                        graph_to_save.node[node]["length_max"] = max(l)
+                        del graph_to_save.node[node]["length"]
+            if not all_node_attributes:
+                for org in self.organisms:
+                    del graph_to_save.node[org]
+
+        for node_i, node_j, data in self.neighbors_graph.edges(data = True):
+            l = list(data["length"])
+            graph_to_save[node_i][node_j]["length_avg"] = float(np.mean(l))
+            graph_to_save[node_i][node_j]["length_med"] = float(np.median(l))
+            graph_to_save[node_i][node_j]["length_min"] = min(l)
+            graph_to_save[node_i][node_j]["length_max"] = max(l)
+            del graph_to_save[node_i][node_j]["length"]
+
+            for key in data.keys():
+                if key in self.organisms:
+                    if metadata:
+                        for att, value in metadata[key].items():
+                            try:
+                                graph_to_save[node_i][node_j][att]=value
+                            except KeyError:
+                                graph_to_save[node_i][node_j][att]=graph_to_save[node_i][node_j][att]+value
+                    if not all_edge_attributes :
+                        del graph_to_save[node_i][node_j][org]  
+            
         logging.getLogger().info("Writing GEXF file")
         graph_output_path = graph_output_path+".gexf"
         if compressed:
             graph_output_path = gzip.open(graph_output_path+".gz","w")
 
-        nx.write_gexf(self.neighbors_graph, graph_output_path)
+        nx.write_gexf(graph_to_save, graph_output_path)
 
     # def import_from_GEXF(self, path_graph_to_update):
     #     """
@@ -1030,22 +1061,23 @@ class PPanGGOLiN:
                                                +['"'+org+'"' for org in list(self.organisms)])+"\n")#15
 
                     for node, data in self.neighbors_graph.nodes(data=True):
-                        genes  = [('"'+data[org]+'"' if gene_or_not else "1") if org in data else ('""' if gene_or_not else "0") for org in self.organisms]
-                        nb_org = len([gene for gene in genes if gene != '""'])
+                        genes  = [('"'+"|".join(data[org])+'"' if gene_or_not else "1") if org in data else ('""' if gene_or_not else "0") for org in self.organisms]
+                        nb_org = len([gene for gene in genes if gene != ('""' if gene_or_not else "0")])
+                        l = list(data["length"])
                         matrix.write(sep.join(['"'+node+'"',#1
                                                '"'+data["partition"]+'"',#2
-                                               '"'+data["product"]+'"',#3
+                                               '"'+"|".join(data["product"])+'"',#3
                                                str(nb_org),#4
                                                str(data["nb_gene"]),#5
                                                str(round(data["nb_gene"]/nb_org,2)),#6
                                                '""',#7
                                                '""',#8
                                                '""',#9
-                                               str(round(data["length_med"],2)),#10
+                                               '""',#10
                                                '""',#11
-                                               str(data["length_min"]),#12
-                                               str(data["length_max"]),#13
-                                               str(round(data["length_avg"],2))]#14
+                                               str(min(l)),#12
+                                               str(max(l)),#13
+                                               str(round(np.mean(l),2))]#14
                                                +genes)+"\n")#15
             if csv:
                 logging.getLogger().info("Writing csv matrix")

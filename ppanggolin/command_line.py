@@ -195,7 +195,7 @@ if (file.exists('"""+OUTPUTDIR+EVOLUTION_DIR+EVOLUTION_STAT_FILE_PREFIX+""".txt'
     colnames(median_by_nb_org) <- c("nb_org_comb","partition","med")
 
     for (part in as.character(final_state$partition)){
-        regression  <- nls(med~kapa*(nb_org_comb^gama),median_by_nb_org[which(median_by_nb_org$partition == part),],start=list(kapa=1000,gama=1))
+        regression  <- nls(med~kapa*(nb_org_comb^gama),median_by_nb_org[which(median_by_nb_org$partition == part),],start=list(kapa=1000,gama=0))
         coefficient <- coef(regression)
         final_state[final_state$partition == part,"formula" ] <- paste0("n == ", format(coefficient["kapa"],decimal.mark = ",",digits =2),"~N^{",format(coefficient["gama"],digits =2),"}")
     }
@@ -205,7 +205,7 @@ if (file.exists('"""+OUTPUTDIR+EVOLUTION_DIR+EVOLUTION_STAT_FILE_PREFIX+""".txt'
             geom_smooth(data        = median_by_nb_org[median_by_nb_org$partition %in% c("pangenome","shell","cloud","accessory", "persistent", "core_exact") ,],# 
                         mapping     = aes_string(x="nb_org_comb",y="med",colour = "partition"),
                         method      = "nls",
-                        formula     = y~kapa*(x^gama),method.args =list(start=c(kapa=1000,gama=1)),
+                        formula     = y~kapa*(x^gama),method.args =list(start=c(kapa=1000,gama=0)),
                         linetype    ="twodash",
                         size        = 1.5,
                         se          = FALSE,
@@ -418,6 +418,12 @@ def __main__():
     parser.add_argument("-ck", "--chunck_size", type = int, nargs = 1, default = [200], metavar=('SIZE'), help="""
     Size of the chunks to performs multiple resampling
     """)
+    parser.add_argument("-mt", "--metadata", type=argparse.FileType('r'), nargs=1, metavar=('FILE'), help="""
+    metadata file, tubulated separated value, one attribute by column. same number of line as the the number of organism +1 (due to the offset of the header) .
+    a header specyging attibute name.
+    metadata can be either string or float values, but must stay of the same type for one attributes
+    metadata attribute can't contain reserved word or exact organism name
+    """)
     global options
     options = parser.parse_args()
 
@@ -448,6 +454,18 @@ def __main__():
             exit(1)
 
     #-------------
+    metadata = None
+
+    if options.metadata[0]:
+        metadata = list()
+        attribute_names = list()
+        for num, line in enumerate(options.metadata[0]):
+            elements = [el.strip() for el in line.split("\t")]
+            if num == 0:
+                attribute_names = elements
+            else:
+                metadata.append(dict(zip(attribute_names,elements)))
+
     start_loading = time.time()
     global pan
     pan = PPanGGOLiN("file",
@@ -456,6 +474,9 @@ def __main__():
                      options.remove_high_copy_number_families[0],
                      options.infere_singleton,
                      options.undirected)
+
+    if options.metadata[0]:
+        metadata = OrderedDict(zip(list(pan.organisms),metadata))
 
     # # if options.update is not None:
     # #     pan.import_from_GEXF(options.update[0])
@@ -522,8 +543,8 @@ def __main__():
 
     pan.ushaped_plot(OUTPUTDIR+FIGURE_DIR)
     #pan.tile_plot(OUTPUTDIR+FIGURE_DIR)
-    print(OUTPUTDIR+GRAPH_FILE_PREFIX+(".gz" if options.compress_graph else ""))
-    pan.export_to_GEXF(OUTPUTDIR+GRAPH_FILE_PREFIX+(".gz" if options.compress_graph else ""), options.compress_graph)
+
+    pan.export_to_GEXF(OUTPUTDIR+GRAPH_FILE_PREFIX+(".gz" if options.compress_graph else ""), options.compress_graph, metadata)
     for partition, families in pan.partitions.items(): 
         file = open(OUTPUTDIR+PARTITION_DIR+"/"+partition+".txt","w")
         file.write("\n".join(families))
@@ -559,8 +580,9 @@ def __main__():
         logging.getLogger().info("Evolution...")
 
         start_evolution = time.time()
-        logging.disable(logging.INFO)# disable INFO message to not disturb the progess bar
-        logging.disable(logging.WARNING)# disable WARNING message to not disturb the progess bar
+        if not options.verbose:
+            logging.disable(logging.INFO)# disable INFO message to not disturb the progess bar
+            logging.disable(logging.WARNING)# disable WARNING message to not disturb the progess bar
         combinations = organismsCombinations(list(pan.organisms), nbOrgThr=1, sample_ratio=RESAMPLING_RATIO, sample_min=RESAMPLING_MIN, sample_max=RESAMPLING_MAX)
         
         del combinations[pan.nb_organisms]
@@ -588,8 +610,10 @@ def __main__():
             futures = [executor.submit(resample,i) for i in range(len(shuffled_comb))]
 
             for f in tqdm(as_completed(futures), total = len(shuffled_comb), unit = 'pangenome resampled',  unit_scale = True):
-                if f.exception() is not None:
-                    logging.getLogger().error(f.exception())
+                ex = f.exception()
+                if ex:
+                    logging.getLogger().error(ex.with_traceback(None))
+                    logging.getLogger().error(ex.args)
                     executor.shutdown(wait=False)
                     exit(1)
 
