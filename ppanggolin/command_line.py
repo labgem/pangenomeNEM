@@ -418,7 +418,7 @@ def __main__():
     parser.add_argument("-ck", "--chunck_size", type = int, nargs = 1, default = [200], metavar=('SIZE'), help="""
     Size of the chunks to performs multiple resampling
     """)
-    parser.add_argument("-mt", "--metadata", type=argparse.FileType('r'), nargs=1, metavar=('FILE'), help="""
+    parser.add_argument("-mt", "--metadata", type=argparse.FileType('r'), default = [None], nargs=1, metavar=('FILE'), help="""
     metadata file, tubulated separated value, one attribute by column. same number of line as the the number of organism +1 (due to the offset of the header) .
     a header specyging attibute name.
     metadata can be either string or float values, but must stay of the same type for one attributes
@@ -609,7 +609,7 @@ def __main__():
         with ProcessPoolExecutor(options.cpu[0]) as executor:
             futures = [executor.submit(resample,i) for i in range(len(shuffled_comb))]
 
-            for f in tqdm(as_completed(futures), total = len(shuffled_comb), unit = 'pangenome resampled',  unit_scale = True):
+            for f in tqdm(as_completed(futures), total = len(shuffled_comb), unit = 'pangenome resampled'):
                 ex = f.exception()
                 if ex:
                     logging.getLogger().error(ex.with_traceback(None))

@@ -956,16 +956,17 @@ class PPanGGOLiN:
 
         for node in self.neighbors_graph.nodes():            
             for key in list(self.neighbors_graph.node[node].keys()):
-                try:
-                    graph_to_save.node[node][key]="|".join(self.neighbors_graph.node[node][key])#because networkx and gephi do not support list type in gexf despite it is possible according to the specification using liststring (https://gephi.org/gexf/1.2draft/data.xsd)
-                except TypeError:
-                    if key == "length":
-                        l = list(self.neighbors_graph.node[node][key])
-                        graph_to_save.node[node]["length_avg"] = float(np.mean(l))
-                        graph_to_save.node[node]["length_med"] = float(np.median(l))
-                        graph_to_save.node[node]["length_min"] = min(l)
-                        graph_to_save.node[node]["length_max"] = max(l)
-                        del graph_to_save.node[node]["length"]
+                if not isinstance(graph_to_save.node[node][key], str):
+                    try:
+                        graph_to_save.node[node][key]="|".join(self.neighbors_graph.node[node][key])#because networkx and gephi do not support list type in gexf despite it is possible according to the specification using liststring (https://gephi.org/gexf/1.2draft/data.xsd)
+                    except TypeError:
+                        if key == "length":
+                            l = list(self.neighbors_graph.node[node][key])
+                            graph_to_save.node[node]["length_avg"] = float(np.mean(l))
+                            graph_to_save.node[node]["length_med"] = float(np.median(l))
+                            graph_to_save.node[node]["length_min"] = min(l)
+                            graph_to_save.node[node]["length_max"] = max(l)
+                            del graph_to_save.node[node]["length"]
             if not all_node_attributes:
                 for org in self.organisms:
                     del graph_to_save.node[org]
@@ -977,18 +978,24 @@ class PPanGGOLiN:
             graph_to_save[node_i][node_j]["length_min"] = min(l)
             graph_to_save[node_i][node_j]["length_max"] = max(l)
             del graph_to_save[node_i][node_j]["length"]
-
+            
+            atts = set()
             for key in data.keys():
+                
                 if key in self.organisms:
                     if metadata:
                         for att, value in metadata[key].items():
+                            atts.add(att)
                             try:
-                                graph_to_save[node_i][node_j][att]=value
+                                graph_to_save[node_i][node_j][att].add(value)
                             except KeyError:
-                                graph_to_save[node_i][node_j][att]=graph_to_save[node_i][node_j][att]+value
-                    if not all_edge_attributes :
-                        del graph_to_save[node_i][node_j][org]  
-            
+                                graph_to_save[node_i][node_j][att]=set([value])
+                    if not all_edge_attributes:
+                        del graph_to_save[node_i][node_j][org] 
+
+            for att in atts:
+                graph_to_save[node_i][node_j][att]="|".join(sorted(graph_to_save[node_i][node_j][att]))
+
         logging.getLogger().info("Writing GEXF file")
         graph_output_path = graph_output_path+".gexf"
         if compressed:
