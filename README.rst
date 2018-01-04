@@ -26,6 +26,7 @@ The tools required 2 files.
 
 1. A file ORGANISMS_FILE summurizing the information about the about the organisms. 
 	This is a tab-delimitated file structured as following:
+
 	1. First colunm is the organism name, it must be unique and can't contain reserved word.
 	2. Second colunm is the path to the associated gff3 file (can be relative or absolute). In the gff files, sequences of the genomes are not required at all. Only CDS feature will be taken in account, each one must contain an ID attribute and optionnaly name and product attribute. 
 	3. Further colunms (optional) are the id of the contig in the gff files which are both perfectly assembled and circular. In this case, it is mandatory the provide the size of the contigs in the gff file either by adding a "region" feature to the gff file having a correct id attribute or using a '##sequence-region' pragma as did in prokka.
@@ -59,6 +60,7 @@ The tools required 2 files.
 
 2. A file FAMILIES_FILE providing the gene families formated as following. 
 	This is a tab-delimitated file structured as following:
+	
 	1. The first columnn is the gene families name (sometime the name of the median gene)
 	2. The futher columnn are the name of the gene id belonging to this families. A gene can't belong to multiple families
 	::
