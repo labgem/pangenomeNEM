@@ -18,7 +18,7 @@ The minimal command is :
 
 .. code:: bash
 
-  ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR
+	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR
   
 Input formats
 ----------
