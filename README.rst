@@ -44,7 +44,7 @@ The tools required 2 files.
 		Escherichia_coli_APEC_O78__E._coli_1	gff3/ESCO.1017.00024.gff	ESCO.1017.00024.0001
 		Escherichia_coli_ATCC_25922__E._coli_1	gff3/ESCO.1017.00151.gff	ESCO.1017.00151.0001	ESCO.1017.00151.0002
 		...
-	
+
 	Exemple of one of the associated gff file (obtained using prokka):
 	::
 		##gff-version 3
@@ -57,7 +57,7 @@ The tools required 2 files.
 		ESCO.1017.00091.0001	Prodigal:2.6	CDS	5687	6289	.	-	.	ID=ESCO.1017.00091.i0001_00005;locus_tag=ESCO.1017.00091.i0001_00005;product=hypothetical protein
 		ESCO.1017.00091.0001	Prodigal:2.6	CDS	6514	6687	.	-	.	ID=ESCO.1017.00091.i0001_00006;locus_tag=ESCO.1017.00091.i0001_00006;product=hypothetical protein
 		ESCO.1017.00091.0001	Prodigal:2.6	CDS	7118	7894	.	-	.	ID=ESCO.1017.00091.i0001_00007;locus_tag=ESCO.1017.00091.i0001_00007;product=hypothetical protein
-	    ...
+		...
 
 2. A file FAMILIES_FILE providing the gene families formated as following. 
 	This is a tab-delimitated file structured as following:
