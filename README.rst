@@ -25,27 +25,27 @@ Input formats
 The tools required 2 files.
 
 1. A file ORGANISMS_FILE summurizing the information about the about the organisms. This is a tab-delimitated file structured as following:
- - First colunm is the organism name, it must be unique and can't contain reserved word.
- - Second colunm is the path to the associated gff3 file (can be relative or absolute). In the gff files, sequences of the genomes are not required at all. Only CDS feature will be taken in account, each one must contain an ID attribute and optionnaly name and product attribute. 
- - Further colunms (optional) are the id of the contig in the gff files which are both perfectly assembled and circular. In this case, it is mandatory the provide the size of the contigs in the gff file either by adding a "region" feature to the gff file having a correct id attribute or using a '##sequence-region' pragma as did in prokka.
+	 - First colunm is the organism name, it must be unique and can't contain reserved word.
+	 - Second colunm is the path to the associated gff3 file (can be relative or absolute). In the gff files, sequences of the genomes are not required at all. Only CDS feature will be taken in account, each one must contain an ID attribute and optionnaly name and product attribute. 
+	 - Further colunms (optional) are the id of the contig in the gff files which are both perfectly assembled and circular. In this case, it is mandatory the provide the size of the contigs in the gff file either by adding a "region" feature to the gff file having a correct id attribute or using a '##sequence-region' pragma as did in prokka.
 
- Exemple of ORGANISMS_FILE:
- ::
-	Escherichia_coli_042__E._coli_1 gff3/ESCO.1017.00091.gff        ESCO.1017.00091.0001    ESCO.1017.00091.0002
-	Escherichia_coli_1303__E._coli_1        gff3/ESCO.1017.00171.gff        ESCO.1017.00171.0001    ESCO.1017.00171.0002    ESCO.1017.00171.0003    ESCO.1017.00171.0004
-	Escherichia_coli_536__E._coli_1 gff3/ESCO.1017.00005.gff        ESCO.1017.00005.0001
-	...
-  Exemple of one of the associated gff file (obtained using prokka):
+	 Exemple of ORGANISMS_FILE:
+	 ::
+		Escherichia_coli_042__E._coli_1 gff3/ESCO.1017.00091.gff        ESCO.1017.00091.0001    ESCO.1017.00091.0002
+		Escherichia_coli_1303__E._coli_1        gff3/ESCO.1017.00171.gff        ESCO.1017.00171.0001    ESCO.1017.00171.0002    ESCO.1017.00171.0003    ESCO.1017.00171.0004
+		Escherichia_coli_536__E._coli_1 gff3/ESCO.1017.00005.gff        ESCO.1017.00005.0001
+		...
+	  Exemple of one of the associated gff file (obtained using prokka):
 
-  ::
+	  ::
 
-    ##gff-version 3
-    ##sequence-region ESCO.1017.00091.0001 1 5241977
-    ##sequence-region ESCO.1017.00091.0002 1 113346
-    ESCO.1017.00091.0001    Prodigal:2.6    CDS     336     2798    .       +       .       ID=ESCO.1017.00091.b0001_00001;Name=thrA;gene=thrA;inference=similar to AA sequence:UniProtKB:P00561;locus_tag=ESCO.1017.00091.b0001_00001;product=Bifunctional aspartokinase/homoserine dehydrogenase 1
-    ESCO.1017.00091.0001    Prodigal:2.6    CDS     2800    3732    .       +       .       ID=ESCO.1017.00091.i0001_00002;eC_number=2.7.1.39;Name=thrB;gene=thrB;inference=similar to AA sequence:UniProtKB:P00547;locus_tag=ESCO.1017.00091.i0001_00002;product=Homoserine kinase
-    ESCO.1017.00091.0001    Prodigal:2.6    CDS     3733    5019    .       +       .       ID=ESCO.1017.00091.i0001_00003;eC_number=4.2.3.1;Name=thrC;gene=thrC;inference=similar to AA sequence:UniProtKB:P00934;locus_tag=ESCO.1017.00091.i0001_00003;product=Threonine synthase
-    ...
+	    ##gff-version 3
+	    ##sequence-region ESCO.1017.00091.0001 1 5241977
+	    ##sequence-region ESCO.1017.00091.0002 1 113346
+	    ESCO.1017.00091.0001    Prodigal:2.6    CDS     336     2798    .       +       .       ID=ESCO.1017.00091.b0001_00001;Name=thrA;gene=thrA;inference=similar to AA sequence:UniProtKB:P00561;locus_tag=ESCO.1017.00091.b0001_00001;product=Bifunctional aspartokinase/homoserine dehydrogenase 1
+	    ESCO.1017.00091.0001    Prodigal:2.6    CDS     2800    3732    .       +       .       ID=ESCO.1017.00091.i0001_00002;eC_number=2.7.1.39;Name=thrB;gene=thrB;inference=similar to AA sequence:UniProtKB:P00547;locus_tag=ESCO.1017.00091.i0001_00002;product=Homoserine kinase
+	    ESCO.1017.00091.0001    Prodigal:2.6    CDS     3733    5019    .       +       .       ID=ESCO.1017.00091.i0001_00003;eC_number=4.2.3.1;Name=thrC;gene=thrC;inference=similar to AA sequence:UniProtKB:P00934;locus_tag=ESCO.1017.00091.i0001_00003;product=Threonine synthase
+	    ...
 
 2. A file FAMILIES_FILE providing the gene families formated as following. This is a tab-delimitated file structured as following:
       - The first columnn is the gene families name (sometime the name of the median gene)
