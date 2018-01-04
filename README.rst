@@ -46,7 +46,7 @@ The tools required 2 files.
 	    ESCO.1017.00091.0001    Prodigal:2.6    CDS     3733    5019    .       +       .       ID=ESCO.1017.00091.i0001_00003;eC_number=4.2.3.1;Name=thrC;gene=thrC;inference=similar to AA sequence:UniProtKB:P00934;locus_tag=ESCO.1017.00091.i0001_00003;product=Threonine synthase
 	    ...
 
- 2. A file FAMILIES_FILE providing the gene families formated as following. This is a tab-delimitated file structured as following:
+2. A file FAMILIES_FILE providing the gene families formated as following. This is a tab-delimitated file structured as following:
 		- The first columnn is the gene families name (sometime the name of the median gene)
 		- the futher columnn are the name of the gene id belonging to this families. A gene can't belong to multiple families
 	::
