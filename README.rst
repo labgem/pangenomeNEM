@@ -25,17 +25,16 @@ Input formats
 The tools required 2 files.
 
 1. A file ORGANISMS_FILE summurizing the information about the about the organisms. This is a tab-delimitated file structured as following:
-  - First colunm is the organism name, it must be unique and can't contain reserved word.
-  - Second colunm is the path to the associated gff3 file (can be relative or absolute). In the gff files, sequences of the genomes are not required at all. Only CDS feature will be taken in account, each one must contain an ID attribute and optionnaly name and product attribute. 
-  - Further colunms (optional) are the id of the contig in the gff files which are both perfectly assembled and circular. In this case, it is mandatory the provide the size of the contigs in the gff file either by adding a "region" feature to the gff file having a correct id attribute or using a '##sequence-region' pragma as did in prokka.
+ - First colunm is the organism name, it must be unique and can't contain reserved word.
+ - Second colunm is the path to the associated gff3 file (can be relative or absolute). In the gff files, sequences of the genomes are not required at all. Only CDS feature will be taken in account, each one must contain an ID attribute and optionnaly name and product attribute. 
+ - Further colunms (optional) are the id of the contig in the gff files which are both perfectly assembled and circular. In this case, it is mandatory the provide the size of the contigs in the gff file either by adding a "region" feature to the gff file having a correct id attribute or using a '##sequence-region' pragma as did in prokka.
 
-  Exemple of ORGANISMS_FILE:
-  ::
-
-    Escherichia_coli_042__E._coli_1 gff3/ESCO.1017.00091.gff        ESCO.1017.00091.0001    ESCO.1017.00091.0002
-    Escherichia_coli_1303__E._coli_1        gff3/ESCO.1017.00171.gff        ESCO.1017.00171.0001    ESCO.1017.00171.0002    ESCO.1017.00171.0003    ESCO.1017.00171.0004
-    Escherichia_coli_536__E._coli_1 gff3/ESCO.1017.00005.gff        ESCO.1017.00005.0001
-    ...
+ Exemple of ORGANISMS_FILE:
+ ::
+	Escherichia_coli_042__E._coli_1 gff3/ESCO.1017.00091.gff        ESCO.1017.00091.0001    ESCO.1017.00091.0002
+	Escherichia_coli_1303__E._coli_1        gff3/ESCO.1017.00171.gff        ESCO.1017.00171.0001    ESCO.1017.00171.0002    ESCO.1017.00171.0003    ESCO.1017.00171.0004
+	Escherichia_coli_536__E._coli_1 gff3/ESCO.1017.00005.gff        ESCO.1017.00005.0001
+	...
   Exemple of one of the associated gff file (obtained using prokka):
 
   ::
