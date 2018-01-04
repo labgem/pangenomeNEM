@@ -99,11 +99,8 @@ def organismsCombinations(orgs, nbOrgThr, sample_ratio, sample_min, sample_max =
     return comb_list
 
 
-def plot_Rscript(script_outfile, run_script = True):
+def plot_Rscript(script_outfile):
     """
-    run r script
-    required the following package to be instaled : ggplot2, reshape2, data.table, ggrepel (last version)
-
     """
 
     rscript = """
@@ -226,7 +223,7 @@ if (file.exists('"""+OUTPUTDIR+EVOLUTION_DIR+EVOLUTION_STAT_FILE_PREFIX+""".txt'
             geom_label_repel(data = final_state, aes(x = nb_org*0.9, y = value, label = formula), size = 2, parse = TRUE, show.legend = FALSE, segment.color = NA) + 
             xlab("# of organisms")+
             ylab("# of families")+
-            ggplot2::theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+            ggplot2::theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5), panel.grid.minor = element_blank())
     
     ggsave('"""+OUTPUTDIR+FIGURE_DIR+EVOLUTION_CURVE_PREFIX+""".pdf', device = "pdf", width = (par("din")[1]*2) ,plot)
 
@@ -298,10 +295,6 @@ for (org_csv in list.files(path = '"""+OUTPUTDIR+PROJECTION_DIR+"""', pattern = 
     with open(script_outfile,"w") as script_file:
         script_file.write(rscript)
     logging.getLogger().info("Running R script generating plot")
-    if run_script:
-        logging.getLogger().info("Rscript "+script_outfile)
-        proc = subprocess.Popen("Rscript "+script_outfile, shell=True)
-        proc.communicate()
 
 #### START - NEED TO BE AT THE HIGHEST LEVEL OF THE MODULE TO ALLOW MULTIPROCESSING
 shuffled_comb = []
@@ -461,6 +454,7 @@ def __main__():
         attribute_names = list()
         for num, line in enumerate(options.metadata[0]):
             elements = [el.strip() for el in line.split("\t")]
+            
             if num == 0:
                 attribute_names = elements
             else:
@@ -545,6 +539,7 @@ def __main__():
     #pan.tile_plot(OUTPUTDIR+FIGURE_DIR)
 
     pan.export_to_GEXF(OUTPUTDIR+GRAPH_FILE_PREFIX+(".gz" if options.compress_graph else ""), options.compress_graph, metadata)
+    pan.export_to_GEXF(OUTPUTDIR+GRAPH_FILE_PREFIX+"_light"+(".gz" if options.compress_graph else ""), options.compress_graph, metadata, False,False)
     for partition, families in pan.partitions.items(): 
         file = open(OUTPUTDIR+PARTITION_DIR+"/"+partition+".txt","w")
         file.write("\n".join(families))
@@ -575,6 +570,9 @@ def __main__():
     logging.getLogger().info(pan)
 
     #-------------
+
+    plot_Rscript(script_outfile = OUTPUTDIR+"/"+SCRIPT_R_FIGURE)
+
     if options.evolution:
 
         logging.getLogger().info("Evolution...")
@@ -634,13 +632,15 @@ def __main__():
 
     "Total execution time: " +str(round(time.time()-start_loading, 2))+" s\n")
 
-    logging.getLogger().info("""
-    The pangenome computation is complete. 
-    Plots will be generated using R (in the directory: """+OUTPUTDIR+FIGURE_DIR+""").
-    If R and the required package (ggplot2, reshape2, ggrepel(>0.6.6), data.table) are not instaled don't worry the R script will be saved in the directory allowing to generate the figures latter""")
+    logging.getLogger().info("""The pangenome computation is complete.""")
 
-    plot_Rscript(script_outfile           = OUTPUTDIR+"/"+SCRIPT_R_FIGURE,
-                 run_script               = options.plots)
+    if options.plots:
+        logging.getLogger().info("""Several plots will be generated using R (in the directory: """+OUTPUTDIR+FIGURE_DIR+""").
+    If R and the required package (ggplot2, reshape2, ggrepel(>0.6.6), data.table) are not installed don't worry the R script is saved in the directory allowing to generate the figures latter""")
+        cmd = "Rscript "+OUTPUTDIR+"/"+SCRIPT_R_FIGURE
+        logging.getLogger().info(cmd)
+        proc = subprocess.Popen(cmd, shell=True)
+        proc.communicate()
 
     if options.delete_nem_intermediate_files:
             pan.delete_nem_intermediate_files()  

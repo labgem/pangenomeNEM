@@ -18,7 +18,7 @@ from tqdm import tqdm
 import mmap
 from random import sample
 import time
-from multiprocessing.pool import ThreadPool, Pool
+from multiprocessing.pool import ThreadPool
 from multiprocessing import Semaphore
 from highcharts import Highchart
 
@@ -30,7 +30,7 @@ NEM_LOCATION  = os.path.dirname(os.path.abspath(__file__))+"/nem_exe"
 
 (GFF_seqname, GFF_source, GFF_feature, GFF_start, GFF_end, GFF_score, GFF_strand, GFF_frame, GFF_attribute) = range(0,9) 
 
-RESERVED_WORDS = set(["id", "label", "name", "weight", "partition", "partition_exact", "length", "length_min", "length_max", "length_avg", "length_avg", "product", 'nb_gene', 'community'])
+RESERVED_WORDS = set(["id", "label", "name", "weight", "partition", "partition_exact", "length", "length_min", "length_max", "length_avg", "length_med", "product", 'nb_gene', 'community'])
 
 SHORT_TO_LONG = {'A':'accessory','CE':'core_exact','P':'persistent','S':'shell','C':'cloud','U':'undefined'}
 
@@ -221,7 +221,7 @@ class PPanGGOLiN:
         families    = dict()
         first_iter  = True
         for line in families_tsv_file:
-            elements = [el.strip() for el in line.split("\t")]
+            elements = [el.strip() for el in line.split()]
             for gene in elements[1:]:
                 families[gene]=elements[0]
 
@@ -493,7 +493,6 @@ class PPanGGOLiN:
         self.pan_size = nx.number_of_nodes(self.neighbors_graph)
 
     def partition(self, nem_dir_path    = tempfile.mkdtemp(),
-                        #mode            = "PSC",
                         organisms       = None,
                         beta            = 0.5,
                         free_dispersion = False,
@@ -543,6 +542,8 @@ class PPanGGOLiN:
         stats = defaultdict(int)
         classification = []
         
+        print("there")
+
         #core exact first
         families = []
         for node_name, data_organisms in self.neighbors_graph.nodes(data=True):
@@ -563,7 +564,7 @@ class PPanGGOLiN:
                 cpt_partition[fam]= {"P":0,"S":0,"C":0,"U":0}
             
             total_BIC = 0
-            with Pool(nb_threads) as pool:
+            with ThreadPool(nb_threads) as pool:
                 sem = Semaphore(nb_threads)
 
                 validated = set()
@@ -579,13 +580,16 @@ class PPanGGOLiN:
                     nonlocal total_BIC
                     try :
                         (BIC, partitions) = result
+
                         total_BIC += BIC
                         for node,nem_class in partitions.items():
                             cpt_partition[node][nem_class]+=1
                             sum_partionning = sum(cpt_partition[node].values()) 
-                            if sum_partionning > len(organisms) and max(cpt_partition[node].values()) > sum_partionning*0.5:
-                                if  node not in validated:
-                                    bar.update()
+
+                            if sum_partionning > len(organisms)/chunck_size and max(cpt_partition[node].values()) > sum_partionning*0.5:
+                                if node not in validated:
+                                    if inplace:
+                                        bar.update()
                                     validated.add(node)
                                     # if max(cpt_partition[node], key=cpt_partition[node].get) == "P" and cpt_partition[node]["S"]==0 and cpt_partition[node]["C"]==0:
                                     #     validated[node]="P"
@@ -619,25 +623,25 @@ class PPanGGOLiN:
                                 proba_sample[org] = p - len(organisms)/chunck_size if p >1 else 1
                             else:
                                 proba_sample[org] = p + len(organisms)/chunck_size
-                        res = pool.apply_async(self.partition,
-                                               args = (nem_dir_path+"/"+str(cpt)+"/",#nem_dir_path
-                                                       orgs,#organisms
-                                                       beta,#beta
-                                                       free_dispersion,#free dispersion
-                                                       chunck_size,#chunck_size
-                                                       False,#inplace
-                                                       False,#just_stats
-                                                       1),#nb_threads
-                                               callback = validate_family)
-
-                        # res = self.partition(nem_dir_path+"/"+str(cpt)+"/",#nem_dir_path
+                        # res = pool.apply_async(self.partition,
+                        #                        args = (nem_dir_path+"/"+str(cpt)+"/",#nem_dir_path
                         #                                orgs,#organisms
                         #                                beta,#beta
                         #                                free_dispersion,#free dispersion
                         #                                chunck_size,#chunck_size
                         #                                False,#inplace
                         #                                False,#just_stats
-                        #                                1)
+                        #                                1),#nb_threads
+                        #                        callback = validate_family)
+
+                        res = self.partition(nem_dir_path+"/"+str(cpt)+"/",#nem_dir_path
+                                                       orgs,#organisms
+                                                       beta,#beta
+                                                       free_dispersion,#free dispersion
+                                                       chunck_size,#chunck_size
+                                                       False,#inplace
+                                                       False,#just_stats
+                                                       1)
                         validate_family(res)
 
                         cpt +=1
@@ -863,9 +867,9 @@ class PPanGGOLiN:
                         cloud_k = list(cloud_k)[0]
 
                         # but if the difference between epsilon_k of shell and cloud is tiny, we check using the sum of mu_k which basicaly must be lower in cloud
-                        if (sum_epsilon_k[shell_k]-sum_epsilon_k[cloud_k])<0.05 and sum_mu_k[shell_k]<sum_mu_k[cloud_k]:
-                            # otherwise we permutate
-                            (shell_k, cloud_k) = (cloud_k, shell_k)
+                        # if (sum_epsilon_k[shell_k]-sum_epsilon_k[cloud_k])<0.05 and sum_mu_k[shell_k]<sum_mu_k[cloud_k]:
+                        #     # otherwise we permutate
+                        #     (shell_k, cloud_k) = (cloud_k, shell_k)
 
                         logging.getLogger().debug(sum_mu_k)
                         logging.getLogger().debug(sum_epsilon_k)
