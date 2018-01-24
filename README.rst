@@ -3,17 +3,16 @@ PPanGGOLiN : Depicting microbial species diversity via a Partitioned Pangenome G
 
 .. image:: logo.png
 
-This tools compile the genomic content of a taxonomic unit (pangenome). We used a graph approach to model pangenomes in which nodes and edges represent  gene families and chromosomal neighborhood information, respectively. Our method partitions nodes using an Expectation/Maximization algorithm based on Bernoulli Mixture Model (BMM) coupled with a Markov Random field (MRF). This approach takes into account both graph topology and occurrence of genes to classify gene families into three partitions (i.e. *persistent genome*, *shell genome* and *cloud genome*) resulting in what we called Partitioned Pangenome Graph (PPG).
+This tools compile the genomic content of a taxonomic unit (pangenome). It is based on a graph approach to model pangenomes in which nodes and edges represent gene families and chromosomal neighborhood information, respectively. This approach takes into account both graph topology and occurrence of genes to classify gene families into three partitions (i.e. *persistent genome*, *shell genome* and *cloud genome*) resulting in what we called Partitioned Pangenome Graph (PPG).The method relies on an Expectation/Maximization algorithm based on Bernoulli Mixture Model coupled with a Markov Random field. Finally, these partitions are projected against the pangenome graph to obtain what we called a Partitioned PanGenome Graph.
 
 Definition:
  1) Persistent genome: equivalent to a relaxed core genome (genes conserved in all but a few genomes);
  2) Shell genome: genes having intermediate frequencies corresponding to moderately conserved genes potentially associated to environmental adaptation capabilities
- 3) Cloud genome: genes found at very low frequency. 
-
-Finally, this partition are projected againt the pangenome graph to obtain what we called a Partionned PanGenome Graph.
+ 3) Cloud genome: genes found at a very low frequency. 
 
 .. image:: workflow.png
 
+A minimum of 5 genomes is generaly required to perform a pangenomics analysis using the *core genome*/*accessory genome* paradigm. Using the statistical approach presented here, we recommend using at least 15 genomes having genomic variations (and not only genetic ones) to obtain robust results.
 
 Installation
 ============================
@@ -23,7 +22,7 @@ PPanGGOLiN can be easily installed via:
 .. code:: bash
 	pip install ppanggolin
 
-GCC will be required, as well as the following python modules : "networkx", "numpy", "tqdm", "highcharts"
+GCC (>=3.0) will be required, as well as the following python modules : "networkx(>=2.00)", "numpy", "tqdm", "highcharts"
 
 Quick usage
 ============================
@@ -33,7 +32,7 @@ The minimal command is :
 .. code:: bash
 
 	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR
-  
+
 Input formats
 ----------
 The tools required 2 files.
@@ -41,8 +40,8 @@ The tools required 2 files.
 1. A file ORGANISMS_FILE summurizing the information about the about the organisms. 
 	This is a tab-delimitated file structured as following:
 
-	1. First colunm is the organism name, it must be unique and can't contain reserved word.
-	2. Second colunm is the path to the associated gff3 file (can be relative or absolute). In the gff files, sequences of the genomes are not required at all. Only CDS feature will be taken in account, each one must contain an *ID* attribute and optionaly *Name* and *product* attributes. 
+	1. First colunm is the organism name, it must be unique and can't contain reserved word (see section reserved words).
+	2. Second column is the path to the associated gff3 file (can be relative or absolute). In the gff files, sequences of the genomes are not required at all. Only CDS features will be taken in account, each one must contain an *ID* attribute and optionaly *Name* and *product* attributes. 
 	3. (optional) Further colunms are the id of the contig in the gff files which are both perfectly assembled and circular. In this case, it is mandatory the provide the size of the contigs in the gff file either by adding a "region" feature to the gff file having a correct id attribute or using a '##sequence-region' pragma (as did in prokka).
 
 	Exemple of ORGANISMS_FILE:
@@ -99,19 +98,18 @@ The tools required 2 files.
 		1	ESCO.1017.00006.i0001_00053
 		...
 
-This format is the one returned by MMseqs2 (tsv) and can be used directly as PPanGOLiN input (note thath in MMseqs2, the gene families name (first column) is the name of the median gene of the families).
-Basically, all the gene id found in the gff files muster be associated to a gene families even the sigletons exepting if the flag --infere-singleton is used. Indeed, in this case singleton will be autocally dectected directly in the gff files.
+This format is the one returned by MMseqs2 (tsv) and can be used directly as PPanGGOLiN input (in MMseqs2, the gene families name (first column) is the name of the median gene of the families).
+All the gene ids found in the gff files must be associated to a gene families even the sigletons exepting if the flag --infere-singleton is used. Indeed, in this case singleton will be autocally dectected directly in the gff files (the family id will be the gene id).
 
 Reserved word
 ----------
-To prevent any bug, the following words are fobiden to be any of the identifiers :
-``` "id", "label", "name", "weight", "partition", "partition_exact", "length", "length_min", "length_max", "length_avg", "length_med", "product", 'nb_gene', 'community' ```
+To prevent any bug, the following words are fobidden to be any of the identifiers : "id", "label", "name", "weight", "partition", "partition_exact", "length", "length_min", "length_max", "length_avg", "length_med", "product", "nb_gene", "community" 
 
 Output
 ----------
 The program results in several output file:
 
-1. *graph.gexf* (and *graph_light.gexf* corresponding to the same topology without gene and organism details). GEXF file can be open using Gephi (https://gephi.org/).
+1. *graph.gexf* (and *graph_light.gexf* corresponding to the same topology without gene and organism details). GEXF file can be open using Gephi (https://gephi.org/). See the video below (in the section gephi tunning) to obtain an interesting layout of the graph.
 
 2. *matrix.csv* and *matrix.Rtab* correspond to the gene presence absence matrix formated as did in roary (https://sanger-pathogens.github.io/Roary/) except that the second column corresponds to the partition instead of an alternative gene familie name.
 
@@ -133,7 +131,6 @@ The program results in several output file:
 
 7. A folder *partitions* containing one file by partition. Each file stores the name of the families in it associated partition.
 
-
 8. optional : a folder *evolutions* containing the tempary data of the computation of all the resampling et the file (stat_evol.txt) summurarizing this evolution (if flag '-e' is provided)
 
 9. optional : a folder *projections* containing tabuledted file for each organism providing information about the projection of the graph against each selected organism (if argument '-pr' followed by the line number in the ORGANISM_FILE is provided)
@@ -152,7 +149,7 @@ For example, this command :
 
 	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -r 10
 
-will remove gene families of the graph having more than 10 repeted gene in at least one of the organism. By experience, using a value of 10, only few gene families (a dozen) will be removed.
+will remove gene families of the graph having more than 10 repeted genes in at least one of the organism. By experience, using a r value of 10, only few gene families (a dozen) will be removed.
 
 Directed or Undirected graph
 ----------
@@ -171,9 +168,10 @@ Partionning parameter
 
 The partionning method can be customize througth 3 parameters:
 
-1. Partioning by chunk: When more than 500 organisms is processed it is advised to 
+1. Partioning by chunk (-ck option): When more than 500 organisms is processed it is advised to partion the pangenome by chunck. Actually, the method seem to saturate with an high number of dimensions. Chunck correspond to samples of the organisms to partition in parrallel. It is advise to use chunck not lower than 200 organisms in order to obtain representative ones. Then the tools will partition the pangenome using multiple chunks in a way that evry families must be partionned in at least (total number of organisms)/(chunk size) times. Moreover each gene family must be partionned mainly in one specific partition (>50% of cases), otherwise the pangenome will be partionned again and again.
 
-2. Smoothing strengh
+2. Smoothing strengh :
+
 3. dispersion
 
 Evolution curve
