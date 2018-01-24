@@ -960,7 +960,9 @@ class PPanGGOLiN:
 
         for node in self.neighbors_graph.nodes():            
             for key in list(self.neighbors_graph.node[node].keys()):
-                if not isinstance(graph_to_save.node[node][key], str):
+                if not all_node_attributes and key in self.organisms:
+                    del graph_to_save.node[node][key]
+                else:
                     try:
                         graph_to_save.node[node][key]="|".join(self.neighbors_graph.node[node][key])#because networkx and gephi do not support list type in gexf despite it is possible according to the specification using liststring (https://gephi.org/gexf/1.2draft/data.xsd)
                     except TypeError:
@@ -971,9 +973,6 @@ class PPanGGOLiN:
                             graph_to_save.node[node]["length_min"] = min(l)
                             graph_to_save.node[node]["length_max"] = max(l)
                             del graph_to_save.node[node]["length"]
-            if not all_node_attributes:
-                for org in self.organisms:
-                    del graph_to_save.node[org]
 
         for node_i, node_j, data in self.neighbors_graph.edges(data = True):
             l = list(data["length"])
@@ -995,7 +994,7 @@ class PPanGGOLiN:
                             except KeyError:
                                 graph_to_save[node_i][node_j][att]=set([value])
                     if not all_edge_attributes:
-                        del graph_to_save[node_i][node_j][org] 
+                        del graph_to_save[node_i][node_j][key] 
 
             for att in atts:
                 graph_to_save[node_i][node_j][att]="|".join(sorted(graph_to_save[node_i][node_j][att]))
@@ -1130,6 +1129,11 @@ class PPanGGOLiN:
             self.nem_intermediate_files = None
 
     def ushaped_plot(self, outdir):
+        """
+            generate ushaped representation
+            :param outdir: a str containing the path of the output file
+            :type str: 
+        """ 
         ushaped_plot = Highchart(width = 1800, height = 800)
 
         count = defaultdict(lambda : defaultdict(int))
@@ -1164,6 +1168,12 @@ class PPanGGOLiN:
         ushaped_plot.save_file(filename = outdir+"/ushaped_plot")
 
     def tile_plot(self, outdir):
+        """
+            generate tile plot representation (not work for the moment)
+            :param outdir: a str containing the path of the output file
+            :type str: 
+        """ 
+
         tile_plot = Highchart(width = 1600, height = 1280)
 
         binary_data = []
@@ -1332,7 +1342,13 @@ class PPanGGOLiN:
 
 
     def projection_polar_histogram(self, out_dir, organisms_to_project):
-        
+        """
+            generate tile projection_polar_histogram representation
+            :param outdir: a str containing the path of the output directory (name of files will be the name of organisms)
+            :organisms_to_project: a list of str containing the name of the organism
+            :type str:
+            :type list
+        """ 
         for organism in organisms_to_project:
             with open(out_dir+"/"+organism+".csv","w") as out_file:
                 out_file.write("gene\tcontig\tori\tfamily\tpartition\tpersistent\tshell\tcloud\n")

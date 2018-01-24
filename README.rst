@@ -1,15 +1,27 @@
 PPanGGOLiN : Depicting microbial species diversity via a partitioned pangenome graph
 ========================================================
 
-This tools compile the genomic content of a taxonomic unit (pangenome) and partition it into 3 partitions (persistent, shell, cloud) via a Bernoulli Mixture Model optionally smoothed using a Markov Random Field.
+.. image:: logo.png
 
-Moreover the tool build a graph of gene neighborhood and project the partion on it to obtain the partitioned pangenome graph.
+This tools compile the genomic content of a taxonomic unit (pangenome). We used a graph approach to model pangenomes in which nodes and edges represent  gene families and chromosomal neighborhood information, respectively. Our method partitions nodes using an Expectation/Maximization algorithm based on Bernoulli Mixture Model (BMM) coupled with a Markov Random field (MRF). This approach takes into account both graph topology and occurrence of genes to classify gene families into three partitions (i.e. "\textit{persistent genome}", "\textit{shell genome}" and "\textit{cloud genome}") resulting in what we called Partitioned Pangenome Graph (PPG).
+
+ 1) Persistent genome: equivalent to a relaxed core genome (genes conserved in all but a few genomes);
+ 2) Shell genome: genes having intermediate frequencies corresponding to moderately conserved genes potentially associated to environmental adaptation capabilities
+ 3) Cloud genome: genes found at very low frequency. 
+
+Finally, this partition are projected againt the pangenome graph to obtain what we called a Partionned PanGenome Graph.
+
+.. workflow:: workflow.png
+
 
 Installation
 ============================
 
-PPanGGOLiN can be easily instaled via pip `pip install ppanggolin`.
-GCC is required, as well as the following python modules : `networkx`,``
+PPanGGOLiN can be easily installed via:
+.. code:: bash
+	pip install ppanggolin
+
+GCC will be required, as well as the following python modules : "networkx","numpy","tqdm","highcharts"
 
 Quick usage
 ============================
@@ -64,6 +76,8 @@ The tools required 2 files.
 
 	1. The first columnn is the gene families name (sometime the name of the median gene)
 	2. The futher columnn are the name of the gene id belonging to this families. A gene can't belong to multiple families
+
+	Exemple of a families file:
 	::
 		1	ESCO.1017.00001.i0001_00047	ESCO.1017.00002.i0001_00053	ESCO.1017.00003.i0001_00052	ESCO.1017.00004.i0001_00047	ESCO.1017.00005.i0001_00048	ESCO.1017.00006.i0001_00053	ESCO.1017.00007.i0001_00052	ESCO.1017.00008.i0001_03750	ESCO.1017.00009.i0001_00047	ESCO.1017.00010.i0001_00047	ESCO.1017.00011.i0001_00052	ESCO.1017.00012.i0001_03643	ESCO.1017.00013.i0001_03593	ESCO.1017.00014.i0001_00050	ESCO.1017.00015.i0001_00048	ESCO.1017.00016.i0001_00047	ESCO.1017.00017.i0001_00053	ESCO.1017.00018.i0001_00038	ESCO.1017.00019.i0001_00051	ESCO.1017.00020.i0001_00051	ESCO.1017.00021.i0001_00048	ESCO.1017.00022.i0001_00047	ESCO.1017.00023.i0001_00049	ESCO.1017.00024.i0001_00735	ESCO.1017.00025.i0001_00040	ESCO.1017.00026.i0001_00048	ESCO.1017.00027.i0001_00047	ESCO.1017.00028.i0001_01224	ESCO.1017.00029.i0001_03729	ESCO.1017.00030.i0001_03859	ESCO.1017.00031.i0001_00620	ESCO.1017.00032.i0001_00627	ESCO.1017.00033.i0001_00637	ESCO.1017.00034.i0001_00050	ESCO.1017.00035.i0001_00047	ESCO.1017.00036.i0001_00047	ESCO.1017.00037.i0001_00047	ESCO.1017.00038.i0001_00047	ESCO.1017.00039.i0001_03494	ESCO.1017.00040.i0001_00279	ESCO.1017.00041.i0001_00052	ESCO.1017.00042.i0001_00052	ESCO.1017.00043.i0001_00047	ESCO.1017.00044.i0001_00047	ESCO.1017.00045.i0001_00765	ESCO.1017.00046.i0001_00756	ESCO.1017.00047.i0001_00764	ESCO.1017.00048.i0001_00765	ESCO.1017.00049.i0001_00822	ESCO.1017.00050.i0001_00763	ESCO.1017.00051.i0001_00766	ESCO.1017.00052.i0001_00822	ESCO.1017.00053.i0001_00047	ESCO.1017.00054.i0001_00051	ESCO.1017.00055.i0001_00047	ESCO.1017.00056.i0001_00047	ESCO.1017.00057.i0001_00047	ESCO.1017.00058.i0001_00047	ESCO.1017.00059.i0001_00047	ESCO.1017.00060.i0001_00052	ESCO.1017.00061.i0001_00052	ESCO.1017.00062.i0001_00047	ESCO.1017.00063.i0001_00047	ESCO.1017.00064.i0001_00047	ESCO.1017.00065.i0001_00051	ESCO.1017.00066.i0001_04368	ESCO.1017.00067.i0001_04371	ESCO.1017.00068.i0001_04369	ESCO.1017.00069.i0001_04242	ESCO.1017.00070.i0001_03265	ESCO.1017.00071.i0001_00052	ESCO.1017.00072.i0001_02745	ESCO.1017.00073.i0001_00772	ESCO.1017.00074.i0001_00774	ESCO.1017.00075.i0001_00622	ESCO.1017.00076.i0001_05069	ESCO.1017.00077.i0001_00052	ESCO.1017.00078.i0001_03627	ESCO.1017.00079.i0001_00767	ESCO.1017.00080.i0001_04013	ESCO.1017.00081.i0001_03408	ESCO.1017.00082.i0001_04825	ESCO.1017.00083.i0001_00047	ESCO.1017.00084.i0001_04180	ESCO.1017.00085.i0001_00053	ESCO.1017.00086.i0001_00050	ESCO.1017.00087.i0001_00051	ESCO.1017.00088.i0001_00050	ESCO.1017.00089.i0001_00053	ESCO.1017.00090.i0001_00051	ESCO.1017.00091.i0001_00055	ESCO.1017.00092.i0001_00051	ESCO.1017.00093.i0001_00050	ESCO.1017.00094.i0001_00048	ESCO.1017.00095.i0001_00052	ESCO.1017.00096.i0001_00047	ESCO.1017.00097.i0001_00768	ESCO.1017.00098.i0001_00774	ESCO.1017.00099.i0001_00053	ESCO.1017.00100.i0001_00054	ESCO.1017.00101.i0001_02441	ESCO.1017.00102.i0001_01197	ESCO.1017.00103.i0001_03712	ESCO.1017.00104.i0001_03915	ESCO.1017.00105.i0001_04058	ESCO.1017.00106.i0001_00052	ESCO.1017.00107.i0001_03883	ESCO.1017.00108.i0001_00047	ESCO.1017.00109.i0001_00047	ESCO.1017.00110.i0001_00052	ESCO.1017.00111.i0001_00052	ESCO.1017.00112.i0001_03779	ESCO.1017.00113.i0001_03530	ESCO.1017.00114.i0001_04415	ESCO.1017.00115.i0001_02640	ESCO.1017.00116.i0001_02854	ESCO.1017.00117.i0001_04675	ESCO.1017.00118.i0001_00052	ESCO.1017.00119.i0001_00051	ESCO.1017.00120.i0001_00053	ESCO.1017.00121.i0001_00048	ESCO.1017.00122.i0001_00053	ESCO.1017.00123.i0001_02649	ESCO.1017.00124.i0001_00084	ESCO.1017.00125.i0001_00708	ESCO.1017.00126.i0001_04565	ESCO.1017.00127.i0001_04548	ESCO.1017.00128.i0001_04614	ESCO.1017.00129.i0001_04564	ESCO.1017.00130.i0001_04555	ESCO.1017.00131.i0001_04613	ESCO.1017.00132.i0001_04544	ESCO.1017.00133.i0001_04600	ESCO.1017.00134.i0001_04596	ESCO.1017.00135.i0001_05121	ESCO.1017.00136.i0001_00052	ESCO.1017.00137.i0001_00050	ESCO.1017.00138.i0001_00053	ESCO.1017.00139.i0001_00049	ESCO.1017.00140.i0001_03887	ESCO.1017.00141.i0001_00048	ESCO.1017.00142.i0001_00048	ESCO.1017.00143.i0001_00051	ESCO.1017.00144.i0001_00052	ESCO.1017.00145.i0001_04318	ESCO.1017.00146.i0001_00052	ESCO.1017.00147.i0001_00055	ESCO.1017.00148.i0001_00055	ESCO.1017.00149.i0001_00052	ESCO.1017.00150.i0001_00052	ESCO.1017.00151.i0001_02558	ESCO.1017.00152.i0001_02857	ESCO.1017.00153.i0001_00050	ESCO.1017.00154.i0001_02854	ESCO.1017.00155.i0001_00052	ESCO.1017.00156.i0001_00564	ESCO.1017.00157.i0001_00052	ESCO.1017.00158.i0001_00053	ESCO.1017.00159.i0001_00053	ESCO.1017.00160.i0001_04406	ESCO.1017.00161.i0001_00052	ESCO.1017.00162.i0001_03910	ESCO.1017.00163.i0001_03179	ESCO.1017.00164.i0001_01542	ESCO.1017.00165.i0001_00048	ESCO.1017.00166.i0001_00052	ESCO.1017.00167.i0001_04244	ESCO.1017.00168.i0001_04266	ESCO.1017.00169.i0001_00054	ESCO.1017.00170.i0001_00050	ESCO.1017.00171.i0001_00047	ESCO.1017.00172.i0001_00048	ESCO.1017.00173.i0001_03823	ESCO.1017.00174.i0001_01302	ESCO.1017.00176.i0001_00052	ESCO.1017.00177.i0001_03204	ESCO.1017.00178.i0001_01987	ESCO.1017.00179.i0001_00051	ESCO.1017.00180.i0001_00049	ESCO.1017.00181.i0001_00051	ESCO.1017.00182.i0001_00055	ESCO.1017.00183.i0001_03498	ESCO.1017.00184.i0001_00054	ESCO.1017.00185.i0001_03853	ESCO.1017.00186.i0001_00049	ESCO.1017.00187.i0001_00049	ESCO.1017.00188.i0001_00051	ESCO.1017.00189.i0001_04109	ESCO.1017.00190.i0001_00053	ESCO.1017.00191.i0001_03546	ESCO.1017.00192.i0001_01381	ESCO.1017.00193.i0001_00049	ESCO.1017.00194.i0001_00048	ESCO.1017.00195.i0001_00052	ESCO.1017.00196.i0001_00052	ESCO.1017.00197.i0001_00052	ESCO.1017.00198.i0001_00049	ESCO.1017.00199.i0001_00904	ESCO.1017.00200.i0001_03596	ESCO.1017.00201.i0001_00844	ESCO.1017.00202.i0001_00050	ESCO.1017.00203.i0002_04611
 		2	ESCO.1017.00001.i0001_00054	ESCO.1017.00004.i0001_00054	ESCO.1017.00009.i0001_00054	ESCO.1017.00010.i0001_00054	ESCO.1017.00012.i0001_03636	ESCO.1017.00022.i0001_00054	ESCO.1017.00025.i0001_00047	ESCO.1017.00027.i0001_00054	ESCO.1017.00035.i0001_00054	ESCO.1017.00036.i0001_00054	ESCO.1017.00037.i0001_00054	ESCO.1017.00038.i0001_00054	ESCO.1017.00039.i0001_03487	ESCO.1017.00043.i0001_00054	ESCO.1017.00044.i0001_00054	ESCO.1017.00045.i0001_00772	ESCO.1017.00046.i0001_00763	ESCO.1017.00047.i0001_00771	ESCO.1017.00048.i0001_00772	ESCO.1017.00049.i0001_00829	ESCO.1017.00050.i0001_00770	ESCO.1017.00051.i0001_00773	ESCO.1017.00052.i0001_00829	ESCO.1017.00053.i0001_00054	ESCO.1017.00055.i0001_00054	ESCO.1017.00056.i0001_00054	ESCO.1017.00057.i0001_00054	ESCO.1017.00058.i0001_00054	ESCO.1017.00059.i0001_00054	ESCO.1017.00062.i0001_00054	ESCO.1017.00063.i0001_00054	ESCO.1017.00064.i0001_00054	ESCO.1017.00065.i0001_00058	ESCO.1017.00066.i0001_04361	ESCO.1017.00067.i0001_04364	ESCO.1017.00068.i0001_04362	ESCO.1017.00072.i0001_02752	ESCO.1017.00075.i0001_00615	ESCO.1017.00078.i0001_03620	ESCO.1017.00083.i0001_00054	ESCO.1017.00102.i0001_01204	ESCO.1017.00108.i0001_00054	ESCO.1017.00109.i0001_00054
@@ -83,21 +97,95 @@ The tools required 2 files.
 		1	ESCO.1017.00006.i0001_00053
 		...
 
-Output formats
-----------
+This format is the one returned by MMseqs2 (tsv) and can be used directly as PPanGOLiN input (note thath in MMseqs2, the gene families name (first column) is the name of the median gene of the families).
+Basicly, all the gene id found in the gff files muster be associated to a gene families even the sigletons exepting if the flag --infere-singleton is used. Indeed, in this case singleton will be autocally dectected directly in the gff files.
 
 Reserved word
 ----------
 To prevent any bug, the following words are fobiden to be any of the identifiers :
 ``` "id", "label", "name", "weight", "partition", "partition_exact", "length", "length_min", "length_max", "length_avg", "length_med", "product", 'nb_gene', 'community' ```
 
-Output formats
+Output
 ----------
 The program results in several output file:
-1) graph.gexf (and graph_light.gexf)
+
+1. *graph.gexf* (and *graph_light.gexf* corresponding to the same topology without gene and organism details). GEXF file can be open using Gephi (https://gephi.org/).
+
+2. *matrix.csv* and *matrix.Rtab* correspond to the gene presence absence matrix formated as did in roary (https://sanger-pathogens.github.io/Roary/) except that the second column corresponds to the partition instead of an alternative gene familie name.
+
+3. A folder *partitions* in which each file contain the list of the gene families in each partitions 
+
+4. A folder *figures* containing the different plots :
+	* tile plot
+	* ushape plot (pdf + html)
+	* optional: evolution curve
+	* optional: projection plots
+
+5. A folder *figures* containing the different plots :
+	* tile plot
+	* ushape plot (pdf + html)
+	* optional: evolution curve
+	* optional: projection plots
+
+6. A folder *NEM_results* containing the tempary data of the computation
+
+7. optional : a folder *evolutions* containing the tempary data of the computation of all the resampling et the file (stat_evol.txt) summurarizing this evolution
+
+8. optional : a folder *projections* containing tabuledted file for each organism providing information about the projection of the graph against each selected organism
+
 
 Options
 ============================
 
-Citation
+Remove high copy number in gene families
+----------
+
+To minimize the impact of the genomic hubs in the graph caused by gene families scattered all along the genomes like transpase, we add an option allowing to filter gene families having a number of genes above a threshold in at least one organism.
+
+For example, this command :
+.. code:: bash
+
+	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -r 10
+
+will remove gene families of the graph having more than 10 repeted gene in at least one of the organism. By experience, using a value of 10, only few gene families will be removed.
+
+Directed or Undirected graph
+----------
+
+The pangenome graph can be directed or undirected. Directed graph provided more information but as genome can have multiple inversion around the origin of replication, it is sometime simpler to merge the directed edge into a undirected one.
+
+For example, this command :
+.. code:: bash
+
+	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -r 10
+
+Note that the partionning method will not be impacted by this flag beacause in evry cases the partionning approach consider the graph as undirected.
+
+Partionning parameter
+----------
+
+The Partionning method can be customize througth 3 parameters:
+ - partioning by chunk
+ - Smoothing strengh
+ - dispersion
+
+Evolution curve
+----------
+
+Contrary to a pangenome where gene families families are classify in core genome or accessory genome based on a threshold of occurence, this approach esimate the best partionning stabilizing the persistent genome. Thereby this processing required a calculation step so that it is not instantanous. Perform a lot a lot of resampling can thus required a lot of calculation and it is not acheive by default. Nevertheless, it is possible to acheive this using the -e flag. We also offers de the possibility to customize the resampling in terms in term of minimun number of sample and maximun number of sample
+
+Projection
+----------
+
+Metadata
+----------
+
+
+Frequently Asked Questions
 ============================
+
+
+Reference
+============================
+Citation :
+
