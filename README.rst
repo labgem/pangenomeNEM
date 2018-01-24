@@ -12,7 +12,7 @@ Definition:
 
 Finally, this partition are projected againt the pangenome graph to obtain what we called a Partionned PanGenome Graph.
 
-.. image:: workflow.svg
+.. image:: workflow.png
 
 
 Installation
