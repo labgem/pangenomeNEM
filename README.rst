@@ -1,27 +1,29 @@
-PPanGGOLiN : Depicting microbial species diversity via a partitioned pangenome graph
+PPanGGOLiN : Depicting microbial species diversity via a Partitioned Pangenome Graph
 ========================================================
 
 .. image:: logo.png
 
-This tools compile the genomic content of a taxonomic unit (pangenome). We used a graph approach to model pangenomes in which nodes and edges represent  gene families and chromosomal neighborhood information, respectively. Our method partitions nodes using an Expectation/Maximization algorithm based on Bernoulli Mixture Model (BMM) coupled with a Markov Random field (MRF). This approach takes into account both graph topology and occurrence of genes to classify gene families into three partitions (i.e. "\textit{persistent genome}", "\textit{shell genome}" and "\textit{cloud genome}") resulting in what we called Partitioned Pangenome Graph (PPG).
+This tools compile the genomic content of a taxonomic unit (pangenome). We used a graph approach to model pangenomes in which nodes and edges represent  gene families and chromosomal neighborhood information, respectively. Our method partitions nodes using an Expectation/Maximization algorithm based on Bernoulli Mixture Model (BMM) coupled with a Markov Random field (MRF). This approach takes into account both graph topology and occurrence of genes to classify gene families into three partitions (i.e. *persistent genome*, *shell genome* and *cloud genome*) resulting in what we called Partitioned Pangenome Graph (PPG).
 
+Definition:
  1) Persistent genome: equivalent to a relaxed core genome (genes conserved in all but a few genomes);
  2) Shell genome: genes having intermediate frequencies corresponding to moderately conserved genes potentially associated to environmental adaptation capabilities
  3) Cloud genome: genes found at very low frequency. 
 
 Finally, this partition are projected againt the pangenome graph to obtain what we called a Partionned PanGenome Graph.
 
-.. workflow:: workflow.png
+.. image:: workflow.svg
 
 
 Installation
 ============================
 
 PPanGGOLiN can be easily installed via:
+
 .. code:: bash
 	pip install ppanggolin
 
-GCC will be required, as well as the following python modules : "networkx","numpy","tqdm","highcharts"
+GCC will be required, as well as the following python modules : "networkx", "numpy", "tqdm", "highcharts"
 
 Quick usage
 ============================
@@ -40,8 +42,8 @@ The tools required 2 files.
 	This is a tab-delimitated file structured as following:
 
 	1. First colunm is the organism name, it must be unique and can't contain reserved word.
-	2. Second colunm is the path to the associated gff3 file (can be relative or absolute). In the gff files, sequences of the genomes are not required at all. Only CDS feature will be taken in account, each one must contain an ID attribute and optionnaly name and product attribute. 
-	3. Further colunms (optional) are the id of the contig in the gff files which are both perfectly assembled and circular. In this case, it is mandatory the provide the size of the contigs in the gff file either by adding a "region" feature to the gff file having a correct id attribute or using a '##sequence-region' pragma as did in prokka.
+	2. Second colunm is the path to the associated gff3 file (can be relative or absolute). In the gff files, sequences of the genomes are not required at all. Only CDS feature will be taken in account, each one must contain an *ID* attribute and optionaly *Name* and *product* attributes. 
+	3. (optional) Further colunms are the id of the contig in the gff files which are both perfectly assembled and circular. In this case, it is mandatory the provide the size of the contigs in the gff file either by adding a "region" feature to the gff file having a correct id attribute or using a '##sequence-region' pragma (as did in prokka).
 
 	Exemple of ORGANISMS_FILE:
 	::
@@ -72,7 +74,7 @@ The tools required 2 files.
 		...
 
 2. A file FAMILIES_FILE providing the gene families formated as following. 
-	This is a tab-delimitated file structured as following:
+	This is a tab-delimitated file.
 
 	1. The first columnn is the gene families name (sometime the name of the median gene)
 	2. The futher columnn are the name of the gene id belonging to this families. A gene can't belong to multiple families
@@ -98,7 +100,7 @@ The tools required 2 files.
 		...
 
 This format is the one returned by MMseqs2 (tsv) and can be used directly as PPanGOLiN input (note thath in MMseqs2, the gene families name (first column) is the name of the median gene of the families).
-Basicly, all the gene id found in the gff files muster be associated to a gene families even the sigletons exepting if the flag --infere-singleton is used. Indeed, in this case singleton will be autocally dectected directly in the gff files.
+Basically, all the gene id found in the gff files muster be associated to a gene families even the sigletons exepting if the flag --infere-singleton is used. Indeed, in this case singleton will be autocally dectected directly in the gff files.
 
 Reserved word
 ----------
@@ -121,18 +123,20 @@ The program results in several output file:
 	* optional: evolution curve
 	* optional: projection plots
 
-5. A folder *figures* containing the different plots :
+5. A folder *figures* containing the different plots (if flag '-p' is provided):
 	* tile plot
 	* ushape plot (pdf + html)
 	* optional: evolution curve
 	* optional: projection plots
 
-6. A folder *NEM_results* containing the tempary data of the computation
+6. A folder *NEM_results* containing the tempary data of the computation (removed if flag '-df' is provided)
 
-7. optional : a folder *evolutions* containing the tempary data of the computation of all the resampling et the file (stat_evol.txt) summurarizing this evolution
+7. A folder *partitions* containing one file by partition. Each file stores the name of the families in it associated partition.
 
-8. optional : a folder *projections* containing tabuledted file for each organism providing information about the projection of the graph against each selected organism
 
+8. optional : a folder *evolutions* containing the tempary data of the computation of all the resampling et the file (stat_evol.txt) summurarizing this evolution (if flag '-e' is provided)
+
+9. optional : a folder *projections* containing tabuledted file for each organism providing information about the projection of the graph against each selected organism (if argument '-pr' followed by the line number in the ORGANISM_FILE is provided)
 
 Options
 ============================
@@ -140,14 +144,15 @@ Options
 Remove high copy number in gene families
 ----------
 
-To minimize the impact of the genomic hubs in the graph caused by gene families scattered all along the genomes like transpase, we add an option allowing to filter gene families having a number of genes above a threshold in at least one organism.
+To minimize the impact of the genomic hubs in the graph caused by gene families scattered all along the genomes like transposase, we add an option allowing to filter gene families having a number of genes above a threshold in at least one organism.
 
 For example, this command :
+
 .. code:: bash
 
 	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -r 10
 
-will remove gene families of the graph having more than 10 repeted gene in at least one of the organism. By experience, using a value of 10, only few gene families will be removed.
+will remove gene families of the graph having more than 10 repeted gene in at least one of the organism. By experience, using a value of 10, only few gene families (a dozen) will be removed.
 
 Directed or Undirected graph
 ----------
@@ -157,17 +162,19 @@ The pangenome graph can be directed or undirected. Directed graph provided more 
 For example, this command :
 .. code:: bash
 
-	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -r 10
+	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -ud
 
 Note that the partionning method will not be impacted by this flag beacause in evry cases the partionning approach consider the graph as undirected.
 
 Partionning parameter
 ----------
 
-The Partionning method can be customize througth 3 parameters:
- - partioning by chunk
- - Smoothing strengh
- - dispersion
+The partionning method can be customize througth 3 parameters:
+
+1. Partioning by chunk: When more than 500 organisms is processed it is advised to 
+
+2. Smoothing strengh
+3. dispersion
 
 Evolution curve
 ----------
