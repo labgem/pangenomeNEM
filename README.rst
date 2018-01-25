@@ -170,18 +170,20 @@ Partionning parameter
 
 The partionning method can be customize througth 3 parameters:
 
-1. Partioning by chunk (-ck option): When more than 500 organisms is processed it is advised to partion the pangenome by chunck. Actually, the method seem to saturate with an high number of dimensions. Chunck correspond to samples of the organisms to partition in parrallel. It is advise to use chunck not lower than 200 organisms in order to obtain representative ones. Then the tools will partition the pangenome using multiple chunks in a way that evry families must be partionned in at least (total number of organisms)/(chunk size) times. Moreover each gene family must be partionned mainly in one specific partition (>50% of cases), otherwise the pangenome will be partionned again and again.
+1. Partioning by chunk (-ck VALUE option): When more than 500 organisms is processed it is advised to partion the pangenome by chunck. Actually, the method seem to saturate with an high number of dimensions. Chunck correspond to samples of the organisms to partition in parrallel. It is advise to use chunck not lower than 200 organisms in order to obtain representative ones. Then the tools will partition the pangenome using multiple chunks in a way that evry families must be partionned in at least (total number of organisms)/(chunk size) times. Moreover each gene family must be partionned mainly in one specific partition (>50% of cases), otherwise the pangenome will be partionned again and again.
 
-2. Smoothing strengh :
+2. Smoothing strengh (-b VALUE option): This option determine the strengh of the smoothing (`:math:\beta`) of the partions based on the graph topology (using a Markov Random Field). (`:math:\beta = 0`) means no smoothing while (`:math:\beta` = 1) means a hard smoothing (higher value than 1 are allowed but strongly discouraged). (`:math:\beta` = 0.5`) is generally a good tradeoff.
 
-3. dispersion
+3. Free Dispersion around centroid vectors (-fd flag): This flag allow to the dispersion vector around the centroid vector of the Bernoulli Mixture Model to be free to be variable for all organisms in a vector. By default, dispersions are constraint to be the same for all organisms for each partition, that is to say, all organisms will have the same impact of the partionning. 
 
 Evolution curve
 ----------
 
-Contrary to a pangenome where gene families families are classify in core genome or accessory genome based on a threshold of occurence, this approach esimate the best partionning stabilizing the persistent genome. Thereby this processing required a calculation step so that it is not instantanous. Perform a lot a lot of resampling can thus required a lot of calculation and it is not acheive by default. Nevertheless, it is possible to acheive this using the -e flag. We also offers de the possibility to customize the resampling in terms in term of minimun number of sample and maximun number of sample
+Contrary to a pangenome where gene families families are partionned in core genome or accessory genome based on a threshold of occurence, this approach esimate the best partionning via a statiscal approach. Thereby this processing required calculation steps so that it is not instantanous. Perform a lot a lot of resampling can thus required a lot of calculation and this why it is not acheived by default. Nevertheless, it is possible to perform these resampling using the -e flag. We also offers de the possibility to customize the resampling in terms in term of minimun number of sample and maximun number of sample.
 
 Projection
+
+
 ----------
 
 Metadata
@@ -196,13 +198,3 @@ Reference
 ============================
 Citation :
 
-
-
-<figure class="large">
-    <div class="myvideo">
-       <video  style="display:block; width:100%; height:auto;" autoplay controls loop="loop">
-           <source src="gephi.mp4" type="video/mp4" />
-       </video>
-    </div>
-<figcaption>A nice movie format</figcaption>
-</figure>
