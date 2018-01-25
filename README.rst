@@ -181,6 +181,8 @@ Evolution curve
 
 Contrary to a pangenome where gene families families are partionned in core genome or accessory genome based on a threshold of occurence, this approach esimate the best partionning via a statiscal approach. Thereby this processing required calculation steps so that it is not instantanous. Perform a lot a lot of resampling can thus required a lot of calculation and this why it is not acheived by default. Nevertheless, it is possible to perform these resampling using the -e flag. We also offers de the possibility to customize the resampling in terms in term of minimun number of sample and maximun number of sample.
 
+.. image:: resampling.png
+
 Projection
 
 
