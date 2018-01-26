@@ -103,7 +103,7 @@ All the gene ids found in the gff files must be associated to a gene families ev
 
 Reserved word
 ----------
-To prevent any bug, the following words are fobidden to be any of the identifiers : "id", "label", "name", "weight", "partition", "partition_exact", "length", "length_min", "length_max", "length_avg", "length_med", "product", "nb_gene", "community" 
+To prevent any bug, the following words are fobidden to be any of the identifiers : "id", "label", "name", "weight", "partition", "partition_exact", "length", "length_min", "length_max", "length_avg", "length_med", "product", "nb_gene", "community". Moreover, "|" and "," are also fobidden to be contained in any of the identifiers.
 
 Output
 ----------
@@ -113,21 +113,33 @@ The program results in several output file:
 
 .. image:: gephi.gif
 
-2. *matrix.csv* and *matrix.Rtab* correspond to the gene presence absence matrix formated as did in roary (https://sanger-pathogens.github.io/Roary/) except that the second column corresponds to the partition instead of an alternative gene familie name.
+2. *matrix.csv* and *matrix.Rtab* correspond to the gene presence absence matrix formated as did in roary (https://sanger-pathogens.github.io/Roary/) except that the second column corresponds to the partition instead of an alternative gene familie name. When multiple genes are present in one family in a single organism, the identifiers of the gene are merged with a "|" separator.
 
-3. A folder *partitions* in which each file contain the list of the gene families in each partitions 
+3. A file generate_plots.R able to generate some figures to vizualize some metrics about the pangenome. This file can be executed using the following command : 
 
-4. A folder *figures* containing the different plots :
-	* tile plot
-	* ushape plot (pdf + html)
-	* optional: evolution curve
-	* optional: projection plots
+	.. code:: bash
+		Rscript OUTPUT_DIR/generate_plots.R
 
-5. A folder *figures* containing the different plots (if flag '-p' is provided):
-	* tile plot
-	* ushape plot (pdf + html)
-	* optional: evolution curve
-	* optional: projection plots
+	**The script can generate some errors as "Removed X rows containing non-finite values" that must be ignored.
+
+4. A folder *figures* containing the different plots (the script generate_plots.R is executed if flag '-p' is provided):
+	* tile plot: a figure providing an overview of the presence(green)/absence(grey) matrix. 
+
+	.. image:: tile_plot.png
+
+	* ushape plot (pdf + html): a figure providing an overview gene frequency distribution
+
+	.. image:: u_plot.png
+
+	* optional: evolution curve (if the flag '-e' is provided): a figure providing an overview of the evolution of the pangenome metrics when more and more organisms are added to the pangenome (see the section evolution curve to customize resampling parameters).
+
+	.. image:: evolution.png
+
+	* optional: projection plots (if the option '-pr NUM' is provided): a figure showing the projection of the pangenome against one organism in order to vizualize persistent, shell and cloud regions on this genome
+
+	.. image:: projection.png
+
+5. A folder *partitions* in which each file contain the list of the gene families in each partitions 
 
 6. A folder *NEM_results* containing the tempary data of the computation (removed if flag '-df' is provided)
 
@@ -179,9 +191,9 @@ The partionning method can be customize througth 3 parameters:
 Evolution curve (-e option)
 ----------
 
-Contrary to a pangenome where gene families families are partionned in core genome or accessory genome based on a threshold of occurence, this approach esimate the best partionning via a statiscal approach. Thereby this processing required calculation steps so that it is not instantanous. Perform a lot a lot of resampling can thus required a lot of calculation and this why it is not acheived by default. Nevertheless, it is possible to perform these resampling using the -e flag. 
+Contrary to a pangenome where gene families families are partionned in core genome or accessory genome based on a threshold of occurence, this approach esimate the best partionning via a statiscal approach. Thereby this processing required calculation steps so that it is not instantanous. Performing a lot of resampling can thus required heavy calculations and this why it is not acheived by default. Nevertheless, it is possible to perform these resampling using the -e flag. 
 
-We also offers de the possibility to customize the resampling using 3 parameters : RESAMPLING_RATIO, MINIMUN_SAMPLING, MAXIMUN_SAMPLING (See the figure below to obtain an idea of the effect of the 3 parameters). For example purpose, to compute all the combination (strongly discouraged !) RESAMPLING_RATIO must be equal to 1, MINIMUN_SAMPLING = 1 and MAXIMUN_SAMPLING = Inf.
+We also offers de the possibility to customize the resampling using 4 parameters : RESAMPLING_RATIO, MINIMUN_SAMPLING, MAXIMUN_SAMPLING (See the figure below to obtain an idea of the effect of the 4 parameters). The last parameter allows to jump some combinations of organisms by a determined STEP to reduce the number of computation. For example purpose, to compute all the combinations (strongly discouraged !) RESAMPLING_RATIO must be equal to 1, MINIMUN_SAMPLING to 1, MAXIMUN_SAMPLING to Inf and STEP to 1.
 
 .. image:: resampling.png
 
