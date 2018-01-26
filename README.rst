@@ -153,7 +153,7 @@ For example, this command :
 
 will remove gene families of the graph having more than 10 repeted genes in at least one of the organism. By experience, using a r value of 10, only few gene families (a dozen) will be removed.
 
-Directed or Undirected graph
+Directed or Undirected graph (-ud option)
 ----------
 
 The pangenome graph can be directed or undirected. Directed graph provided more information but as genome can have multiple inversion around the origin of replication, it is sometime simpler to merge the directed edge into a undirected one.
@@ -176,20 +176,48 @@ The partionning method can be customize througth 3 parameters:
 
 3. Free Dispersion around centroid vectors (-fd flag): This flag allow to the dispersion vector around the centroid vector of the Bernoulli Mixture Model to be free to be variable for all organisms in a vector. By default, dispersions are constraint to be the same for all organisms for each partition, that is to say, all organisms will have the same impact of the partionning. 
 
-Evolution curve
+Evolution curve (-e option)
 ----------
 
-Contrary to a pangenome where gene families families are partionned in core genome or accessory genome based on a threshold of occurence, this approach esimate the best partionning via a statiscal approach. Thereby this processing required calculation steps so that it is not instantanous. Perform a lot a lot of resampling can thus required a lot of calculation and this why it is not acheived by default. Nevertheless, it is possible to perform these resampling using the -e flag. We also offers de the possibility to customize the resampling in terms in term of minimun number of sample and maximun number of sample.
+Contrary to a pangenome where gene families families are partionned in core genome or accessory genome based on a threshold of occurence, this approach esimate the best partionning via a statiscal approach. Thereby this processing required calculation steps so that it is not instantanous. Perform a lot a lot of resampling can thus required a lot of calculation and this why it is not acheived by default. Nevertheless, it is possible to perform these resampling using the -e flag. 
+
+We also offers de the possibility to customize the resampling using 3 parameters : RESAMPLING_RATIO, MINIMUN_SAMPLING, MAXIMUN_SAMPLING (See the figure below to obtain an idea of the effect of the 3 parameters). For example purpose, to compute all the combination (strongly discouraged !) RESAMPLING_RATIO must be equal to 1, MINIMUN_SAMPLING = 1 and MAXIMUN_SAMPLING = Inf.
 
 .. image:: resampling.png
 
-Projection
-
-
+Projection (-pr option)
 ----------
 
-Metadata
+It is possible to project the pangenome against one organism in order to vizualize persistent, shell and cloud regions on this genome. Moreover we project the nomber of neighbors of each gene families in the pangenome to identify hotspots of recombination. To use the feature, you need to use the '-pr' option followed by the position of organisms to process (position in the ORGANISM FILE) or 0 to compute all organisms. 
+
+Metadata (-mt option)
 ----------
+It is possible to add metainformation to the pangenome graph. These information must be associated to each organism via a METADATA_FILE. During the construction of the graph, metainformation about the organisms are used to label the covered edges.  
+
+METADATA_FILE is a tab-delimitated file. The first line contain the names of the attributes and the following lines contain associated information for each organism (in the same order as in the ORGANISM_FILE).
+
+	::
+		phylogroup	assembly
+		D	complete
+		A	complete
+		B2	complete
+		B1	complete
+		B2	complete
+		C	complete
+		B2	complete
+		B2	complete
+		C	complete
+		B2	complete
+		A	complete
+		A	complete
+		A	complete
+		A	complete
+		A	complete
+		A	complete
+		A	complete
+		A	complete
+		A	complete
+		...
 
 
 Frequently Asked Questions
