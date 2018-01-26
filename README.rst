@@ -171,6 +171,7 @@ Directed or Undirected graph (-ud option)
 The pangenome graph can be directed or undirected. Directed graph provided more information but as genome can have multiple inversion around the origin of replication, it is sometime simpler to merge the directed edge into a undirected one.
 
 For example, this command :
+
 .. code:: bash
 
 	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -ud
@@ -181,12 +182,38 @@ Partionning parameter
 ----------
 
 The partionning method can be customize througth 3 parameters:
-
+s
 1. Partioning by chunk (-ck VALUE option): When more than 500 organisms is processed it is advised to partion the pangenome by chunck. Actually, the method seem to saturate with an high number of dimensions. Chunck correspond to samples of the organisms to partition in parrallel. It is advise to use chunck not lower than 200 organisms in order to obtain representative ones. Then the tools will partition the pangenome using multiple chunks in a way that evry families must be partionned in at least (total number of organisms)/(chunk size) times. Moreover each gene family must be partionned mainly in one specific partition (>50% of cases), otherwise the pangenome will be partionned again and again.
+
+	For example, this command :
+
+	.. code:: bash
+
+		ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -ck 300
+
+	will ...
+
+Note that the partionning method will not be impacted by this flag beacause in evry cases the partionning approach consider the graph as undirected
 
 2. Smoothing strengh (-b VALUE option): This option determine the strengh of the smoothing (`:math:\beta`) of the partions based on the graph topology (using a Markov Random Field). (`:math:\beta = 0`) means no smoothing while (`:math:\beta` = 1) means a hard smoothing (higher value than 1 are allowed but strongly discouraged). (`:math:\beta` = 0.5`) is generally a good tradeoff.
 
+	For example, this command :
+
+	.. code:: bash
+
+		ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -b 1
+
+	will ...
+
 3. Free Dispersion around centroid vectors (-fd flag): This flag allow to the dispersion vector around the centroid vector of the Bernoulli Mixture Model to be free to be variable for all organisms in a vector. By default, dispersions are constraint to be the same for all organisms for each partition, that is to say, all organisms will have the same impact of the partionning. 
+
+	For example, this command :
+
+	.. code:: bash
+
+		ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -fd
+
+	will ...
 
 Evolution curve (-e option)
 ----------
@@ -197,10 +224,23 @@ We also offers de the possibility to customize the resampling using 4 parameters
 
 .. image:: resampling.png
 
+
+.. code:: bash
+
+	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -e 0.01 10 50 5  
+
+will ..
+
 Projection (-pr option)
 ----------
 
 It is possible to project the pangenome against one organism in order to vizualize persistent, shell and cloud regions on this genome. Moreover we project the nomber of neighbors of each gene families in the pangenome to identify hotspots of recombination. To use the feature, you need to use the '-pr' option followed by the position of organisms to process (position in the ORGANISM FILE) or 0 to compute all organisms. 
+
+.. code:: bash
+
+	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -pr 5 7 9  
+
+will ..
 
 Metadata (-mt option)
 ----------
@@ -229,6 +269,12 @@ METADATA_FILE is a tab-delimitated file. The first line contain the names of the
 	A	complete
 	A	complete
 	...
+
+.. code:: bash
+
+	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -mt METADATA_FILE
+
+will ..
 
 
 Frequently Asked Questions
