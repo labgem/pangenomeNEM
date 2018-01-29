@@ -2,7 +2,7 @@ PPanGGOLiN : Depicting microbial species diversity via a Partitioned Pangenome G
 ========================================================
 
 .. image:: images/logo.png
-	:wifth: 1000px
+	:width: 100px
 
 This tool compiles the genomic content of a species (A) also name a pangenome. It is based on a graph approach to model pangenomes in which nodes and edges represent families of homologous genes (B and C, not included in the pipeline) and chromosomal neighborhood information, respectively. This approach takes into account both graph topology (D.a) and occurrences of genes (D.b) to classify gene families into three partitions (i.e. *persistent genome*, *shell genome* and *cloud genome*) yielding what we called Partitioned Pangenome Graph (F). More precisly, the method relies on an Expectation/Maximization algorithm based on Bernoulli Mixture Model (E.a) coupled with a Markov Random field (E.b).
 
