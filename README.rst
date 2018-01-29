@@ -3,9 +3,9 @@ PPanGGOLiN : Depicting microbial species diversity via a Partitioned Pangenome G
 
 .. image:: logo.png
 
-This tools compile the genomic content of a taxonomic unit (pangenome). It is based on a graph approach to model pangenomes in which nodes and edges represent gene families and chromosomal neighborhood information, respectively. This approach takes into account both graph topology and occurrence of genes to classify gene families into three partitions (i.e. *persistent genome*, *shell genome* and *cloud genome*) resulting in what we called Partitioned Pangenome Graph (PPG).The method relies on an Expectation/Maximization algorithm based on Bernoulli Mixture Model coupled with a Markov Random field. Finally, these partitions are projected against the pangenome graph to obtain what we called a Partitioned PanGenome Graph.
+This tool compiles the genomic content of a species (A) also name a pangenome. It is based on a graph approach to model pangenomes in which nodes and edges represent families of homologous genes (B and C, not included in the pipeline) and chromosomal neighborhood information, respectively. This approach takes into account both graph topology (D.a) and occurrences of genes (D.b) to classify gene families into three partitions (i.e. *persistent genome*, *shell genome* and *cloud genome*) yielding what we called Partitioned Pangenome Graph (F). More precisly, the method relies on an Expectation/Maximization algorithm based on Bernoulli Mixture Model (E.a) coupled with a Markov Random field (E.b).
 
-Definition:
+Partitions:
  1) Persistent genome: equivalent to a relaxed core genome (genes conserved in all but a few genomes);
  2) Shell genome: genes having intermediate frequencies corresponding to moderately conserved genes potentially associated to environmental adaptation capabilities
  3) Cloud genome: genes found at a very low frequency. 
@@ -22,7 +22,7 @@ PPanGGOLiN can be easily installed via:
 .. code:: bash
 	pip install ppanggolin
 
-GCC (>=3.0) will be required, as well as the following python modules : "networkx(>=2.00)", "numpy", "tqdm", "highcharts"
+GCC (>=3.0) will be required, as well as Python 3 and the following modules : "networkx(>=2.00)", "numpy", "scipy", "tqdm" and "highcharts"
 
 Quick usage
 ============================
@@ -33,7 +33,7 @@ The minimal command is :
 
 	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR
 
-Input formats
+Input formats!
 ----------
 The tools required 2 files.
 
@@ -42,7 +42,7 @@ The tools required 2 files.
 
 	1. First colunm is the organism name, it must be unique and can't contain reserved word (see section reserved words).
 	2. Second column is the path to the associated gff3 file (can be relative or absolute). In the gff files, sequences of the genomes are not required at all. Only CDS features will be taken in account, each one must contain an *ID* attribute and optionaly *Name* and *product* attributes. 
-	3. (optional) Further colunms are the id of the contig in the gff files which are both perfectly assembled and circular. In this case, it is mandatory the provide the size of the contigs in the gff file either by adding a "region" feature to the gff file having a correct id attribute or using a '##sequence-region' pragma (as did in prokka).
+	3. (optional) Further colunms are the id of the contigs in the gff files which are both circular and perfectly assembled. In this case, it is mandatory the provide the size of the contigs in the gff file either by adding a "region" feature to the gff file having the correct id attribute or using a '##sequence-region' pragma (as did in prokka).
 
 	Exemple of ORGANISMS_FILE:
 	::
@@ -98,7 +98,7 @@ The tools required 2 files.
 		1	ESCO.1017.00006.i0001_00053
 		...
 
-This format is the one returned by MMseqs2 (tsv) and can be used directly as PPanGGOLiN input (in MMseqs2, the gene families name (first column) is the name of the median gene of the families).
+The tsv format is the one returned by MMseqs2 (https://github.com/soedinglab/MMseqs2) and can be used directly as PPanGGOLiN input (in MMseqs2, the gene families name (first column) is the name of the median gene of the families).
 All the gene ids found in the gff files must be associated to a gene families even the sigletons exepting if the flag --infere-singleton is used. Indeed, in this case singleton will be autocally dectected directly in the gff files (the family id will be the gene id).
 
 Reserved word
@@ -131,13 +131,9 @@ The program results in several output file:
 
 	.. image:: u_plot.png
 
-	* optional: evolution curve (if the flag '-e' is provided): a figure providing an overview of the evolution of the pangenome metrics when more and more organisms are added to the pangenome (see the section evolution curve to customize resampling parameters).
+	* optional: evolution curve (if the flag '-e' is provided): a figure providing an overview of the evolution of the pangenome metrics when more and more organisms are added to the pangenome (see section *Evolution* to obtain more details). 
 
-	.. image:: evolution.png
-
-	* optional: projection plots (if the option '-pr NUM' is provided): a figure showing the projection of the pangenome against one organism in order to vizualize persistent, shell and cloud regions on this genome
-
-	.. image:: projection.png
+	* optional: projection plots (if the option '-pr NUM' is provided): a figure showing the projection of the pangenome against one organism in order to vizualize persistent, shell and cloud regions on this genome (see section *Projection* to obtain more details). 
 
 5. A folder *partitions* in which each file contain the list of the gene families in each partitions 
 
@@ -182,10 +178,10 @@ Partionning parameter
 ----------
 
 The partionning method can be customize througth 3 parameters:
-s
+
 1. Partioning by chunk (-ck VALUE option): When more than 500 organisms is processed it is advised to partion the pangenome by chunck. Actually, the method seem to saturate with an high number of dimensions. Chunck correspond to samples of the organisms to partition in parrallel. It is advise to use chunck not lower than 200 organisms in order to obtain representative ones. Then the tools will partition the pangenome using multiple chunks in a way that evry families must be partionned in at least (total number of organisms)/(chunk size) times. Moreover each gene family must be partionned mainly in one specific partition (>50% of cases), otherwise the pangenome will be partionned again and again.
 
-	For example, this command :
+	This feature can be executed using this command :
 
 	.. code:: bash
 
@@ -197,23 +193,19 @@ Note that the partionning method will not be impacted by this flag beacause in e
 
 2. Smoothing strengh (-b VALUE option): This option determine the strengh of the smoothing (`:math:\beta`) of the partions based on the graph topology (using a Markov Random Field). (`:math:\beta = 0`) means no smoothing while (`:math:\beta` = 1) means a hard smoothing (higher value than 1 are allowed but strongly discouraged). (`:math:\beta` = 0.5`) is generally a good tradeoff.
 
-	For example, this command :
+	This feature can be executed using this command :
 
 	.. code:: bash
 
 		ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -b 1
 
-	will ...
-
 3. Free Dispersion around centroid vectors (-fd flag): This flag allow to the dispersion vector around the centroid vector of the Bernoulli Mixture Model to be free to be variable for all organisms in a vector. By default, dispersions are constraint to be the same for all organisms for each partition, that is to say, all organisms will have the same impact of the partionning. 
 
-	For example, this command :
+	This feature can be executed using this command :
 
 	.. code:: bash
 
 		ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -fd
-
-	will ...
 
 Evolution curve (-e option)
 ----------
@@ -227,9 +219,14 @@ We also offers de the possibility to customize the resampling using 4 parameters
 
 .. code:: bash
 
-	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -e 0.01 10 50 5  
+	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -e 0.01 10 50 1
 
-will ..
+will generate 1% percent of all resampling with at mininum 10 combination for each size of the set of organisms and 50 maximum. The size of the combination will be increased by a step equals to 1.
+
+The curves represent the evolution of the size of the partitions when more and more organisms are added to the pangenome. The plain lines connect the median (crosses) of the resampling distribution while the shadows represent the interquartile ranges. Finally a regression curve is drawn fitting a Heap's law ($F = \kappa N^{\gamma}$) 
+
+
+	.. image:: evolution.png
 
 Projection (-pr option)
 ----------
@@ -238,9 +235,14 @@ It is possible to project the pangenome against one organism in order to vizuali
 
 .. code:: bash
 
-	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -pr 5 7 9  
+	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -pr 1 7 9  
 
-will ..
+will project againt the organisms 1, 7 and 9 the information about the pangenome (degrees of nodes and partitions).
+
+The internal layer reports the contigs, the grey intermediate layer reports the homologue genes, the third layer shows the partition of the gene families of the organism. The hairy external layer shows the number of families neighbors belonging to each partitions of the pangenome. The black line provides the emplacement of the origin of replication if the dnaA gene if found.
+
+	.. image:: projection.png
+
 
 Metadata (-mt option)
 ----------
@@ -274,7 +276,7 @@ METADATA_FILE is a tab-delimitated file. The first line contain the names of the
 
 	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -mt METADATA_FILE
 
-will ..
+will add to each edge of the partionned pangenome graph, the label "phylogroup" and the label "assembly". When an edge encompass several organism having different values associated to the same label, the value are sorted and merged (separted by a '|').
 
 
 Frequently Asked Questions
