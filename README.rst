@@ -112,6 +112,7 @@ The program results in several output file:
 1. *graph.gexf* (and *graph_light.gexf* corresponding to the same topology without gene and organism details). GEXF file can be open using Gephi (https://gephi.org/). See the video below (in the section gephi tunning) to obtain an interesting layout of the graph.
 
 .. image:: images/gephi.gif
+	:align: right
 
 2. *matrix.csv* and *matrix.Rtab* correspond to the gene presence absence matrix formated as did in roary (https://sanger-pathogens.github.io/Roary/) except that the second column corresponds to the partition instead of an alternative gene familie name. When multiple genes are present in one family in a single organism, the identifiers of the gene are merged with a "|" separator.
 
