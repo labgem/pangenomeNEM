@@ -1,7 +1,7 @@
 PPanGGOLiN : Depicting microbial species diversity via a Partitioned Pangenome Graph
 ========================================================
 
-.. image:: logo.png
+.. image:: images/logo.png
 
 This tool compiles the genomic content of a species (A) also name a pangenome. It is based on a graph approach to model pangenomes in which nodes and edges represent families of homologous genes (B and C, not included in the pipeline) and chromosomal neighborhood information, respectively. This approach takes into account both graph topology (D.a) and occurrences of genes (D.b) to classify gene families into three partitions (i.e. *persistent genome*, *shell genome* and *cloud genome*) yielding what we called Partitioned Pangenome Graph (F). More precisly, the method relies on an Expectation/Maximization algorithm based on Bernoulli Mixture Model (E.a) coupled with a Markov Random field (E.b).
 
@@ -10,7 +10,7 @@ Partitions:
  2) Shell genome: genes having intermediate frequencies corresponding to moderately conserved genes potentially associated to environmental adaptation capabilities
  3) Cloud genome: genes found at a very low frequency. 
 
-.. image:: workflow.png
+.. image:: images/workflow.png
 
 A minimum of 5 genomes is generaly required to perform a pangenomics analysis using the *core genome*/*accessory genome* paradigm. Using the statistical approach presented here, we recommend using at least 15 genomes having genomic variations (and not only genetic ones) to obtain robust results.
 
@@ -111,7 +111,7 @@ The program results in several output file:
 
 1. *graph.gexf* (and *graph_light.gexf* corresponding to the same topology without gene and organism details). GEXF file can be open using Gephi (https://gephi.org/). See the video below (in the section gephi tunning) to obtain an interesting layout of the graph.
 
-.. image:: gephi.gif
+.. image:: images/gephi.gif
 
 2. *matrix.csv* and *matrix.Rtab* correspond to the gene presence absence matrix formated as did in roary (https://sanger-pathogens.github.io/Roary/) except that the second column corresponds to the partition instead of an alternative gene familie name. When multiple genes are present in one family in a single organism, the identifiers of the gene are merged with a "|" separator.
 
@@ -125,11 +125,11 @@ The program results in several output file:
 4. A folder *figures* containing the different plots (the script generate_plots.R is executed if flag '-p' is provided):
 	* tile plot: a figure providing an overview of the presence(green)/absence(grey) matrix. 
 
-	.. image:: tile_plot.png
+	.. image:: images/tile_plot.png
 
 	* ushape plot (pdf + html): a figure providing an overview gene frequency distribution
 
-	.. image:: u_plot.png
+	.. image:: images/u_plot.png
 
 	* optional: evolution curve (if the flag '-e' is provided): a figure providing an overview of the evolution of the pangenome metrics when more and more organisms are added to the pangenome (see section *Evolution* to obtain more details). 
 
@@ -214,7 +214,7 @@ Contrary to a pangenome where gene families families are partionned in core geno
 
 We also offers de the possibility to customize the resampling using 4 parameters : RESAMPLING_RATIO, MINIMUN_SAMPLING, MAXIMUN_SAMPLING (See the figure below to obtain an idea of the effect of the 4 parameters). The last parameter allows to jump some combinations of organisms by a determined STEP to reduce the number of computation. For example purpose, to compute all the combinations (strongly discouraged !) RESAMPLING_RATIO must be equal to 1, MINIMUN_SAMPLING to 1, MAXIMUN_SAMPLING to Inf and STEP to 1.
 
-.. image:: resampling.png
+.. image:: images/resampling.png
 
 
 .. code:: bash
@@ -226,7 +226,7 @@ will generate 1% percent of all resampling with at mininum 10 combination for ea
 The curves represent the evolution of the size of the partitions when more and more organisms are added to the pangenome. The plain lines connect the median (crosses) of the resampling distribution while the shadows represent the interquartile ranges. Finally a regression curve is drawn fitting a Heap's law ($F = \kappa N^{\gamma}$) 
 
 
-	.. image:: evolution.png
+	.. image:: images/evolution.png
 
 Projection (-pr option)
 ----------
@@ -241,7 +241,7 @@ will project againt the organisms 1, 7 and 9 the information about the pangenome
 
 The internal layer reports the contigs, the grey intermediate layer reports the homologue genes, the third layer shows the partition of the gene families of the organism. The hairy external layer shows the number of families neighbors belonging to each partitions of the pangenome. The black line provides the emplacement of the origin of replication if the dnaA gene if found.
 
-	.. image:: projection.png
+	.. image:: images/projection.png
 
 
 Metadata (-mt option)
