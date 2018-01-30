@@ -2,7 +2,6 @@ PPanGGOLiN : Depicting microbial species diversity via a Partitioned Pangenome G
 ========================================================
 
 .. image:: images/logo.png
-	:width: 100px
 
 This tool compiles the genomic content of a species (A) also name a pangenome. It is based on a graph approach to model pangenomes in which nodes and edges represent families of homologous genes (B and C, not included in the pipeline) and chromosomal neighborhood information, respectively. This approach takes into account both graph topology (D.a) and occurrences of genes (D.b) to classify gene families into three partitions (i.e. *persistent genome*, *shell genome* and *cloud genome*) yielding what we called Partitioned Pangenome Graph (F). More precisly, the method relies on an Expectation/Maximization algorithm based on Bernoulli Mixture Model (E.a) coupled with a Markov Random field (E.b).
 
@@ -34,7 +33,7 @@ The minimal command is :
 
 	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR
 
-Input formats!
+Input formats
 ----------
 The tools required 2 files.
 
@@ -42,8 +41,8 @@ The tools required 2 files.
 	This is a tab-delimitated file structured as following:
 
 	1. First colunm is the organism name, it must be unique and can't contain reserved word (see section reserved words).
-	2. Second column is the path to the associated gff3 file (can be relative or absolute). In the gff files, sequences of the genomes are not required at all. Only CDS features will be taken in account, each one must contain an *ID* attribute and optionaly *Name* and *product* attributes. 
-	3. (optional) Further colunms are the id of the contigs in the gff files which are both circular and perfectly assembled. In this case, it is mandatory the provide the size of the contigs in the gff file either by adding a "region" feature to the gff file having the correct id attribute or using a '##sequence-region' pragma (as did in prokka).
+	2. Second column is the path to the associated gff3 file (can be relative or absolute). In the gff files, sequences of the genomes are not required at all. Only CDS features will be taken in account, each one must contain an ID attribute and optionaly Name and product attributes. 
+	3. (optional) Further colunms are the ID of the contigs in the gff files which are both circulars and perfectly assembled. In this case, it is mandatory the provide the size of the contigs in the gff file either by adding a "region" feature to the gff file having the correct ID attribute or using a '##sequence-region' pragma (as did in prokka).
 
 	Exemple of ORGANISMS_FILE:
 	::
@@ -121,7 +120,7 @@ The program results in several output file:
 	.. code:: bash
 		Rscript OUTPUT_DIR/generate_plots.R
 
-	**The script can generate some errors as "Removed X rows containing non-finite values" that must be ignored.
+	*The script can generate some errors as "Removed X rows containing non-finite values" that must be ignored.*
 
 4. A folder *figures* containing the different plots (the script generate_plots.R is executed if flag '-p' is provided):
 	* tile plot: a figure providing an overview of the presence(green)/absence(grey) matrix. 
