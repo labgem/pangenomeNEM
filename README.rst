@@ -76,7 +76,7 @@ The tools required 2 files.
 	This is a tab-delimitated file.
 
 	1. The first columnn is the gene families name (sometime the name of the median gene)
-	2. The futher columnn are the name of the gene id belonging to this families. A gene can't belong to multiple families
+	2. The further columnns are the gene ID belonging to this families (a gene can't belongs to multiple families)
 
 	Exemple of a families file:
 	::
@@ -87,7 +87,7 @@ The tools required 2 files.
 		5	ESCO.1017.00001.i0001_00080	ESCO.1017.00002.i0001_00088	ESCO.1017.00003.i0001_00083	ESCO.1017.00004.i0001_00080	ESCO.1017.00005.i0001_00081	ESCO.1017.00006.i0001_00084	ESCO.1017.00007.i0001_00083	ESCO.1017.00008.i0001_03719	ESCO.1017.00009.i0001_00061	ESCO.1017.00010.i0001_00080	ESCO.1017.00011.i0001_00083	ESCO.1017.00012.i0001_03609	ESCO.1017.00013.i0001_03562	ESCO.1017.00014.i0001_00082	ESCO.1017.00015.i0001_00079	ESCO.1017.00016.i0001_00078	ESCO.1017.00017.i0001_00088	ESCO.1017.00018.i0001_00073	ESCO.1017.00019.i0001_00084	ESCO.1017.00020.i0001_00084	ESCO.1017.00021.i0001_00079	ESCO.1017.00022.i0001_00081	ESCO.1017.00023.i0001_00081	ESCO.1017.00024.i0001_00766	ESCO.1017.00025.i0001_00073	ESCO.1017.00026.i0001_00079	ESCO.1017.00027.i0001_00080	ESCO.1017.00028.i0001_01193	ESCO.1017.00029.i0001_03698	ESCO.1017.00030.i0001_03828	ESCO.1017.00031.i0001_00653	ESCO.1017.00032.i0001_00660	ESCO.1017.00033.i0001_00671	ESCO.1017.00034.i0001_00083	ESCO.1017.00035.i0001_00080	ESCO.1017.00036.i0001_00078	ESCO.1017.00037.i0001_00080	ESCO.1017.00038.i0001_00080	ESCO.1017.00039.i0001_03461	ESCO.1017.00040.i0001_00313	ESCO.1017.00041.i0001_00083	ESCO.1017.00042.i0001_00083	ESCO.1017.00043.i0001_00080	ESCO.1017.00044.i0001_00080	ESCO.1017.00045.i0001_00798	ESCO.1017.00046.i0001_00789	ESCO.1017.00047.i0001_00797	ESCO.1017.00048.i0001_00798	ESCO.1017.00049.i0001_00855	ESCO.1017.00050.i0001_00796	ESCO.1017.00051.i0001_00799	ESCO.1017.00052.i0001_00855	ESCO.1017.00053.i0001_00081	ESCO.1017.00054.i0001_00083	ESCO.1017.00055.i0001_00080	ESCO.1017.00056.i0001_00080	ESCO.1017.00057.i0001_00080	ESCO.1017.00058.i0001_00081	ESCO.1017.00059.i0001_00081	ESCO.1017.00060.i0001_00083	ESCO.1017.00061.i0001_00084	ESCO.1017.00062.i0001_00081	ESCO.1017.00063.i0001_00081	ESCO.1017.00064.i0001_00081	ESCO.1017.00065.i0001_00084	ESCO.1017.00066.i0001_04335	ESCO.1017.00067.i0001_04338	ESCO.1017.00068.i0001_04336	ESCO.1017.00069.i0001_04273	ESCO.1017.00070.i0001_03230	ESCO.1017.00071.i0001_00083	ESCO.1017.00072.i0001_02778	ESCO.1017.00073.i0001_00803	ESCO.1017.00074.i0001_00805	ESCO.1017.00075.i0001_00591	ESCO.1017.00076.i0001_05037	ESCO.1017.00077.i0001_00084	ESCO.1017.00078.i0001_03593	ESCO.1017.00079.i0001_00798	ESCO.1017.00080.i0001_03981	ESCO.1017.00081.i0001_03440	ESCO.1017.00082.i0001_04794	ESCO.1017.00083.i0001_00081	ESCO.1017.00084.i0001_04148	ESCO.1017.00085.i0001_00086	ESCO.1017.00086.i0001_00085	ESCO.1017.00087.i0001_00082	ESCO.1017.00088.i0001_00082	ESCO.1017.00089.i0001_00085	ESCO.1017.00090.i0001_00083	ESCO.1017.00091.i0001_00088	ESCO.1017.00092.i0001_00083	ESCO.1017.00093.i0001_00082	ESCO.1017.00094.i0001_00079	ESCO.1017.00095.i0001_00084	ESCO.1017.00096.i0001_00079	ESCO.1017.00097.i0001_00799	ESCO.1017.00098.i0001_00805	ESCO.1017.00099.i0001_00085	ESCO.1017.00100.i0001_00086	ESCO.1017.00101.i0001_02410	ESCO.1017.00102.i0001_01230	ESCO.1017.00103.i0001_03680	ESCO.1017.00104.i0001_03883	ESCO.1017.00105.i0001_04093	ESCO.1017.00106.i0001_00087	ESCO.1017.00107.i0001_03851	ESCO.1017.00108.i0001_00061	ESCO.1017.00109.i0001_00061	ESCO.1017.00110.i0001_00087	ESCO.1017.00111.i0001_00088	ESCO.1017.00112.i0001_03811	ESCO.1017.00113.i0001_03562	ESCO.1017.00114.i0001_04380	ESCO.1017.00115.i0001_02671	ESCO.1017.00116.i0001_02886	ESCO.1017.00117.i0001_04643	ESCO.1017.00118.i0001_00084	ESCO.1017.00119.i0001_00083	ESCO.1017.00120.i0001_00084	ESCO.1017.00121.i0001_00079	ESCO.1017.00122.i0001_00084	ESCO.1017.00123.i0001_02617	ESCO.1017.00124.i0001_00119	ESCO.1017.00125.i0001_00740	ESCO.1017.00126.i0001_04533	ESCO.1017.00127.i0001_04516	ESCO.1017.00128.i0001_04582	ESCO.1017.00129.i0001_04532	ESCO.1017.00130.i0001_04523	ESCO.1017.00131.i0001_04581	ESCO.1017.00132.i0001_04512	ESCO.1017.00133.i0001_04568	ESCO.1017.00134.i0001_04564	ESCO.1017.00135.i0001_05089	ESCO.1017.00136.i0001_00084	ESCO.1017.00137.i0001_00083	ESCO.1017.00138.i0001_00085	ESCO.1017.00139.i0001_00084	ESCO.1017.00140.i0001_03856	ESCO.1017.00141.i0001_00079	ESCO.1017.00142.i0001_00079	ESCO.1017.00143.i0001_00083	ESCO.1017.00144.i0001_00087	ESCO.1017.00145.i0001_04287	ESCO.1017.00146.i0001_00086	ESCO.1017.00147.i0001_00088	ESCO.1017.00148.i0001_00088	ESCO.1017.00149.i0001_00086	ESCO.1017.00150.i0001_00085	ESCO.1017.00151.i0001_02591	ESCO.1017.00152.i0001_02890	ESCO.1017.00153.i0001_00082	ESCO.1017.00154.i0001_02885	ESCO.1017.00155.i0001_00084	ESCO.1017.00156.i0001_00595	ESCO.1017.00157.i0001_00087	ESCO.1017.00159.i0001_00088	ESCO.1017.00160.i0001_04442	ESCO.1017.00161.i0001_00084	ESCO.1017.00162.i0001_03879	ESCO.1017.00163.i0001_03211	ESCO.1017.00164.i0001_01577	ESCO.1017.00165.i0001_00080	ESCO.1017.00166.i0001_00084	ESCO.1017.00167.i0001_04213	ESCO.1017.00168.i0001_04235	ESCO.1017.00169.i0001_00085	ESCO.1017.00170.i0001_00081	ESCO.1017.00171.i0001_00079	ESCO.1017.00172.i0001_00079	ESCO.1017.00173.i0001_03791	ESCO.1017.00174.i0001_01272	ESCO.1017.00175.i0001_03863	ESCO.1017.00176.i0001_00087	ESCO.1017.00177.i0001_03235	ESCO.1017.00178.i0001_01955	ESCO.1017.00179.i0001_00084	ESCO.1017.00180.i0001_00080	ESCO.1017.00181.i0001_00083	ESCO.1017.00182.i0001_00088	ESCO.1017.00183.i0001_03533	ESCO.1017.00184.i0001_00085	ESCO.1017.00185.i0001_03822	ESCO.1017.00186.i0001_00080	ESCO.1017.00187.i0001_00080	ESCO.1017.00188.i0001_00083	ESCO.1017.00189.i0001_04077	ESCO.1017.00190.i0001_00088	ESCO.1017.00191.i0001_03578	ESCO.1017.00192.i0001_01350	ESCO.1017.00193.i0001_00081	ESCO.1017.00194.i0001_00079	ESCO.1017.00195.i0001_00087	ESCO.1017.00196.i0001_00090	ESCO.1017.00197.i0001_00083	ESCO.1017.00198.i0001_00081	ESCO.1017.00199.i0001_00869	ESCO.1017.00200.i0001_03565	ESCO.1017.00201.i0001_00875	ESCO.1017.00202.i0001_00082	ESCO.1017.00203.i0002_04643
 		...
 
-	Note that the assignation of gene to a gene families can be done in several line.
+	Note that the assignation of genes to a gene family can be done in several line.
 	Indeed, this form is a prolix equivalent to the previous one:
 	::
 		1	ESCO.1017.00001.i0001_00047
@@ -99,7 +99,7 @@ The tools required 2 files.
 		...
 
 The tsv format is the one returned by MMseqs2 (https://github.com/soedinglab/MMseqs2) and can be used directly as PPanGGOLiN input (in MMseqs2, the gene families name (first column) is the name of the median gene of the families).
-All the gene ids found in the gff files must be associated to a gene families even the sigletons exepting if the flag --infere-singleton is used. Indeed, in this case singleton will be autocally dectected directly in the gff files (the family id will be the gene id).
+All the gene IDs found in the gff files must be associated to a gene families even the singletons excepting if the flag --infere-singletons is used. Indeed, in this case singleton will be autocally dectected directly in the gff files (the family ID will be the gene ID).
 
 Reserved word
 ----------
@@ -131,9 +131,9 @@ The program results in several output file:
 
 	.. image:: images/u_plot.png
 
-	* optional: evolution curve (if the flag '-e' is provided): a figure providing an overview of the evolution of the pangenome metrics when more and more organisms are added to the pangenome (see section *Evolution* to obtain more details). 
+	* optional: evolution curve (if the flag '-e' is provided): a figure providing an overview of the evolution of the pangenome metrics when more and more organisms are added to the pangenome (see the *Evolution* section to obtain more details). 
 
-	* optional: projection plots (if the option '-pr NUM' is provided): a figure showing the projection of the pangenome against one organism in order to vizualize persistent, shell and cloud regions on this genome (see section *Projection* to obtain more details). 
+	* optional: projection plots (if the option '-pr NUM' is provided): a figure showing the projection of the pangenome against one organism in order to vizualize persistent, shell and cloud regions on this genome (see the *Projection* section to obtain more details). 
 
 5. A folder *partitions* in which each file contain the list of the gene families in each partitions 
 
@@ -141,7 +141,7 @@ The program results in several output file:
 
 7. A folder *partitions* containing one file by partition. Each file stores the name of the families in it associated partition.
 
-8. optional : a folder *evolutions* containing the tempary data of the computation of all the resampling et the file (stat_evol.txt) summurarizing this evolution (if flag '-e' is provided)
+8. optional : a folder *evolutions* containing the tempary data of the computation of all the resampling and the file (stat_evol.txt) summurarizing this evolution (if flag '-e' is provided)
 
 9. optional : a folder *projections* containing tabuledted file for each organism providing information about the projection of the graph against each selected organism (if argument '-pr' followed by the line number in the ORGANISM_FILE is provided)
 
@@ -212,14 +212,14 @@ Evolution curve (-e option)
 
 Contrary to a pangenome where gene families families are partionned in core genome or accessory genome based on a threshold of occurence, this approach esimate the best partionning via a statiscal approach. Thereby this processing required calculation steps so that it is not instantanous. Performing a lot of resampling can thus required heavy calculations and this why it is not acheived by default. Nevertheless, it is possible to perform these resampling using the -e flag. 
 
-We also offers de the possibility to customize the resampling using 4 parameters : RESAMPLING_RATIO, MINIMUN_SAMPLING, MAXIMUN_SAMPLING (See the figure below to obtain an idea of the effect of the 4 parameters). The last parameter allows to jump some combinations of organisms by a determined STEP to reduce the number of computation. For example purpose, to compute all the combinations (strongly discouraged !) RESAMPLING_RATIO must be equal to 1, MINIMUN_SAMPLING to 1, MAXIMUN_SAMPLING to Inf and STEP to 1.
+We also offers de the possibility to customize the resampling using 4 parameters provided to the ep option : RESAMPLING_RATIO, MINIMUN_SAMPLING, MAXIMUN_SAMPLING (See the figure below to obtain an idea of the effect of the 4 parameters). The last parameter allows to jump some combinations of organisms by a determined STEP to reduce the number of computation. For example purpose, to compute all the combinations (strongly discouraged !) RESAMPLING_RATIO must be equal to 1, MINIMUN_SAMPLING to 1, MAXIMUN_SAMPLING to Inf and STEP to 1.
 
 .. image:: images/resampling.png
 
 
 .. code:: bash
 
-	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -e 0.01 10 50 1
+	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -e -ep 0.01 10 50 1
 
 will generate 1% percent of all resampling with at mininum 10 combination for each size of the set of organisms and 50 maximum. The size of the combination will be increased by a step equals to 1.
 
