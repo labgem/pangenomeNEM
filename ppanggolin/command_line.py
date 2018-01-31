@@ -17,7 +17,7 @@ from ordered_set import OrderedSet
 import numpy as np
 from decimal import Decimal
 from scipy.special import comb
-
+from time import gmtime, strftime
 from ppanggolin import *
 
 __version__ = "0.0.1"
@@ -357,14 +357,14 @@ def __main__():
     As a conventation, it is recommanded to use the name of the most reprensative gene of the families as the family name.
     Gene name can be any string corresponding to the if feature in the gff files. they should be unique and not contain any spaces, " or ' and reserved words.
     example:""",  required=True)
-    parser.add_argument('-od', '--output_directory', type=str, nargs=1, default=["output.dir"], metavar=('OUTPUT_DIR'), help="""
+    parser.add_argument('-od', '--output_directory', type=str, nargs=1, default=["PPanGGOLiN_outputdir_"+strftime("%Y-%m-%d_%H:%M:%S", gmtime())], metavar=('OUTPUT_DIR'), help="""
     The output directory""")
     parser.add_argument('-f', '--force', action="store_true", help="""
     Force overwriting existing output directory""")
     parser.add_argument('-r', '--remove_high_copy_number_families', type=int, nargs=1, default=[0], metavar=('REPETITION_THRESHOLD'), help="""
     Remove families having a number of copy of one families above or equal to this threshold in at least one organism (0 or negative value keep all families whatever their occurence). 
     When -u is set, only work on new organisms added""")
-    parser.add_argument('-s', '--infere_singleton', default=False, action="store_true", help="""
+    parser.add_argument('-s', '--infere_singletons', default=False, action="store_true", help="""
     If a gene id found in a gff file is absent of the gene families file, the singleton will be automatically infered as a gene families having a single element. 
     if this argument is not set, the program will raise KeyError exception if a gene id found in a gff file is absent of the gene families file.""")
     #    parser.add_argument("-u", "--update", default = None, type=argparse.FileType('r'), nargs=1, help="""
@@ -376,13 +376,13 @@ def __main__():
     Specify if the dispersion around the centroid vector of each paritition is the same for all the organisms or if the dispersion is free
     """)
     parser.add_argument("-df", "--delete_nem_intermediate_files", default=False, action="store_true", help="""
-    Delete intermediate files used by NEM. Do not delete these files if you can the gerate plot latter using the generated Rscript""")
+    Delete intermediate files used by NEM""")
     parser.add_argument("-cg", "--compress_graph", default=False, action="store_true", help="""
     Compress (using gzip) the file containing the partionned pangenome graph""")
     parser.add_argument("-c", "--cpu", default=[1],  type=int, nargs=1, metavar=('NB_CPU'), help="""
     Number of cpu to use""")
-    parser.add_argument("-ss", "--subpartition_shell", default = 0, type=int, nargs=1, help = """
-    Subpartition the shell genome in n subpartition, n can be ajusted automatically if n = -1, 0 desactivate shell genome subpartitioning""")
+    #parser.add_argument("-ss", "--subpartition_shell", default = 0, type=int, nargs=1, help = """
+    #Subpartition the shell genome in n subpartition, n can be ajusted automatically if n = -1, 0 desactivate shell genome subpartitioning""")
     parser.add_argument("-v", "--verbose", default=False, action="store_true", help="""
     Show all messages including debug ones""")
     # parser.add_argument("-as", "--already_sorted", default=False, action="store_true", help="""
@@ -397,10 +397,10 @@ def __main__():
     parser.add_argument("-e", "--evolution", default=False, action="store_true", help="""
     Relaunch the script using less and less organism in order to obtain a curve of the evolution of the pangenome metrics
     """)
-    parser.add_argument("-ep", "--evolution_resampling_param", nargs=4, default=[0.1,10,30,1], metavar=('RESAMPLING_RATIO','MINIMUN_RESAMPLING','MAXIMUN_RESAMPLING','STEP'), help="""
+    parser.add_argument("-ep", "--evolution_resampling_param", nargs=4, default=[0.1,10,30,1], metavar=('RESAMPLING_RATIO','MINIMUM_RESAMPLING','MAXIMUM_RESAMPLING','STEP'), help="""
     1st argument is the resampling ratio (FLOAT)
-    2st argument is the minimun number of resampling for each number of organisms (INTEGER)
-    3nd argument is the maximun number of resampling for each number of organisms (INTEGER)
+    2st argument is the minimum number of resampling for each number of organisms (INTEGER)
+    3nd argument is the maximum number of resampling for each number of organisms (INTEGER)
     4rd argument is the step between each number of organisms (INTEGER)
     """)
     parser.add_argument("-pr", "--projection", type = int, nargs = "+", metavar=('LINE_NUMBER_OR_ZERO'), help="""
@@ -409,9 +409,10 @@ def __main__():
     0 means all organisms (it is discouraged to use -p and -pr 0 in the same time because the projection of the graph on all the organisms can take a long time).
     """)
     parser.add_argument("-ck", "--chunck_size", type = int, nargs = 1, default = [200], metavar=('SIZE'), help="""
-    Size of the chunks to performs multiple resampling
+    Size of the chunks to performs the partionning by chunks.
+    If the number of organisms used is higher than SIZE, the partionning will be performed by chunks of size SIZE
     """)
-    parser.add_argument("-mt", "--metadata", type=argparse.FileType('r'), default = [None], nargs=1, metavar=('FILE'), help="""
+    parser.add_argument("-mt", "--metadata", type=argparse.FileType('r'), default = [None], nargs=1, metavar=('METADATA_FILE'), help="""
     metadata file, tubulated separated value, one attribute by column. same number of line as the the number of organism +1 (due to the offset of the header) .
     a header specyging attibute name.
     metadata can be either string or float values, but must stay of the same type for one attributes
@@ -466,7 +467,7 @@ def __main__():
                      options.organisms[0],
                      options.gene_families[0],
                      options.remove_high_copy_number_families[0],
-                     options.infere_singleton,
+                     options.infere_singletons,
                      options.undirected)
 
     if options.metadata[0]:
@@ -535,7 +536,7 @@ def __main__():
     #-------------
     start_writing_output_file = time.time()
 
-    pan.ushaped_plot(OUTPUTDIR+FIGURE_DIR)
+    
     #pan.tile_plot(OUTPUTDIR+FIGURE_DIR)
 
     pan.export_to_GEXF(OUTPUTDIR+GRAPH_FILE_PREFIX+(".gz" if options.compress_graph else ""), options.compress_graph, metadata)
@@ -552,6 +553,7 @@ def __main__():
         end_projection = time.time()
     end_writing_output_file = time.time()
 
+    pan.ushaped_plot(OUTPUTDIR+FIGURE_DIR)
     del pan.annotations # no more required for the following process
 
     # print(pan.partitions_by_organisms)
@@ -623,7 +625,7 @@ def __main__():
     #-------------
 
     logging.getLogger().info("\n"+
-    "Execution time of loading: """ +str(round(end_loading-start_loading, 2))+" s\n"+
+    "Execution time of loading and neighborhood computation: """ +str(round(end_loading-start_loading, 2))+" s\n"+
     #"Execution time of neighborhood computation: " +str(round(end_neighborhood_computation-start_neighborhood_computation, 2))+" s\n"+
     "Execution time of partitioning: " +str(round(end_partitioning-start_partitioning, 2))+" s\n"+
     #"Execution time of community identification: " +str(round(end_identify_communities-start_identify_communities, 2))+" s\n"+

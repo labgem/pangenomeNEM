@@ -47,9 +47,7 @@ COLORS = {"pangenome":"black", "accessory":"#EB37ED", "core_exact" :"#FF2828", "
 
     Description
     -------------------
-    Pangenomes are generally stored in a binary matrix denoting the presence or absence of each gene family across organisms. However, this structure does not handle the genomic organization of gene families in each organism. We propose a graph model where nodes represent families and edges chromosomal neighborhood information. Indeed, it is known that core gene families share conserved organizations whereas variable regions are rather randomly distributed along genomes.
-
-Moreover, our method classifies gene families through an Expectation/Maximization algorithm based on Bernoulli mixture model. This approach splits pangenomes in three groups: (1) persistent genome, equivalent to a relaxed core genome (genes conserved in all but a few genomes); (2) shell genome, genes having intermediate frequencies corresponding to moderately conserved genes potentially associated to environmental adaptation capabilities; (3) cloud genome, genes found at very low frequency.
+    Pangenomes are generally stored in a binary matrix denoting the presence or absence of each gene family across organisms. However, this structure does not handle the genomic organization of gene families in each organism. We propose a graph model where nodes represent families and edges chromosomal neighborhood information. Indeed, it is known that core gene families share conserved organizations whereas variable regions are rather randomly distributed along genomes. Moreover, our method classifies gene families through an Expectation/Maximization algorithm based on Bernoulli mixture model. This approach splits pangenomes in three groups: (1) persistent genome, equivalent to a relaxed core genome (genes conserved in all but a few genomes); (2) shell genome, genes having intermediate frequencies corresponding to moderately conserved genes potentially associated to environmental adaptation capabilities; (3) cloud genome, genes found at very low frequency.
 """ 
 
 class PPanGGOLiN:
@@ -97,7 +95,7 @@ class PPanGGOLiN:
 
             .. attribute:: families_repeted
 
-                a set containing the family identifiers of ones having a maximun number of copy in at least one organism above the families_repeted_th threshold attribute.
+                a set containing the family identifiers of ones having a maximum number of copy in at least one organism above the families_repeted_th threshold attribute.
 
             .. attribute:: pan_size
 
@@ -114,7 +112,7 @@ class PPanGGOLiN:
 
             .. attribute:: partitions
 
-                a dict provoding the families present in each partion:
+                a dict providing the families present in each partion:
                     * partitions["core_exact"] contains the list of core families (core exact)
                     * partitions["accessory"] contains the list of families not in the core exact
                     * partitions["persistent"] contains the list of persistent families
@@ -127,29 +125,6 @@ class PPanGGOLiN:
                 a float providing the Bayesian Information Criterion. This Criterion give an estimation of the quality of the partionning (a low value means a good one)
                 . seealso:: https://en.wikipedia.org/wiki/Bayesian_information_criterion
 
-            .. method:: partition(nem_dir_path)
-
-                se
-
-            .. method:: export_to_GEXF()
-
-                bllla
-
-            .. method:: import_from_GEXF()
-
-                blbaal
-
-            .. method:: neighborhood_computation()
-
-                blbaal
-
-            .. method:: delete_pangenome_graph()
-
-                blbaal
-
-            .. method:: delete_nem_intermediate_files()
-
-                blbaal
     """ 
     def __init__(self, init_from = "args", *args):
         """ 
@@ -202,12 +177,12 @@ class PPanGGOLiN:
         logging.getLogger().info("Computing gene neighborhood ...")
         self.__neighborhood_computation(undirected = self.undirected)
 
-    def __initialize_from_files(self, organisms_file, families_tsv_file, lim_occurence = 0, infere_singleton = False, undirected = False):
+    def __initialize_from_files(self, organisms_file, families_tsv_file, lim_occurence = 0, infere_singletons = False, undirected = False):
         """ 
             :param organisms_file: a file listing organims by compute, first column is organism name, second is path to gff file and optionnally other other to provide the name of circular contig
             :param families_tsv_file: a file listing families. The first element is the family identifier (by convention, we advice to use the identifier of the average gene of the family) and then the next elements are the identifiers of the genes belonging to this family.
-            :param lim_occurence: a int containing the threshold of the maximum number copy of each families. Families exceeding this threshold are removed and are listed in the next attribute.
-            :param infere_singleton: a bool specifying if singleton must be explicitely present in the families_tsv_file (False) or if single gene in gff files must be automatically infered as a singleton family (True)
+            :param lim_occurence: a int containing the threshold of the maximum number copy of each families. Families exceeding this threshold are removed and are listed in the families_repeted attribute.
+            :param infere_singletons: a bool specifying if singleton must be explicitely present in the families_tsv_file (False) or if single gene in gff files must be automatically infered as a singleton family (True)
             :param undirected: a bool specifying if the pangenome graph is undirected or directed
             :type file: 
             :type file: 
@@ -245,21 +220,21 @@ class PPanGGOLiN:
             bar.refresh()
             if len(elements)>2:
                 self.circular_contig_size.update({contig_id: None for contig_id in elements[2:len(elements)]})# size of the circular contig is initialized to None (waiting to read the gff files to fill the dictionnaries with the correct values)
-            self.annotations[elements[0]] = self.__load_gff(elements[ORGANISM_GFF_FILE], families, elements[ORGANISM_ID], lim_occurence, infere_singleton)
+            self.annotations[elements[0]] = self.__load_gff(elements[ORGANISM_GFF_FILE], families, elements[ORGANISM_ID], lim_occurence, infere_singletons)
         check_circular_contigs = {contig: size for contig, size in self.circular_contig_size.items() if size == None }
         if len(check_circular_contigs) > 0:
             logging.getLogger().error("""
                 The following identifiers of circular contigs in the file listing organisms have not been found in any region feature of the gff files: '"""+"'\t'".join(check_circular_contigs.keys())+"'")
             exit()
 
-    def __load_gff(self, gff_file_path, families, organism, lim_occurence = 0, infere_singleton = False):
+    def __load_gff(self, gff_file_path, families, organism, lim_occurence = 0, infere_singletons = False):
         """
             Load the content of a gff file
             :param gff_file_path: a valid gff file path where only feature of the type 'CDS' will be imported as genes. Each 'CDS' feature must have a uniq ID as attribute (afterall called gene id).
-            :param families: a dictionary having the gene as key and the identifier of the associated family as value. Depending on the infere_singleton attribute, singleton must be explicetly present on the dictionary or not
+            :param families: a dictionary having the gene as key and the identifier of the associated family as value. Depending on the infere_singletons attribute, singleton must be explicetly present on the dictionnary or not
             :param organism: a str containing the organim name
             :param lim_occurence: a int containing the threshold of the maximum number copy of each families. Families exceeding this threshold are removed and are listed in the next attribute.
-            :param infere_singleton: a bool specifying if singleton must be explicitely present in the families parameter (False) or if single gene automatically infered as a singleton family (True)
+            :param infere_singletons: a bool specifying if singleton must be explicitely present in the families parameter (False) or if single gene automatically infered as a singleton family (True)
             :type str: 
             :type dict: 
             :type str: 
@@ -311,7 +286,7 @@ class PPanGGOLiN:
                         try:
                             family = families[protein]
                         except KeyError:
-                            if infere_singleton:
+                            if infere_singletons:
                                 families[protein] = protein
                                 family            = families[protein]
                                 logging.getLogger().info("infered singleton: "+protein)
@@ -502,12 +477,12 @@ class PPanGGOLiN:
                         nb_threads      = 1):
         """
             Use the graph topology and the presence or absence of genes from each organism into families to partition the pangenome in three groups ('persistent', 'shell' and 'cloud')
-            . seealso:: Read the Mo Dang's thesis to understand NEM and Bernouilli Mixture Model, a summary is available here : http://www.kybernetika.cz/content/1998/4/393/paper.pdf
+            . seealso:: Read the Mo Dang's thesis to understand NEM, a summary is available here : http://www.kybernetika.cz/content/1998/4/393/paper.pdf
             :param mode : a str specyfying if the pangenome will be parition in 2 partitions ("persistent" and "accessory") or 3 partitions ("persistent", "shell" and "accessory")
-            :param nem_dir_path: a str containing a path to store tempory file of the NEM program
-            :param beta: a float containing the spatial coefficient of smothing of the clustering results using the weighted graph topology (0.00 turn off the spatial clustering)
+            :param nem_dir_path: a str containing a path to store temporary file of the NEM program
+            :param beta: a float containing the spatial coefficient of smoothing of the clustering results using the weighted graph topology (0.00 turn off the spatial clustering)
             :param free_dispersion: a bool specyfing if the dispersion around the centroid vector of each paritition is the same for all the organisms or if the dispersion is free
-            :param organisms: a list of organism to used to obtain the partition (must be included in the organisms attribute of the object) or None to used all organisms in the object
+            :param organisms: a list of organism to used to obtain the partition (must be included in the organism attributes of the object) or None to used all organisms in the object
             :param inplace: a boolean specifying if the partition must be stored in the object of returned (throw an error if inplace is true and organisms parameter i not None)
             :param chunck_size: an int specifying the size of the chunks
             :type str: 
@@ -928,9 +903,9 @@ class PPanGGOLiN:
                     exit(1)
 
             if len(self.families_repeted)>0:
-                logging.getLogger().info("Discarded families are:\t"+" ".join(self.families_repeted))
+                logging.getLogger().info("Gene families that have been discarded because there are repeated:\t"+" ".join(self.families_repeted))
             else:
-                logging.getLogger().info("No families have been Discarded")
+                logging.getLogger().info("No gene families have been discarded because there are repeated")
 
             logging.getLogger().debug(nx.number_of_edges(self.neighbors_graph))
 
@@ -1167,41 +1142,41 @@ class PPanGGOLiN:
 
         ushaped_plot.save_file(filename = outdir+"/ushaped_plot")
 
-    def tile_plot(self, outdir):
-        """
-            generate tile plot representation (not work for the moment)
-            :param outdir: a str containing the path of the output file
-            :type str: 
-        """ 
+    # def tile_plot(self, outdir):
+    #     """
+    #         generate tile plot representation (not work for the moment)
+    #         :param outdir: a str containing the path of the output file
+    #         :type str: 
+    #     """ 
 
-        tile_plot = Highchart(width = 1600, height = 1280)
+    #     tile_plot = Highchart(width = 1600, height = 1280)
 
-        binary_data = []
-        fam_order = []
-        cpt = 1
-        for node, data in self.neighbors_graph.nodes(data=True):
-            fam_order.append(node)
-            v = [[1,2,3] if org in data else [0,0,0] for org in self.organisms]
-            binary_data.append(v)
-            cpt+=1
-            if cpt>50:
-                break
+    #     binary_data = []
+    #     fam_order = []
+    #     cpt = 1
+    #     for node, data in self.neighbors_graph.nodes(data=True):
+    #         fam_order.append(node)
+    #         v = [[1,2,3] if org in data else [0,0,0] for org in self.organisms]
+    #         binary_data.append(v)
+    #         cpt+=1
+    #         if cpt>50:
+    #             break
      
-        print(binary_data)
-        options_tile_plot={
-        'chart': {'type': 'heatmap', 'plotBorderWidth': 1},
-        'title': {'text':'Presence/Absence matrix'},
-        'xAxis': {'categories': fam_order},
-        'yAxis': {'categories': list(self.organisms)},
-        'colorAxis': {'min': 0, 'max': 1, 'minColor': '#FFFFFF', 'maxColor': '#7CB5EC'}
-        # ,
-        # 'legend', {'align': 'right', 'layout': 'vertical', 'margin': 0, 'verticalAlign': 'top', 'y': 25, 'symbolHeight': 280}   
-        }
-        print(options_tile_plot)
-        tile_plot.set_dict_options(options_tile_plot)
-        tile_plot.add_data_set(binary_data)
+    #     print(binary_data)
+    #     options_tile_plot={
+    #     'chart': {'type': 'heatmap', 'plotBorderWidth': 1},
+    #     'title': {'text':'Presence/Absence matrix'},
+    #     'xAxis': {'categories': fam_order},
+    #     'yAxis': {'categories': list(self.organisms)},
+    #     'colorAxis': {'min': 0, 'max': 1, 'minColor': '#FFFFFF', 'maxColor': '#7CB5EC'}
+    #     # ,
+    #     # 'legend', {'align': 'right', 'layout': 'vertical', 'margin': 0, 'verticalAlign': 'top', 'y': 25, 'symbolHeight': 280}   
+    #     }
+    #     print(options_tile_plot)
+    #     tile_plot.set_dict_options(options_tile_plot)
+    #     tile_plot.add_data_set(binary_data)
 
-        tile_plot.save_file(filename = outdir+"/tile_plot")
+    #     tile_plot.save_file(filename = outdir+"/tile_plot")
 
         ##########
 
