@@ -517,8 +517,6 @@ class PPanGGOLiN:
         stats = defaultdict(int)
         classification = []
         
-        print("there")
-
         #core exact first
         families = []
         for node_name, data_organisms in self.neighbors_graph.nodes(data=True):
@@ -552,11 +550,11 @@ class PPanGGOLiN:
                     bar = tqdm(total = stats["accessory"]+stats["core_exact"], unit = "families partitionned")
 
                 def validate_family(result):                    
-                    nonlocal total_BIC
+                    #nonlocal total_BIC
                     try :
                         (BIC, partitions) = result
 
-                        total_BIC += BIC
+                        #total_BIC += BIC
                         for node,nem_class in partitions.items():
                             cpt_partition[node][nem_class]+=1
                             sum_partionning = sum(cpt_partition[node].values()) 
@@ -625,7 +623,8 @@ class PPanGGOLiN:
 
                 pool.terminate()                
 
-                BIC = total_BIC/cpt
+                #BIC = total_BIC/cpt
+                BIC = 0
             classification = list()
 
             # if just_stats:
@@ -974,7 +973,6 @@ class PPanGGOLiN:
             for att in atts:
                 graph_to_save[node_i][node_j][att]="|".join(sorted(graph_to_save[node_i][node_j][att]))
 
-        logging.getLogger().info("Writing GEXF file")
         graph_output_path = graph_output_path+".gexf"
         if compressed:
             graph_output_path = gzip.open(graph_output_path+".gz","w")

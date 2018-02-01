@@ -405,18 +405,18 @@ def __main__():
     """)
     parser.add_argument("-pr", "--projection", type = int, nargs = "+", metavar=('LINE_NUMBER_OR_ZERO'), help="""
     Project the graph as a circos plot on each organism.
-    Expected parameters are the line number (1 based) of each organism on which the graph will be projected providing a circos plot (well assembled representative organisms must be prefered).
+    Expected parameters are the line number (1 based) of each organism on which the graph will be projected.
+    It provides a circular plot (well assembled representative organisms must be prefered).
     0 means all organisms (it is discouraged to use -p and -pr 0 in the same time because the projection of the graph on all the organisms can take a long time).
     """)
     parser.add_argument("-ck", "--chunck_size", type = int, nargs = 1, default = [200], metavar=('SIZE'), help="""
-    Size of the chunks to performs the partionning by chunks.
+    Size of the chunks to perform the partionning by chunks.
     If the number of organisms used is higher than SIZE, the partionning will be performed by chunks of size SIZE
     """)
     parser.add_argument("-mt", "--metadata", type=argparse.FileType('r'), default = [None], nargs=1, metavar=('METADATA_FILE'), help="""
-    metadata file, tubulated separated value, one attribute by column. same number of line as the the number of organism +1 (due to the offset of the header) .
-    a header specyging attibute name.
-    metadata can be either string or float values, but must stay of the same type for one attributes
-    metadata attribute can't contain reserved word or exact organism name
+    It is possible to add metainformation to the pangenome graph. These information must be associated to each organism via a METADATA_FILE. During the construction of the graph, metainformation about the organisms are used to label the covered edges.
+    METADATA_FILE is a tab-delimitated file. The first line contain the names of the attributes and the following lines contain associated information for each organism (in the same order as in the ORGANISM_FILE).
+    Metadata can't contain reserved word or exact organism name.
     """)
     global options
     options = parser.parse_args()
@@ -538,8 +538,9 @@ def __main__():
 
     
     #pan.tile_plot(OUTPUTDIR+FIGURE_DIR)
-
+    logging.getLogger().info("Writing GEXF file")
     pan.export_to_GEXF(OUTPUTDIR+GRAPH_FILE_PREFIX+(".gz" if options.compress_graph else ""), options.compress_graph, metadata)
+    logging.getLogger().info("Writing GEXF light file")
     pan.export_to_GEXF(OUTPUTDIR+GRAPH_FILE_PREFIX+"_light"+(".gz" if options.compress_graph else ""), options.compress_graph, metadata, False,False)
     for partition, families in pan.partitions.items(): 
         file = open(OUTPUTDIR+PARTITION_DIR+"/"+partition+".txt","w")
@@ -612,7 +613,7 @@ def __main__():
             for f in tqdm(as_completed(futures), total = len(shuffled_comb), unit = 'pangenome resampled'):
                 ex = f.exception()
                 if ex:
-                    logging.getLogger().error(ex.with_traceback(None))
+                    #logging.getLogger().error(ex.with_traceback(None))
                     logging.getLogger().error(ex.args)
                     executor.shutdown(wait=False)
                     exit(1)
