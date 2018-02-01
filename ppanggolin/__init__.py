@@ -1,1 +1,1 @@
-from ppanggolin.ppanggolin import *
+from ppanggolin import *
