@@ -10,6 +10,7 @@ import time
 import math
 from random import shuffle
 from tqdm import tqdm
+tqdm.monitor_interval = 0
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 import sys
 import networkx as nx
@@ -36,68 +37,6 @@ MATRIX_PLOT_PREFIX         = "/Presence_absence_matrix_plot"
 EVOLUTION_CURVE_PREFIX     = "/evolution_curve"
 EVOLUTION_STAT_FILE_PREFIX = "/stat_evol"
 SCRIPT_R_FIGURE            = "/generate_plots.R"
-
-
-
-# Calcul du nombre total de combinaisons uniques de n elements
-def combinationTotalNb(size):
-    return pow(2,size)-1
-
-# Generation d'une sous-liste al<C3><A9>atoire de taille n
-def randomSublist(items,n):
-    item_array = np.array(items)
-    index_array = np.arange(item_array.size)
-    np.random.shuffle(index_array)
-    ordered_index_array = sorted(index_array[:n])
-    return list(item_array[ordered_index_array])
-
-# Generation de toutes les combinaisons uniques (sans notion d'ordre) d'elements donnes
-def exactCombinations(items):
-    len_item  = len(items);
-    combinations = defaultdict(list)
-    for i in range(1, 1<<len_item):
-            c = []
-            for j in range(0, len_item):
-                    if(i & (1 << j)):
-                            c.append(items[j])
-            combinations[len(c)].append(c)
-    return combinations
-
-# Echantillonage proportionnel d'un nombre donne de combinaisons (sans remise)
-def samplingCombinations(items, sample_ratio, sample_min, sample_max=100, step = 1):
-    samplingCombinationList = defaultdict(list)
-    item_size = len(items)
-    combTotNb = combinationTotalNb(item_size)
-    for k in range(1, item_size+1, step):
-        tmp_comb = []
-        combNb = Decimal(comb(item_size, k))
-        combNb = sys.float_info.max if combNb>sys.float_info.max else combNb # to avoid to reach infinit values
-        combNb_sample = math.ceil(Decimal(combNb)/Decimal(sample_ratio))
-        # Plus petit echantillonage possible pour un k donn<C3><A9> = sample_min
-        if ((combNb_sample < sample_min) and k != item_size):
-            combNb_sample = sample_min
-        # Plus grand echantillonage possible
-        if (sample_max != None and (combNb_sample > sample_max)):
-            combNb_sample = sample_max
-        
-        i = 0;
-        while(i < combNb_sample):
-            comb_sub = randomSublist(items,k)
-            # Echantillonnage sans remise
-            if (comb_sub not in tmp_comb):
-                tmp_comb.append(comb)
-                samplingCombinationList[len(comb_sub)].append(comb_sub)
-            i+=1
-    return samplingCombinationList
-
-# Generate list of combinations of organisms exaustively or following a binomial coeficient
-def organismsCombinations(orgs, nbOrgThr, sample_ratio, sample_min, sample_max = 100, step = 1):
-    if (len(orgs) <= nbOrgThr):
-        comb_list = exactCombinations(orgs)
-    else:
-        comb_list = samplingCombinations(orgs, sample_ratio, sample_min, sample_max, step)
-    return comb_list
-
 
 def plot_Rscript(script_outfile):
     """
@@ -297,6 +236,67 @@ for (org_csv in list.files(path = '"""+OUTPUTDIR+PROJECTION_DIR+"""', pattern = 
     logging.getLogger().info("Running R script generating plot")
 
 #### START - NEED TO BE AT THE HIGHEST LEVEL OF THE MODULE TO ALLOW MULTIPROCESSING
+
+
+# Calcul du nombre total de combinaisons uniques de n elements
+def combinationTotalNb(size):
+    return pow(2,size)-1
+
+# Generation d'une sous-liste al<C3><A9>atoire de taille n
+def randomSublist(items,n):
+    item_array = np.array(items)
+    index_array = np.arange(item_array.size)
+    np.random.shuffle(index_array)
+    ordered_index_array = sorted(index_array[:n])
+    return list(item_array[ordered_index_array])
+
+# Generation de toutes les combinaisons uniques (sans notion d'ordre) d'elements donnes
+def exactCombinations(items):
+    len_item  = len(items);
+    combinations = defaultdict(list)
+    for i in range(1, 1<<len_item):
+            c = []
+            for j in range(0, len_item):
+                    if(i & (1 << j)):
+                            c.append(items[j])
+            combinations[len(c)].append(c)
+    return combinations
+
+# Echantillonage proportionnel d'un nombre donne de combinaisons (sans remise)
+def samplingCombinations(items, sample_ratio, sample_min, sample_max=100, step = 1):
+    samplingCombinationList = defaultdict(list)
+    item_size = len(items)
+    combTotNb = combinationTotalNb(item_size)
+    for k in range(1, item_size+1, step):
+        tmp_comb = []
+        combNb = Decimal(comb(item_size, k))
+        combNb = sys.float_info.max if combNb>sys.float_info.max else combNb # to avoid to reach infinit values
+        combNb_sample = math.ceil(Decimal(combNb)/Decimal(sample_ratio))
+        # Plus petit echantillonage possible pour un k donn<C3><A9> = sample_min
+        if ((combNb_sample < sample_min) and k != item_size):
+            combNb_sample = sample_min
+        # Plus grand echantillonage possible
+        if (sample_max != None and (combNb_sample > sample_max)):
+            combNb_sample = sample_max
+        
+        i = 0;
+        while(i < combNb_sample):
+            comb_sub = randomSublist(items,k)
+            # Echantillonnage sans remise
+            if (comb_sub not in tmp_comb):
+                tmp_comb.append(comb)
+                samplingCombinationList[len(comb_sub)].append(comb_sub)
+            i+=1
+    return samplingCombinationList
+
+# Generate list of combinations of organisms exaustively or following a binomial coeficient
+def organismsCombinations(orgs, nbOrgThr, sample_ratio, sample_min, sample_max = 100, step = 1):
+    if (len(orgs) <= nbOrgThr):
+        comb_list = exactCombinations(orgs)
+    else:
+        comb_list = samplingCombinations(orgs, sample_ratio, sample_min, sample_max, step)
+    return comb_list
+
 shuffled_comb = []
 evol = None
 pan = None
@@ -336,58 +336,62 @@ def __main__():
 
     """
     parser = argparse.ArgumentParser(prog = "ppanggolin",
-                                     description='Build a partitioned pangenome graph from annotated genomes and gene families', 
+                                     description='Build a partitioned pangenome graph from annotated genomes and gene families. Reserved words are : "id", "label", "name", "weight", "partition", "partition_exact", "length", "length_min", "length_max", "length_avg", "length_med", "product", "nb_gene", "community".', 
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('-?', '--version', action='version', version=__version__)
     parser.add_argument('-o', '--organisms', type=argparse.FileType('r'), nargs=1, metavar=('ORGANISMS_FILE'), help="""
-    A tab delimited file containg at least 2 mandatory fields by row and as many optional fields as the number of well assembled circular contigs. Each row correspond to an organism to be added to the pangenome.
-    Reserved words are : "id", "label", "name", "weight", "partition", "partition_exact"
-    The first field is the organinsm name (id should be unique not contain any spaces, " or ' and reserved words).
-    The second field is the gff file associated to the organism. This path can be abolute or relative. The gff file must contain an id feature for each CDS (id should be unique across all pangenome and not contain any spaces, " or ' and reserved words).
-    The next fields contain the name of perfectly assembled circular contigs.
-    Contig names should be unique and not contain any spaces, quote, double quote and reserved words.
-    example:""", required=True)
+    A tab delimited file containg at least 2 mandatory fields by row and as many optional fields as the number of well assembled circular contigs. 
+    Each row corresponds to an organism to be added to the pangenome.
+    The first field is the organism ID.
+    The organism ID can be any string but must be unique and can't contain any spaces, quote, double quote and reserved words.
+    The second field is the gff file containing the annotations associated to the organism. 
+    This path can be abolute or relative. 
+    The gff file must contain an ID feature for each CDS.
+    The contig ID and gene ID can be any string but must be unique and can't contain any spaces, quote, double quote and reserved words.
+    (optional) The next fields contain the name of perfectly assembled circular contigs. 
+    In this case, it is mandatory the provide the contig size in the gff files either by adding a "region" feature having the correct contig ID attribute or using a '##sequence-region' pragma.
+    """, required=True)
     parser.add_argument('-gf', '--gene_families', type=argparse.FileType('r'), nargs=1, metavar=('FAMILIES_FILE'), help="""
-    A tab delimited file containg the gene families. Each row contain 2 fields.
+    A tab delimited file containg the gene families. Each row contain at least 2 fields.
     Reserved words are : "id", "label", "name", "weight", "partition", "partition_exact"
-    The first field is the family name.
-    The second field is the gene name.
+    The first field is the family ID. The further fields are the gene IDs associated to this family.
     families are intended to be grouped by chuncks of row.
-    the families name can be any string but must should be unique and not contain any spaces, " or ' and reserved words
-    As a conventation, it is recommanded to use the name of the most reprensative gene of the families as the family name.
-    Gene name can be any string corresponding to the if feature in the gff files. they should be unique and not contain any spaces, " or ' and reserved words.
-    example:""",  required=True)
+    The family ID can be any string but must be unique and can't contain any spaces, quote, double quote and reserved words.
+    Gene IDs can be any string corresponding to the ID features in the gff files. They must be uniques and can't contain any spaces, quote, double quote and reserved words.
+    """,  required=True)
     parser.add_argument('-od', '--output_directory', type=str, nargs=1, default=["PPanGGOLiN_outputdir_"+strftime("%Y-%m-%d_%H:%M:%S", gmtime())], metavar=('OUTPUT_DIR'), help="""
     The output directory""")
     parser.add_argument('-f', '--force', action="store_true", help="""
     Force overwriting existing output directory""")
     parser.add_argument('-r', '--remove_high_copy_number_families', type=int, nargs=1, default=[0], metavar=('REPETITION_THRESHOLD'), help="""
-    Remove families having a number of copy of one families above or equal to this threshold in at least one organism (0 or negative value keep all families whatever their occurence). 
-    When -u is set, only work on new organisms added""")
-    parser.add_argument('-s', '--infere_singletons', default=False, action="store_true", help="""
+    Remove families having a number of copy of gene in a single families above or equal to this threshold in at least one organism (0 or negative values are ignored). 
+    """)#When -u is set, only work on new organisms added
+    parser.add_argument('-s', '--infer_singletons', default=False, action="store_true", help="""
     If a gene id found in a gff file is absent of the gene families file, the singleton will be automatically infered as a gene families having a single element. 
     if this argument is not set, the program will raise KeyError exception if a gene id found in a gff file is absent of the gene families file.""")
     #    parser.add_argument("-u", "--update", default = None, type=argparse.FileType('r'), nargs=1, help="""
     # Pangenome Graph to be updated (in gexf format)""")
     parser.add_argument("-b", "--beta_smoothing", default = [float("0.5")], type=float, nargs=1, metavar=('BETA_VALUE'), help = """
-    Coeficient of smoothing all the partionning based on the Markov Random Feild leveraging the weigthed pangenome graph. A positive float, 0.0 means to discard spatial smoothing and 1.00 means strong smoothing (can be more but it is not advised), 0.5 is generally advised as a good trad off.
+    This option determines the strength of the smoothing (:math:beta) of the partitions based on the graph topology (using a Markov Random Field). 
+    b must be a positive float, b = 0.0 means to discard spatial smoothing and 1.00 means strong smoothing (can be more but it is not advised).
+    0.5 is generally advised as a good trad off.
     """)
     parser.add_argument("-fd", "--free_dispersion", default = False, action="store_true", help = """
-    Specify if the dispersion around the centroid vector of each paritition is the same for all the organisms or if the dispersion is free
+    Specify if the dispersion around the centroid vector of each partition is the same for all the organisms or if the dispersion is free
     """)
     parser.add_argument("-df", "--delete_nem_intermediate_files", default=False, action="store_true", help="""
     Delete intermediate files used by NEM""")
     parser.add_argument("-cg", "--compress_graph", default=False, action="store_true", help="""
-    Compress (using gzip) the file containing the partionned pangenome graph""")
+    Compress (using gzip) the files containing the partionned pangenome graph""")
     parser.add_argument("-c", "--cpu", default=[1],  type=int, nargs=1, metavar=('NB_CPU'), help="""
     Number of cpu to use""")
     #parser.add_argument("-ss", "--subpartition_shell", default = 0, type=int, nargs=1, help = """
     #Subpartition the shell genome in n subpartition, n can be ajusted automatically if n = -1, 0 desactivate shell genome subpartitioning""")
     parser.add_argument("-v", "--verbose", default=False, action="store_true", help="""
-    Show all messages including debug ones""")
+    Show all messages including debugging ones""")
     # parser.add_argument("-as", "--already_sorted", default=False, action="store_true", help="""
     # Accelerate loading of gff files if there are sorted by the coordinate of gene annotations (starting point) for each contig""")
-    parser.add_argument("-l", "--ligth", default=False, action="store_true", help="""
+    parser.add_argument("-l", "--freemem", default=False, action="store_true", help="""
     Free the memory elements which are no longer used""")
     parser.add_argument("-p", "--plots", default=False, action="store_true", help="""
     Generate Rscript able to draw plots and run it. (required R in the path and the packages ggplot2, ggrepel, data.table and reshape2 to be installed)""")
@@ -409,7 +413,7 @@ def __main__():
     It provides a circular plot (well assembled representative organisms must be prefered).
     0 means all organisms (it is discouraged to use -p and -pr 0 in the same time because the projection of the graph on all the organisms can take a long time).
     """)
-    parser.add_argument("-ck", "--chunck_size", type = int, nargs = 1, default = [200], metavar=('SIZE'), help="""
+    parser.add_argument("-ck", "--chunck_size", type = int, nargs = 1, default = [400], metavar=('SIZE'), help="""
     Size of the chunks to perform the partionning by chunks.
     If the number of organisms used is higher than SIZE, the partionning will be performed by chunks of size SIZE
     """)
@@ -467,7 +471,7 @@ def __main__():
                      options.organisms[0],
                      options.gene_families[0],
                      options.remove_high_copy_number_families[0],
-                     options.infere_singletons,
+                     options.infer_singletons,
                      options.undirected)
 
     if options.metadata[0]:
@@ -481,7 +485,6 @@ def __main__():
     # #-------------
     
     # start_neighborhood_computation = time.time()
-    # #pan.neighborhood_computation(options.undirected, options.ligth)
     end_loading = time.time()
     #-------------
 

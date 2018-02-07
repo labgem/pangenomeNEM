@@ -21,6 +21,7 @@ import time
 from multiprocessing.pool import ThreadPool
 from multiprocessing import Semaphore
 from highcharts import Highchart
+import contextlib
 
 #import forceatlas2 
 
@@ -124,7 +125,6 @@ class PPanGGOLiN:
 
                 a float providing the Bayesian Information Criterion. This Criterion give an estimation of the quality of the partionning (a low value means a good one)
                 . seealso:: https://en.wikipedia.org/wiki/Bayesian_information_criterion
-
     """ 
     def __init__(self, init_from = "args", *args):
         """ 
@@ -177,12 +177,12 @@ class PPanGGOLiN:
         logging.getLogger().info("Computing gene neighborhood ...")
         self.__neighborhood_computation(undirected = self.undirected)
 
-    def __initialize_from_files(self, organisms_file, families_tsv_file, lim_occurence = 0, infere_singletons = False, undirected = False):
+    def __initialize_from_files(self, organisms_file, families_tsv_file, lim_occurence = 0, infer_singletons = False, undirected = False):
         """ 
             :param organisms_file: a file listing organims by compute, first column is organism name, second is path to gff file and optionnally other other to provide the name of circular contig
             :param families_tsv_file: a file listing families. The first element is the family identifier (by convention, we advice to use the identifier of the average gene of the family) and then the next elements are the identifiers of the genes belonging to this family.
             :param lim_occurence: a int containing the threshold of the maximum number copy of each families. Families exceeding this threshold are removed and are listed in the families_repeted attribute.
-            :param infere_singletons: a bool specifying if singleton must be explicitely present in the families_tsv_file (False) or if single gene in gff files must be automatically infered as a singleton family (True)
+            :param infer_singletons: a bool specifying if singleton must be explicitely present in the families_tsv_file (False) or if single gene in gff files must be automatically infered as a singleton family (True)
             :param undirected: a bool specifying if the pangenome graph is undirected or directed
             :type file: 
             :type file: 
@@ -220,21 +220,21 @@ class PPanGGOLiN:
             bar.refresh()
             if len(elements)>2:
                 self.circular_contig_size.update({contig_id: None for contig_id in elements[2:len(elements)]})# size of the circular contig is initialized to None (waiting to read the gff files to fill the dictionnaries with the correct values)
-            self.annotations[elements[0]] = self.__load_gff(elements[ORGANISM_GFF_FILE], families, elements[ORGANISM_ID], lim_occurence, infere_singletons)
+            self.annotations[elements[0]] = self.__load_gff(elements[ORGANISM_GFF_FILE], families, elements[ORGANISM_ID], lim_occurence, infer_singletons)
         check_circular_contigs = {contig: size for contig, size in self.circular_contig_size.items() if size == None }
         if len(check_circular_contigs) > 0:
             logging.getLogger().error("""
                 The following identifiers of circular contigs in the file listing organisms have not been found in any region feature of the gff files: '"""+"'\t'".join(check_circular_contigs.keys())+"'")
             exit()
 
-    def __load_gff(self, gff_file_path, families, organism, lim_occurence = 0, infere_singletons = False):
+    def __load_gff(self, gff_file_path, families, organism, lim_occurence = 0, infer_singletons = False):
         """
             Load the content of a gff file
             :param gff_file_path: a valid gff file path where only feature of the type 'CDS' will be imported as genes. Each 'CDS' feature must have a uniq ID as attribute (afterall called gene id).
-            :param families: a dictionary having the gene as key and the identifier of the associated family as value. Depending on the infere_singletons attribute, singleton must be explicetly present on the dictionnary or not
+            :param families: a dictionary having the gene as key and the identifier of the associated family as value. Depending on the infer_singletons attribute, singleton must be explicetly present on the dictionnary or not
             :param organism: a str containing the organim name
             :param lim_occurence: a int containing the threshold of the maximum number copy of each families. Families exceeding this threshold are removed and are listed in the next attribute.
-            :param infere_singletons: a bool specifying if singleton must be explicitely present in the families parameter (False) or if single gene automatically infered as a singleton family (True)
+            :param infer_singletons: a bool specifying if singleton must be explicitely present in the families parameter (False) or if single gene automatically infered as a singleton family (True)
             :type str: 
             :type dict: 
             :type str: 
@@ -286,12 +286,12 @@ class PPanGGOLiN:
                         try:
                             family = families[protein]
                         except KeyError:
-                            if infere_singletons:
+                            if infer_singletons:
                                 families[protein] = protein
                                 family            = families[protein]
                                 logging.getLogger().info("infered singleton: "+protein)
                             else:
-                                raise KeyError("Unknown families:"+protein, ", check your families file or run again the program using the option to infere singleton")
+                                raise KeyError("Unknown families:"+protein, ", check your families file or run again the program using the option to infer singleton")
 
                         cpt_fam_occ[family]+=1
                         prev = families[protein]
@@ -406,12 +406,12 @@ class PPanGGOLiN:
         except KeyError:
             self.neighbors_graph[fam_id][fam_id_nei]["length"]=set([length])
 
-    def __neighborhood_computation(self, undirected = False, light = False):#, untangle_multi_copy_families = False
+    def __neighborhood_computation(self, undirected = False):#,light = False, untangle_multi_copy_families = False
         """ Use the information already loaded (annotation) to build the pangenome graph
             :param undirected: a bool specifying if the graph is directed or undirected
-            :param light: a bool specifying is the annotation attribute must be detroyed at each step to save memory
             :type bool: 
         """ 
+        #:param light: a bool specifying is the annotation attribute must be detroyed at each step to save memory
         if self.neighbors_graph is None:
             if undirected:
                 self.neighbors_graph = nx.Graph()
@@ -462,8 +462,8 @@ class PPanGGOLiN:
 
                 contig_annot[gene_start]=gene_info_start
 
-            if light:
-                del self.annotations[organism]
+            # if light:
+            #     del self.annotations[organism]
 
         self.pan_size = nx.number_of_nodes(self.neighbors_graph)
 
@@ -475,6 +475,7 @@ class PPanGGOLiN:
                         inplace         = True,
                         just_stats      = False,
                         nb_threads      = 1):
+        print(nb_threads)
         """
             Use the graph topology and the presence or absence of genes from each organism into families to partition the pangenome in three groups ('persistent', 'shell' and 'cloud')
             . seealso:: Read the Mo Dang's thesis to understand NEM, a summary is available here : http://www.kybernetika.cz/content/1998/4/393/paper.pdf
@@ -537,91 +538,94 @@ class PPanGGOLiN:
                 cpt_partition[fam]= {"P":0,"S":0,"C":0,"U":0}
             
             total_BIC = 0
-            with ThreadPool(nb_threads) as pool:
-                sem = Semaphore(nb_threads)
+            #with contextlib.closing(ThreadPool(nb_threads)) as pool:
+            sem = Semaphore(nb_threads)
 
-                validated = set()
-                cpt=0
+            validated = set()
+            cpt=0
 
-                proba_sample = OrderedDict(zip(organisms,[len(organisms)]*len(organisms)))
+            proba_sample = OrderedDict(zip(organisms,[len(organisms)]*len(organisms)))
 
-                pan_size = stats["accessory"]+stats["core_exact"]
+            pan_size = stats["accessory"]+stats["core_exact"]
+            if inplace:
+                bar = tqdm(total = stats["accessory"]+stats["core_exact"], unit = "families partitionned")
+
+            def validate_family(result):                    
+                #nonlocal total_BIC
+                try :
+                    (BIC, partitions) = result
+
+                    #total_BIC += BIC
+                    for node,nem_class in partitions.items():
+                        cpt_partition[node][nem_class]+=1
+                        sum_partionning = sum(cpt_partition[node].values()) 
+
+                        if sum_partionning > len(organisms)/chunck_size and max(cpt_partition[node].values()) > sum_partionning*0.5:
+                            if node not in validated:
+                                if inplace:
+                                    bar.update()
+                                validated.add(node)
+                                # if max(cpt_partition[node], key=cpt_partition[node].get) == "P" and cpt_partition[node]["S"]==0 and cpt_partition[node]["C"]==0:
+                                #     validated[node]="P"
+                                # elif cpt_partition[node]["S"]==0:
+                                #     validated[node]="C"
+                                # else:
+                                #     validated[node]="S" 
+                finally:
+                    sem.release()
+            
+            while len(validated)<pan_size:
+                if sem.acquire():
+                    # print(organisms)
+                    # print(chunck_size)
+                    # print(proba_sample.values())
+                    # print(len(proba_sample.values()))
+                    # min_o = min(proba_sample.values()) 
+                    # max_o = max(proba_sample.values()) 
+                    # range_o = max_o-min_o
+                    # if min_o != max_o:
+                    #     p = [(p-min_o/range_o)/len(organisms) for p in proba_sample.values()]
+                    # else:
+                    #     p = list(proba_sample.values())
+                    # print(p)
+                    #s = sum(proba_sample.values())
+                    
+                    #orgs = np.random.choice(organisms, size = chunck_size, replace = False, p = [p/s for p in proba_sample.values()])#
+                    orgs = sample(organisms,chunck_size)
+                    orgs = OrderedSet(orgs)
+                    for org, p in proba_sample.items():
+                        if org in orgs:
+                            proba_sample[org] = p - len(organisms)/chunck_size if p >1 else 1
+                        else:
+                            proba_sample[org] = p + len(organisms)/chunck_size
+                    # res = pool.apply_async(self.partition,
+                    #                        args = (nem_dir_path+"/"+str(cpt)+"/",#nem_dir_path
+                    #                                orgs,#organisms
+                    #                                beta,#beta
+                    #                                free_dispersion,#free dispersion
+                    #                                chunck_size,#chunck_size
+                    #                                False,#inplace
+                    #                                False,#just_stats
+                    #                                1),#nb_threads
+                    #                        callback = validate_family)
+
+                    res = self.partition(nem_dir_path+"/"+str(cpt)+"/",#nem_dir_path
+                                                   orgs,#organisms
+                                                   beta,#beta
+                                                   free_dispersion,#free dispersion
+                                                   chunck_size,#chunck_size
+                                                   False,#inplace
+                                                   False,#just_stats
+                                                   1)
+                    validate_family(res)
+
+                    cpt +=1
+                else:
+                    time.sleep(0.01)
+
                 if inplace:
-                    bar = tqdm(total = stats["accessory"]+stats["core_exact"], unit = "families partitionned")
-
-                def validate_family(result):                    
-                    #nonlocal total_BIC
-                    try :
-                        (BIC, partitions) = result
-
-                        #total_BIC += BIC
-                        for node,nem_class in partitions.items():
-                            cpt_partition[node][nem_class]+=1
-                            sum_partionning = sum(cpt_partition[node].values()) 
-
-                            if sum_partionning > len(organisms)/chunck_size and max(cpt_partition[node].values()) > sum_partionning*0.5:
-                                if node not in validated:
-                                    if inplace:
-                                        bar.update()
-                                    validated.add(node)
-                                    # if max(cpt_partition[node], key=cpt_partition[node].get) == "P" and cpt_partition[node]["S"]==0 and cpt_partition[node]["C"]==0:
-                                    #     validated[node]="P"
-                                    # elif cpt_partition[node]["S"]==0:
-                                    #     validated[node]="C"
-                                    # else:
-                                    #     validated[node]="S" 
-                    finally:
-                        sem.release()
-                
-                while len(validated)<pan_size:
-                    if sem.acquire():
-                        # print(organisms)
-                        # print(chunck_size)
-                        # print(proba_sample.values())
-                        # print(len(proba_sample.values()))
-                        # min_o = min(proba_sample.values()) 
-                        # max_o = max(proba_sample.values()) 
-                        # range_o = max_o-min_o
-                        # if min_o != max_o:
-                        #     p = [(p-min_o/range_o)/len(organisms) for p in proba_sample.values()]
-                        # else:
-                        #     p = list(proba_sample.values())
-                        # print(p)
-                        s = sum(proba_sample.values())
-                        #orgs = sample(organisms,chunck_size)
-                        orgs = np.random.choice(organisms, size = chunck_size, replace = False, p = [p/s for p in proba_sample.values()])#
-                        orgs = OrderedSet(orgs)
-                        for org, p in proba_sample.items():
-                            if org in orgs:
-                                proba_sample[org] = p - len(organisms)/chunck_size if p >1 else 1
-                            else:
-                                proba_sample[org] = p + len(organisms)/chunck_size
-                        # res = pool.apply_async(self.partition,
-                        #                        args = (nem_dir_path+"/"+str(cpt)+"/",#nem_dir_path
-                        #                                orgs,#organisms
-                        #                                beta,#beta
-                        #                                free_dispersion,#free dispersion
-                        #                                chunck_size,#chunck_size
-                        #                                False,#inplace
-                        #                                False,#just_stats
-                        #                                1),#nb_threads
-                        #                        callback = validate_family)
-
-                        res = self.partition(nem_dir_path+"/"+str(cpt)+"/",#nem_dir_path
-                                                       orgs,#organisms
-                                                       beta,#beta
-                                                       free_dispersion,#free dispersion
-                                                       chunck_size,#chunck_size
-                                                       False,#inplace
-                                                       False,#just_stats
-                                                       1)
-                        validate_family(res)
-
-                        cpt +=1
-                    else:
-                        time.sleep(0.01)
-
-                pool.terminate()                
+                    bar.update()
+                #pool.terminate()                
 
                 #BIC = total_BIC/cpt
                 BIC = 0
