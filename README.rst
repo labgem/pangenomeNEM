@@ -1,9 +1,9 @@
 PPanGGOLiN : Depicting microbial species diversity via a Partitioned Pangenome Graph
-========================================================
+=========================================================================================
 
 .. image:: images/logo.png
 
-This tool compiles the genomic content of a species (A) also name a pangenome. It is based on a graph approach to model pangenomes in which nodes and edges represent families of homologous genes (B and C, not included in the pipeline) and chromosomal neighborhood information, respectively. This approach takes into account both graph topology (D.a) and occurrences of genes (D.b) to classify gene families into three partitions (i.e. *persistent genome*, *shell genome* and *cloud genome*) yielding what we called Partitioned Pangenome Graph (F). More precisly, the method relies on an Expectation/Maximization algorithm based on Bernoulli Mixture Model (E.a) coupled with a Markov Random field (E.b).
+This tool compiles the genomic content of a species (A) also name a pangenome. It is based on a graph approach to model pangenomes in which nodes and edges represent families of homologous genes (B and C, not included in the pipeline) and chromosomal neighborhood information, respectively. This approach takes into account both graph topology (D.a) and occurrences of genes (D.b) to classify gene families into three partitions (i.e. *persistent genome*, *shell genome* and *cloud genome*) yielding what we called Partitioned Pangenome Graph (F). More precisely, the method relies on an Expectation/Maximization algorithm based on Bernoulli Mixture Model (E.a) coupled with a Markov Random field (E.b).
 
 Partitions:
  1) Persistent genome: equivalent to a relaxed core genome (genes conserved in all but a few genomes);
@@ -12,7 +12,7 @@ Partitions:
 
 .. image:: images/workflow.png
 
-A minimum of 5 genomes is generaly required to perform a pangenomics analysis using the *core genome*/*accessory genome* paradigm. Using the statistical approach presented here, we recommend using at least 15 genomes having genomic variations (and not only genetic ones) to obtain robust results.
+A minimum of 5 genomes is generally required to perform a pangenomics analysis using the *core genome*/*accessory genome* paradigm. Using the statistical approach presented here, we recommend using at least 15 genomes having genomic variations (and not only genetic ones) to obtain robust results.
 
 Installation
 ============================
@@ -20,9 +20,10 @@ Installation
 PPanGGOLiN can be easily installed via:
 
 .. code:: bash
+
 	pip install ppanggolin
 
-GCC (>=3.0) will be required, as well as Python 3 and the following modules : "networkx(>=2.00)", "numpy", "scipy", "tqdm" and "highcharts"
+GCC (>=3.0) will be required, as well as Python 3 and the following modules : "networkx(>=2.00)", "numpy", "scipy", "tqdm" and "python-highcharts"
 
 Quick usage
 ============================
@@ -34,18 +35,19 @@ The minimal command is :
 	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR
 
 Input formats
-----------
+---------------------------
 The tools required 2 files.
 
-1. A file ORGANISMS_FILE summurizing the information about the about the organisms. 
-	This is a tab-delimitated file structured as following:
+1. A file ORGANISMS_FILE summarizing the information about the about the organisms. 
+	This is a tab-delimitated file structured as follows:
 
-	1. First colunm is the organism name, it must be unique and can't contain reserved word (see section reserved words).
-	2. Second column is the path to the associated gff3 file (can be relative or absolute). In the gff files, sequences of the genomes are not required at all. Only CDS features will be taken in account, each one must contain an ID attribute and optionaly Name and product attributes. 
-	3. (optional) Further colunms are the ID of the contigs in the gff files which are both circulars and perfectly assembled. In this case, it is mandatory the provide the size of the contigs in the gff file either by adding a "region" feature to the gff file having the correct ID attribute or using a '##sequence-region' pragma (as did in prokka).
+	1. The first column is the organism name, it must be unique and can't contain reserved words (see section reserved words).
+	2. The second column is the path to the associated gff3 file (can be relative or absolute). In the gff files, sequences of the genomes are not required at all. Only CDS features will be taken into account, each one must contain an ID attribute and optionally "Name" and "product" attributes. 
+	3. (optional) Further columns are the ID of the contigs in the gff files which are both circulars and perfectly assembled. In this case, it is mandatory the provide the size of the contigs in the gff file either by adding a "region" feature to the gff file having the correct ID attribute or using a '##sequence-region' pragma (as did in prokka).
 
 	Exemple of ORGANISMS_FILE:
 	::
+
 		Escherichia_coli_042__E._coli_1	gff3/ESCO.1017.00091.gff	ESCO.1017.00091.0001	ESCO.1017.00091.0002
 		Escherichia_coli_1303__E._coli_1	gff3/ESCO.1017.00171.gff	ESCO.1017.00171.0001	ESCO.1017.00171.0002	ESCO.1017.00171.0003	ESCO.1017.00171.0004
 		Escherichia_coli_536__E._coli_1	gff3/ESCO.1017.00005.gff	ESCO.1017.00005.0001
@@ -60,6 +62,7 @@ The tools required 2 files.
 
 	Exemple of one of the associated gff file (obtained using prokka):
 	::
+
 		##gff-version 3
 		##sequence-region ESCO.1017.00091.0001 1 5241977
 		##sequence-region ESCO.1017.00091.0002 1 113346
@@ -72,14 +75,15 @@ The tools required 2 files.
 		ESCO.1017.00091.0001	Prodigal:2.6	CDS	7118	7894	.	-	.	ID=ESCO.1017.00091.i0001_00007;locus_tag=ESCO.1017.00091.i0001_00007;product=hypothetical protein
 		...
 
-2. A file FAMILIES_FILE providing the gene families formated as following. 
+2. A file FAMILIES_FILE providing the gene families formated as follows. 
 	This is a tab-delimitated file.
 
-	1. The first columnn is the gene families name (sometime the name of the median gene)
-	2. The further columnns are the gene ID belonging to this families (a gene can't belongs to multiple families)
+	1. The first column is the gene families name (sometimes the name of the median gene)
+	2. The further columns are the gene ID belonging to this family (a gene can't belong to multiple families)
 
 	Exemple of a families file:
 	::
+
 		1	ESCO.1017.00001.i0001_00047	ESCO.1017.00002.i0001_00053	ESCO.1017.00003.i0001_00052	ESCO.1017.00004.i0001_00047	ESCO.1017.00005.i0001_00048	ESCO.1017.00006.i0001_00053	ESCO.1017.00007.i0001_00052	ESCO.1017.00008.i0001_03750	ESCO.1017.00009.i0001_00047	ESCO.1017.00010.i0001_00047	ESCO.1017.00011.i0001_00052	ESCO.1017.00012.i0001_03643	ESCO.1017.00013.i0001_03593	ESCO.1017.00014.i0001_00050	ESCO.1017.00015.i0001_00048	ESCO.1017.00016.i0001_00047	ESCO.1017.00017.i0001_00053	ESCO.1017.00018.i0001_00038	ESCO.1017.00019.i0001_00051	ESCO.1017.00020.i0001_00051	ESCO.1017.00021.i0001_00048	ESCO.1017.00022.i0001_00047	ESCO.1017.00023.i0001_00049	ESCO.1017.00024.i0001_00735	ESCO.1017.00025.i0001_00040	ESCO.1017.00026.i0001_00048	ESCO.1017.00027.i0001_00047	ESCO.1017.00028.i0001_01224	ESCO.1017.00029.i0001_03729	ESCO.1017.00030.i0001_03859	ESCO.1017.00031.i0001_00620	ESCO.1017.00032.i0001_00627	ESCO.1017.00033.i0001_00637	ESCO.1017.00034.i0001_00050	ESCO.1017.00035.i0001_00047	ESCO.1017.00036.i0001_00047	ESCO.1017.00037.i0001_00047	ESCO.1017.00038.i0001_00047	ESCO.1017.00039.i0001_03494	ESCO.1017.00040.i0001_00279	ESCO.1017.00041.i0001_00052	ESCO.1017.00042.i0001_00052	ESCO.1017.00043.i0001_00047	ESCO.1017.00044.i0001_00047	ESCO.1017.00045.i0001_00765	ESCO.1017.00046.i0001_00756	ESCO.1017.00047.i0001_00764	ESCO.1017.00048.i0001_00765	ESCO.1017.00049.i0001_00822	ESCO.1017.00050.i0001_00763	ESCO.1017.00051.i0001_00766	ESCO.1017.00052.i0001_00822	ESCO.1017.00053.i0001_00047	ESCO.1017.00054.i0001_00051	ESCO.1017.00055.i0001_00047	ESCO.1017.00056.i0001_00047	ESCO.1017.00057.i0001_00047	ESCO.1017.00058.i0001_00047	ESCO.1017.00059.i0001_00047	ESCO.1017.00060.i0001_00052	ESCO.1017.00061.i0001_00052	ESCO.1017.00062.i0001_00047	ESCO.1017.00063.i0001_00047	ESCO.1017.00064.i0001_00047	ESCO.1017.00065.i0001_00051	ESCO.1017.00066.i0001_04368	ESCO.1017.00067.i0001_04371	ESCO.1017.00068.i0001_04369	ESCO.1017.00069.i0001_04242	ESCO.1017.00070.i0001_03265	ESCO.1017.00071.i0001_00052	ESCO.1017.00072.i0001_02745	ESCO.1017.00073.i0001_00772	ESCO.1017.00074.i0001_00774	ESCO.1017.00075.i0001_00622	ESCO.1017.00076.i0001_05069	ESCO.1017.00077.i0001_00052	ESCO.1017.00078.i0001_03627	ESCO.1017.00079.i0001_00767	ESCO.1017.00080.i0001_04013	ESCO.1017.00081.i0001_03408	ESCO.1017.00082.i0001_04825	ESCO.1017.00083.i0001_00047	ESCO.1017.00084.i0001_04180	ESCO.1017.00085.i0001_00053	ESCO.1017.00086.i0001_00050	ESCO.1017.00087.i0001_00051	ESCO.1017.00088.i0001_00050	ESCO.1017.00089.i0001_00053	ESCO.1017.00090.i0001_00051	ESCO.1017.00091.i0001_00055	ESCO.1017.00092.i0001_00051	ESCO.1017.00093.i0001_00050	ESCO.1017.00094.i0001_00048	ESCO.1017.00095.i0001_00052	ESCO.1017.00096.i0001_00047	ESCO.1017.00097.i0001_00768	ESCO.1017.00098.i0001_00774	ESCO.1017.00099.i0001_00053	ESCO.1017.00100.i0001_00054	ESCO.1017.00101.i0001_02441	ESCO.1017.00102.i0001_01197	ESCO.1017.00103.i0001_03712	ESCO.1017.00104.i0001_03915	ESCO.1017.00105.i0001_04058	ESCO.1017.00106.i0001_00052	ESCO.1017.00107.i0001_03883	ESCO.1017.00108.i0001_00047	ESCO.1017.00109.i0001_00047	ESCO.1017.00110.i0001_00052	ESCO.1017.00111.i0001_00052	ESCO.1017.00112.i0001_03779	ESCO.1017.00113.i0001_03530	ESCO.1017.00114.i0001_04415	ESCO.1017.00115.i0001_02640	ESCO.1017.00116.i0001_02854	ESCO.1017.00117.i0001_04675	ESCO.1017.00118.i0001_00052	ESCO.1017.00119.i0001_00051	ESCO.1017.00120.i0001_00053	ESCO.1017.00121.i0001_00048	ESCO.1017.00122.i0001_00053	ESCO.1017.00123.i0001_02649	ESCO.1017.00124.i0001_00084	ESCO.1017.00125.i0001_00708	ESCO.1017.00126.i0001_04565	ESCO.1017.00127.i0001_04548	ESCO.1017.00128.i0001_04614	ESCO.1017.00129.i0001_04564	ESCO.1017.00130.i0001_04555	ESCO.1017.00131.i0001_04613	ESCO.1017.00132.i0001_04544	ESCO.1017.00133.i0001_04600	ESCO.1017.00134.i0001_04596	ESCO.1017.00135.i0001_05121	ESCO.1017.00136.i0001_00052	ESCO.1017.00137.i0001_00050	ESCO.1017.00138.i0001_00053	ESCO.1017.00139.i0001_00049	ESCO.1017.00140.i0001_03887	ESCO.1017.00141.i0001_00048	ESCO.1017.00142.i0001_00048	ESCO.1017.00143.i0001_00051	ESCO.1017.00144.i0001_00052	ESCO.1017.00145.i0001_04318	ESCO.1017.00146.i0001_00052	ESCO.1017.00147.i0001_00055	ESCO.1017.00148.i0001_00055	ESCO.1017.00149.i0001_00052	ESCO.1017.00150.i0001_00052	ESCO.1017.00151.i0001_02558	ESCO.1017.00152.i0001_02857	ESCO.1017.00153.i0001_00050	ESCO.1017.00154.i0001_02854	ESCO.1017.00155.i0001_00052	ESCO.1017.00156.i0001_00564	ESCO.1017.00157.i0001_00052	ESCO.1017.00158.i0001_00053	ESCO.1017.00159.i0001_00053	ESCO.1017.00160.i0001_04406	ESCO.1017.00161.i0001_00052	ESCO.1017.00162.i0001_03910	ESCO.1017.00163.i0001_03179	ESCO.1017.00164.i0001_01542	ESCO.1017.00165.i0001_00048	ESCO.1017.00166.i0001_00052	ESCO.1017.00167.i0001_04244	ESCO.1017.00168.i0001_04266	ESCO.1017.00169.i0001_00054	ESCO.1017.00170.i0001_00050	ESCO.1017.00171.i0001_00047	ESCO.1017.00172.i0001_00048	ESCO.1017.00173.i0001_03823	ESCO.1017.00174.i0001_01302	ESCO.1017.00176.i0001_00052	ESCO.1017.00177.i0001_03204	ESCO.1017.00178.i0001_01987	ESCO.1017.00179.i0001_00051	ESCO.1017.00180.i0001_00049	ESCO.1017.00181.i0001_00051	ESCO.1017.00182.i0001_00055	ESCO.1017.00183.i0001_03498	ESCO.1017.00184.i0001_00054	ESCO.1017.00185.i0001_03853	ESCO.1017.00186.i0001_00049	ESCO.1017.00187.i0001_00049	ESCO.1017.00188.i0001_00051	ESCO.1017.00189.i0001_04109	ESCO.1017.00190.i0001_00053	ESCO.1017.00191.i0001_03546	ESCO.1017.00192.i0001_01381	ESCO.1017.00193.i0001_00049	ESCO.1017.00194.i0001_00048	ESCO.1017.00195.i0001_00052	ESCO.1017.00196.i0001_00052	ESCO.1017.00197.i0001_00052	ESCO.1017.00198.i0001_00049	ESCO.1017.00199.i0001_00904	ESCO.1017.00200.i0001_03596	ESCO.1017.00201.i0001_00844	ESCO.1017.00202.i0001_00050	ESCO.1017.00203.i0002_04611
 		2	ESCO.1017.00001.i0001_00054	ESCO.1017.00004.i0001_00054	ESCO.1017.00009.i0001_00054	ESCO.1017.00010.i0001_00054	ESCO.1017.00012.i0001_03636	ESCO.1017.00022.i0001_00054	ESCO.1017.00025.i0001_00047	ESCO.1017.00027.i0001_00054	ESCO.1017.00035.i0001_00054	ESCO.1017.00036.i0001_00054	ESCO.1017.00037.i0001_00054	ESCO.1017.00038.i0001_00054	ESCO.1017.00039.i0001_03487	ESCO.1017.00043.i0001_00054	ESCO.1017.00044.i0001_00054	ESCO.1017.00045.i0001_00772	ESCO.1017.00046.i0001_00763	ESCO.1017.00047.i0001_00771	ESCO.1017.00048.i0001_00772	ESCO.1017.00049.i0001_00829	ESCO.1017.00050.i0001_00770	ESCO.1017.00051.i0001_00773	ESCO.1017.00052.i0001_00829	ESCO.1017.00053.i0001_00054	ESCO.1017.00055.i0001_00054	ESCO.1017.00056.i0001_00054	ESCO.1017.00057.i0001_00054	ESCO.1017.00058.i0001_00054	ESCO.1017.00059.i0001_00054	ESCO.1017.00062.i0001_00054	ESCO.1017.00063.i0001_00054	ESCO.1017.00064.i0001_00054	ESCO.1017.00065.i0001_00058	ESCO.1017.00066.i0001_04361	ESCO.1017.00067.i0001_04364	ESCO.1017.00068.i0001_04362	ESCO.1017.00072.i0001_02752	ESCO.1017.00075.i0001_00615	ESCO.1017.00078.i0001_03620	ESCO.1017.00083.i0001_00054	ESCO.1017.00102.i0001_01204	ESCO.1017.00108.i0001_00054	ESCO.1017.00109.i0001_00054
 		3	ESCO.1017.00001.i0001_00075	ESCO.1017.00002.i0001_00083	ESCO.1017.00003.i0001_00078	ESCO.1017.00004.i0001_00075	ESCO.1017.00005.i0001_00076	ESCO.1017.00006.i0001_00079	ESCO.1017.00007.i0001_00078	ESCO.1017.00008.i0001_03724	ESCO.1017.00010.i0001_00075	ESCO.1017.00011.i0001_00078	ESCO.1017.00012.i0001_03614	ESCO.1017.00013.i0001_03567	ESCO.1017.00014.i0001_00077	ESCO.1017.00015.i0001_00074	ESCO.1017.00016.i0001_00073	ESCO.1017.00017.i0001_00083	ESCO.1017.00018.i0001_00068	ESCO.1017.00019.i0001_00079	ESCO.1017.00020.i0001_00079	ESCO.1017.00021.i0001_00074	ESCO.1017.00022.i0001_00076	ESCO.1017.00023.i0001_00076	ESCO.1017.00024.i0001_00761	ESCO.1017.00025.i0001_00068	ESCO.1017.00026.i0001_00074	ESCO.1017.00027.i0001_00075	ESCO.1017.00028.i0001_01198	ESCO.1017.00029.i0001_03703	ESCO.1017.00030.i0001_03833	ESCO.1017.00031.i0001_00647	ESCO.1017.00032.i0001_00654	ESCO.1017.00033.i0001_00665	ESCO.1017.00034.i0001_00078	ESCO.1017.00035.i0001_00075	ESCO.1017.00036.i0001_00073	ESCO.1017.00037.i0001_00075	ESCO.1017.00038.i0001_00075	ESCO.1017.00039.i0001_03466	ESCO.1017.00040.i0001_00308	ESCO.1017.00041.i0001_00078	ESCO.1017.00042.i0001_00078	ESCO.1017.00043.i0001_00075	ESCO.1017.00044.i0001_00075	ESCO.1017.00045.i0001_00793	ESCO.1017.00046.i0001_00784	ESCO.1017.00047.i0001_00792	ESCO.1017.00048.i0001_00793	ESCO.1017.00049.i0001_00850	ESCO.1017.00050.i0001_00791	ESCO.1017.00051.i0001_00794	ESCO.1017.00052.i0001_00850	ESCO.1017.00053.i0001_00076	ESCO.1017.00054.i0001_00078	ESCO.1017.00055.i0001_00075	ESCO.1017.00056.i0001_00075	ESCO.1017.00057.i0001_00075	ESCO.1017.00058.i0001_00076	ESCO.1017.00059.i0001_00076	ESCO.1017.00060.i0001_00078	ESCO.1017.00061.i0001_00079	ESCO.1017.00062.i0001_00076	ESCO.1017.00063.i0001_00076	ESCO.1017.00064.i0001_00076	ESCO.1017.00065.i0001_00079	ESCO.1017.00066.i0001_04340	ESCO.1017.00067.i0001_04343	ESCO.1017.00068.i0001_04341	ESCO.1017.00069.i0001_04268	ESCO.1017.00070.i0001_03235	ESCO.1017.00071.i0001_00078	ESCO.1017.00072.i0001_02773	ESCO.1017.00073.i0001_00798	ESCO.1017.00074.i0001_00800	ESCO.1017.00075.i0001_00596	ESCO.1017.00076.i0001_05042	ESCO.1017.00077.i0001_00079	ESCO.1017.00078.i0001_03598	ESCO.1017.00079.i0001_00793	ESCO.1017.00080.i0001_03986	ESCO.1017.00081.i0001_03435	ESCO.1017.00082.i0001_04799	ESCO.1017.00083.i0001_00076	ESCO.1017.00084.i0001_04153	ESCO.1017.00085.i0001_00081	ESCO.1017.00086.i0001_00080	ESCO.1017.00087.i0001_00077	ESCO.1017.00088.i0001_00077	ESCO.1017.00089.i0001_00080	ESCO.1017.00090.i0001_00078	ESCO.1017.00091.i0001_00083	ESCO.1017.00092.i0001_00078	ESCO.1017.00093.i0001_00077	ESCO.1017.00094.i0001_00074	ESCO.1017.00095.i0001_00079	ESCO.1017.00096.i0001_00074	ESCO.1017.00097.i0001_00794	ESCO.1017.00098.i0001_00800	ESCO.1017.00099.i0001_00080	ESCO.1017.00100.i0001_00081	ESCO.1017.00101.i0001_02415	ESCO.1017.00102.i0001_01225	ESCO.1017.00103.i0001_03685	ESCO.1017.00104.i0001_03888	ESCO.1017.00105.i0001_04088	ESCO.1017.00106.i0001_00082	ESCO.1017.00107.i0001_03856	ESCO.1017.00110.i0001_00082	ESCO.1017.00111.i0001_00082	ESCO.1017.00112.i0001_03806	ESCO.1017.00113.i0001_03557	ESCO.1017.00114.i0001_04385	ESCO.1017.00115.i0001_02666	ESCO.1017.00116.i0001_02881	ESCO.1017.00117.i0001_04648	ESCO.1017.00118.i0001_00079	ESCO.1017.00119.i0001_00078	ESCO.1017.00120.i0001_00079	ESCO.1017.00121.i0001_00074	ESCO.1017.00122.i0001_00079	ESCO.1017.00123.i0001_02622	ESCO.1017.00124.i0001_00114	ESCO.1017.00125.i0001_00735	ESCO.1017.00126.i0001_04538	ESCO.1017.00127.i0001_04521	ESCO.1017.00128.i0001_04587	ESCO.1017.00129.i0001_04537	ESCO.1017.00130.i0001_04528	ESCO.1017.00131.i0001_04586	ESCO.1017.00132.i0001_04517	ESCO.1017.00133.i0001_04573	ESCO.1017.00134.i0001_04569	ESCO.1017.00135.i0001_05094	ESCO.1017.00136.i0001_00079	ESCO.1017.00137.i0001_00078	ESCO.1017.00138.i0001_00080	ESCO.1017.00139.i0001_00079	ESCO.1017.00140.i0001_03861	ESCO.1017.00141.i0001_00074	ESCO.1017.00142.i0001_00074	ESCO.1017.00143.i0001_00078	ESCO.1017.00144.i0001_00082	ESCO.1017.00145.i0001_04292	ESCO.1017.00146.i0001_00081	ESCO.1017.00147.i0001_00083	ESCO.1017.00148.i0001_00083	ESCO.1017.00149.i0001_00081	ESCO.1017.00150.i0001_00079	ESCO.1017.00151.i0001_02586	ESCO.1017.00152.i0001_02885	ESCO.1017.00153.i0001_00077	ESCO.1017.00154.i0001_02880	ESCO.1017.00155.i0001_00079	ESCO.1017.00156.i0001_00590	ESCO.1017.00157.i0001_00082	ESCO.1017.00158.i0001_00085	ESCO.1017.00159.i0001_00083	ESCO.1017.00160.i0001_04436	ESCO.1017.00161.i0001_00079	ESCO.1017.00162.i0001_03884	ESCO.1017.00163.i0001_03206	ESCO.1017.00164.i0001_01572	ESCO.1017.00165.i0001_00075	ESCO.1017.00166.i0001_00079	ESCO.1017.00167.i0001_04218	ESCO.1017.00168.i0001_04240	ESCO.1017.00169.i0001_00080	ESCO.1017.00170.i0001_00076	ESCO.1017.00171.i0001_00074	ESCO.1017.00172.i0001_00074	ESCO.1017.00173.i0001_03796	ESCO.1017.00174.i0001_01277	ESCO.1017.00175.i0001_03868	ESCO.1017.00176.i0001_00082	ESCO.1017.00177.i0001_03230	ESCO.1017.00178.i0001_01960	ESCO.1017.00179.i0001_00079	ESCO.1017.00180.i0001_00075	ESCO.1017.00181.i0001_00078	ESCO.1017.00182.i0001_00083	ESCO.1017.00183.i0001_03528	ESCO.1017.00184.i0001_00080	ESCO.1017.00185.i0001_03827	ESCO.1017.00186.i0001_00075	ESCO.1017.00187.i0001_00075	ESCO.1017.00188.i0001_00078	ESCO.1017.00189.i0001_04082	ESCO.1017.00190.i0001_00083	ESCO.1017.00191.i0001_03573	ESCO.1017.00192.i0001_01355	ESCO.1017.00193.i0001_00076	ESCO.1017.00194.i0001_00074	ESCO.1017.00195.i0001_00082	ESCO.1017.00196.i0001_00085	ESCO.1017.00197.i0001_00078	ESCO.1017.00198.i0001_00076	ESCO.1017.00199.i0001_00874	ESCO.1017.00200.i0001_03570	ESCO.1017.00201.i0001_00870	ESCO.1017.00202.i0001_00077	ESCO.1017.00203.i0002_04638
@@ -87,9 +91,10 @@ The tools required 2 files.
 		5	ESCO.1017.00001.i0001_00080	ESCO.1017.00002.i0001_00088	ESCO.1017.00003.i0001_00083	ESCO.1017.00004.i0001_00080	ESCO.1017.00005.i0001_00081	ESCO.1017.00006.i0001_00084	ESCO.1017.00007.i0001_00083	ESCO.1017.00008.i0001_03719	ESCO.1017.00009.i0001_00061	ESCO.1017.00010.i0001_00080	ESCO.1017.00011.i0001_00083	ESCO.1017.00012.i0001_03609	ESCO.1017.00013.i0001_03562	ESCO.1017.00014.i0001_00082	ESCO.1017.00015.i0001_00079	ESCO.1017.00016.i0001_00078	ESCO.1017.00017.i0001_00088	ESCO.1017.00018.i0001_00073	ESCO.1017.00019.i0001_00084	ESCO.1017.00020.i0001_00084	ESCO.1017.00021.i0001_00079	ESCO.1017.00022.i0001_00081	ESCO.1017.00023.i0001_00081	ESCO.1017.00024.i0001_00766	ESCO.1017.00025.i0001_00073	ESCO.1017.00026.i0001_00079	ESCO.1017.00027.i0001_00080	ESCO.1017.00028.i0001_01193	ESCO.1017.00029.i0001_03698	ESCO.1017.00030.i0001_03828	ESCO.1017.00031.i0001_00653	ESCO.1017.00032.i0001_00660	ESCO.1017.00033.i0001_00671	ESCO.1017.00034.i0001_00083	ESCO.1017.00035.i0001_00080	ESCO.1017.00036.i0001_00078	ESCO.1017.00037.i0001_00080	ESCO.1017.00038.i0001_00080	ESCO.1017.00039.i0001_03461	ESCO.1017.00040.i0001_00313	ESCO.1017.00041.i0001_00083	ESCO.1017.00042.i0001_00083	ESCO.1017.00043.i0001_00080	ESCO.1017.00044.i0001_00080	ESCO.1017.00045.i0001_00798	ESCO.1017.00046.i0001_00789	ESCO.1017.00047.i0001_00797	ESCO.1017.00048.i0001_00798	ESCO.1017.00049.i0001_00855	ESCO.1017.00050.i0001_00796	ESCO.1017.00051.i0001_00799	ESCO.1017.00052.i0001_00855	ESCO.1017.00053.i0001_00081	ESCO.1017.00054.i0001_00083	ESCO.1017.00055.i0001_00080	ESCO.1017.00056.i0001_00080	ESCO.1017.00057.i0001_00080	ESCO.1017.00058.i0001_00081	ESCO.1017.00059.i0001_00081	ESCO.1017.00060.i0001_00083	ESCO.1017.00061.i0001_00084	ESCO.1017.00062.i0001_00081	ESCO.1017.00063.i0001_00081	ESCO.1017.00064.i0001_00081	ESCO.1017.00065.i0001_00084	ESCO.1017.00066.i0001_04335	ESCO.1017.00067.i0001_04338	ESCO.1017.00068.i0001_04336	ESCO.1017.00069.i0001_04273	ESCO.1017.00070.i0001_03230	ESCO.1017.00071.i0001_00083	ESCO.1017.00072.i0001_02778	ESCO.1017.00073.i0001_00803	ESCO.1017.00074.i0001_00805	ESCO.1017.00075.i0001_00591	ESCO.1017.00076.i0001_05037	ESCO.1017.00077.i0001_00084	ESCO.1017.00078.i0001_03593	ESCO.1017.00079.i0001_00798	ESCO.1017.00080.i0001_03981	ESCO.1017.00081.i0001_03440	ESCO.1017.00082.i0001_04794	ESCO.1017.00083.i0001_00081	ESCO.1017.00084.i0001_04148	ESCO.1017.00085.i0001_00086	ESCO.1017.00086.i0001_00085	ESCO.1017.00087.i0001_00082	ESCO.1017.00088.i0001_00082	ESCO.1017.00089.i0001_00085	ESCO.1017.00090.i0001_00083	ESCO.1017.00091.i0001_00088	ESCO.1017.00092.i0001_00083	ESCO.1017.00093.i0001_00082	ESCO.1017.00094.i0001_00079	ESCO.1017.00095.i0001_00084	ESCO.1017.00096.i0001_00079	ESCO.1017.00097.i0001_00799	ESCO.1017.00098.i0001_00805	ESCO.1017.00099.i0001_00085	ESCO.1017.00100.i0001_00086	ESCO.1017.00101.i0001_02410	ESCO.1017.00102.i0001_01230	ESCO.1017.00103.i0001_03680	ESCO.1017.00104.i0001_03883	ESCO.1017.00105.i0001_04093	ESCO.1017.00106.i0001_00087	ESCO.1017.00107.i0001_03851	ESCO.1017.00108.i0001_00061	ESCO.1017.00109.i0001_00061	ESCO.1017.00110.i0001_00087	ESCO.1017.00111.i0001_00088	ESCO.1017.00112.i0001_03811	ESCO.1017.00113.i0001_03562	ESCO.1017.00114.i0001_04380	ESCO.1017.00115.i0001_02671	ESCO.1017.00116.i0001_02886	ESCO.1017.00117.i0001_04643	ESCO.1017.00118.i0001_00084	ESCO.1017.00119.i0001_00083	ESCO.1017.00120.i0001_00084	ESCO.1017.00121.i0001_00079	ESCO.1017.00122.i0001_00084	ESCO.1017.00123.i0001_02617	ESCO.1017.00124.i0001_00119	ESCO.1017.00125.i0001_00740	ESCO.1017.00126.i0001_04533	ESCO.1017.00127.i0001_04516	ESCO.1017.00128.i0001_04582	ESCO.1017.00129.i0001_04532	ESCO.1017.00130.i0001_04523	ESCO.1017.00131.i0001_04581	ESCO.1017.00132.i0001_04512	ESCO.1017.00133.i0001_04568	ESCO.1017.00134.i0001_04564	ESCO.1017.00135.i0001_05089	ESCO.1017.00136.i0001_00084	ESCO.1017.00137.i0001_00083	ESCO.1017.00138.i0001_00085	ESCO.1017.00139.i0001_00084	ESCO.1017.00140.i0001_03856	ESCO.1017.00141.i0001_00079	ESCO.1017.00142.i0001_00079	ESCO.1017.00143.i0001_00083	ESCO.1017.00144.i0001_00087	ESCO.1017.00145.i0001_04287	ESCO.1017.00146.i0001_00086	ESCO.1017.00147.i0001_00088	ESCO.1017.00148.i0001_00088	ESCO.1017.00149.i0001_00086	ESCO.1017.00150.i0001_00085	ESCO.1017.00151.i0001_02591	ESCO.1017.00152.i0001_02890	ESCO.1017.00153.i0001_00082	ESCO.1017.00154.i0001_02885	ESCO.1017.00155.i0001_00084	ESCO.1017.00156.i0001_00595	ESCO.1017.00157.i0001_00087	ESCO.1017.00159.i0001_00088	ESCO.1017.00160.i0001_04442	ESCO.1017.00161.i0001_00084	ESCO.1017.00162.i0001_03879	ESCO.1017.00163.i0001_03211	ESCO.1017.00164.i0001_01577	ESCO.1017.00165.i0001_00080	ESCO.1017.00166.i0001_00084	ESCO.1017.00167.i0001_04213	ESCO.1017.00168.i0001_04235	ESCO.1017.00169.i0001_00085	ESCO.1017.00170.i0001_00081	ESCO.1017.00171.i0001_00079	ESCO.1017.00172.i0001_00079	ESCO.1017.00173.i0001_03791	ESCO.1017.00174.i0001_01272	ESCO.1017.00175.i0001_03863	ESCO.1017.00176.i0001_00087	ESCO.1017.00177.i0001_03235	ESCO.1017.00178.i0001_01955	ESCO.1017.00179.i0001_00084	ESCO.1017.00180.i0001_00080	ESCO.1017.00181.i0001_00083	ESCO.1017.00182.i0001_00088	ESCO.1017.00183.i0001_03533	ESCO.1017.00184.i0001_00085	ESCO.1017.00185.i0001_03822	ESCO.1017.00186.i0001_00080	ESCO.1017.00187.i0001_00080	ESCO.1017.00188.i0001_00083	ESCO.1017.00189.i0001_04077	ESCO.1017.00190.i0001_00088	ESCO.1017.00191.i0001_03578	ESCO.1017.00192.i0001_01350	ESCO.1017.00193.i0001_00081	ESCO.1017.00194.i0001_00079	ESCO.1017.00195.i0001_00087	ESCO.1017.00196.i0001_00090	ESCO.1017.00197.i0001_00083	ESCO.1017.00198.i0001_00081	ESCO.1017.00199.i0001_00869	ESCO.1017.00200.i0001_03565	ESCO.1017.00201.i0001_00875	ESCO.1017.00202.i0001_00082	ESCO.1017.00203.i0002_04643
 		...
 
-	Note that the assignation of genes to a gene family can be done in several line.
+	Note that the assignation of genes to a gene family can be done in several lines.
 	Indeed, this form is a prolix equivalent to the previous one:
 	::
+
 		1	ESCO.1017.00001.i0001_00047
 		1	ESCO.1017.00002.i0001_00053
 		1	ESCO.1017.00003.i0001_00052
@@ -99,25 +104,26 @@ The tools required 2 files.
 		...
 
 The tsv format is the one returned by MMseqs2 (https://github.com/soedinglab/MMseqs2) and can be used directly as PPanGGOLiN input (in MMseqs2, the gene families name (first column) is the name of the median gene of the families).
-All the gene IDs found in the gff files must be associated to a gene families even the singletons excepting if the flag --infere-singletons is used. Indeed, in this case singleton will be autocally dectected directly in the gff files (the family ID will be the gene ID).
+All the gene IDs found in the gff files must be associated with a gene family even the singletons excepting if the flag --infere-singletons is used. Indeed, in this case, singletons will be automatically detected directly in the gff files (the family ID will be the gene ID).
 
 Reserved word
-----------
+---------------------------
 To prevent any bug, the following words are fobidden to be any of the identifiers : "id", "label", "name", "weight", "partition", "partition_exact", "length", "length_min", "length_max", "length_avg", "length_med", "product", "nb_gene", "community". Moreover, "|" and "," are also fobidden to be contained in any of the identifiers.
 
 Output
-----------
-The program results in several output file:
+---------------------------
+The software generates several output files:
 
 1. *graph.gexf* (and *graph_light.gexf* corresponding to the same topology without gene and organism details). GEXF file can be open using Gephi (https://gephi.org/). See the video below (in the section gephi tunning) to obtain an interesting layout of the graph.
 
 .. image:: images/gephi.gif
 
-2. *matrix.csv* and *matrix.Rtab* correspond to the gene presence absence matrix formated as did in roary (https://sanger-pathogens.github.io/Roary/) except that the second column corresponds to the partition instead of an alternative gene familie name. When multiple genes are present in one family in a single organism, the identifiers of the gene are merged with a "|" separator.
+2. *matrix.csv* and *matrix.Rtab* corresponds to the gene presences-absences matrix formatted as did in roary (https://sanger-pathogens.github.io/Roary/) except that the second column corresponds to the partition instead of an alternative gene id. When multiple genes are present in one family in a single organism, the identifiers of the gene are merged with a "|" separator.
 
-3. A file generate_plots.R able to generate some figures to vizualize some metrics about the pangenome. This file can be executed using the following command : 
+3. A file generate_plots.R able to generate some figures to visualize some metrics about the pangenome. This file can be executed using the following command : 
 
 	.. code:: bash
+
 		Rscript OUTPUT_DIR/generate_plots.R
 
 	*The script can generate some errors as "Removed X rows containing non-finite values" that must be ignored.*
@@ -127,42 +133,42 @@ The program results in several output file:
 
 	.. image:: images/tile_plot.png
 
-	* ushape plot (pdf + html): a figure providing an overview gene frequency distribution
+	* U-shaped plot (PDF and HTML): a figure providing an overview gene frequency distribution
 
 	.. image:: images/u_plot.png
 
 	* optional: evolution curve (if the flag '-e' is provided): a figure providing an overview of the evolution of the pangenome metrics when more and more organisms are added to the pangenome (see the *Evolution* section to obtain more details). 
 
-	* optional: projection plots (if the option '-pr NUM' is provided): a figure showing the projection of the pangenome against one organism in order to vizualize persistent, shell and cloud regions on this genome (see the *Projection* section to obtain more details). 
+	* optional: projection plots (if the option '-pr NUM' is provided): a figure showing the projection of the pangenome against one organism in order to visualize persistent, shell and cloud regions on this genome (see the *Projection* section to obtain more details). 
 
-5. A folder *partitions* in which each file contain the list of the gene families in each partitions 
+5. A folder *partitions* in which each file contain the list of the gene families in each partition
 
-6. A folder *NEM_results* containing the tempary data of the computation (removed if flag '-df' is provided)
+6. A folder *NEM_results* containing the temporary data of the computation (removed if flag '-df' is provided)
 
-7. A folder *partitions* containing one file by partition. Each file stores the name of the families in it associated partition.
+7. A folder *partitions* containing one file by partition. Each file stores the name of the families in its associated partition.
 
-8. optional : a folder *evolutions* containing the tempary data of the computation of all the resampling and the file (stat_evol.txt) summurarizing this evolution (if flag '-e' is provided)
+8. optional: a folder *evolutions* containing the temporary data of the computation of all the resampling and the file (stat_evol.txt) summarizing this evolution (if flag '-e' is provided)
 
-9. optional : a folder *projections* containing tabuledted file for each organism providing information about the projection of the graph against each selected organism (if argument '-pr' followed by the line number in the ORGANISM_FILE is provided)
+9. optional: a folder *projections* containing a tabulated file for each organism providing information about the projection of the graph against each selected organism (if argument '-pr' followed by the line number in the ORGANISM_FILE is provided)
 
 Options
 ============================
 
-Remove high copy number in gene families
-----------
+Remove gene families having a high number of gene copies
+------------------------------------------------------
 
 To minimize the impact of the genomic hubs in the graph caused by gene families scattered all along the genomes like transposase, we add an option allowing to filter gene families having a number of genes above a threshold in at least one organism.
 
-For example, this command :
+For example, this command:
 
 .. code:: bash
 
 	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -r 10
 
-will remove gene families of the graph having more than 10 repeted genes in at least one of the organism. By experience, using a r value of 10, only few gene families (a dozen) will be removed.
+will remove gene families having more than 10 repeted genes in at least one of the organism. By experience, using a r-value of 10, only few gene families (a dozen) will be removed.
 
 Directed or Undirected graph (-ud option)
-----------
+------------------------------------------------------
 
 The pangenome graph can be directed or undirected. Directed graph provided more information but as genome can have multiple inversion around the origin of replication, it is sometime simpler to merge the directed edge into a undirected one.
 
@@ -172,14 +178,14 @@ For example, this command :
 
 	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -ud
 
-Note that the partionning method will not be impacted by this flag beacause in evry cases the partionning approach consider the graph as undirected.
+Note that the partitioning method will not be impacted by this flag because in every case the partitioning approach considers the graph as undirected.
 
 Partionning parameter
-----------
+---------------------------
 
-The partionning method can be customize througth 3 parameters:
+The partitioning method can be customized via 3 parameters:
 
-1. Partioning by chunk (-ck VALUE option): When more than 500 organisms is processed it is advised to partion the pangenome by chunck. Actually, the method seem to saturate with an high number of dimensions. Chunck correspond to samples of the organisms to partition in parrallel. It is advise to use chunck not lower than 200 organisms in order to obtain representative ones. Then the tools will partition the pangenome using multiple chunks in a way that evry families must be partionned in at least (total number of organisms)/(chunk size) times. Moreover each gene family must be partionned mainly in one specific partition (>50% of cases), otherwise the pangenome will be partionned again and again.
+1. Partitioning by chunks (-ck VALUE option): When more than 500 organisms are processed it is advised to partition the pangenome by chuncks. Actually, the method seems to saturate with an large number of dimensions. Chuncks correspond to samples of the organisms to partition simultaneously. It is advised to use chuncks not lower than 200 organisms in order to obtain representative ones. Then the tools will partition the pangenome using multiple chunks in a way that every gene families must be partitionned in at least (total number of organisms)/(chunk size) times. Moreover each gene family must be partitionned mainly in one specific partition (>50% of cases), otherwise the partitioning will continue until validating this criteria.
 
 	This feature can be executed using this command :
 
@@ -187,11 +193,7 @@ The partionning method can be customize througth 3 parameters:
 
 		ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -ck 300
 
-	will ...
-
-Note that the partionning method will not be impacted by this flag beacause in evry cases the partionning approach consider the graph as undirected
-
-2. Smoothing strengh (-b VALUE option): This option determine the strengh of the smoothing (`:math:\beta`) of the partions based on the graph topology (using a Markov Random Field). (`:math:\beta = 0`) means no smoothing while (`:math:\beta` = 1) means a hard smoothing (higher value than 1 are allowed but strongly discouraged). (`:math:\beta` = 0.5`) is generally a good tradeoff.
+2. Smoothing strength (-b VALUE option): This option specify the strength of the smoothing (`:math:\beta`) of the partions based on the graph topology (using a Markov Random Field). (`:math:\beta = 0`) means no smoothing while (`:math:\beta` = 1) means a hard smoothing (higher value than 1 are allowed but strongly discouraged). (`:math:\beta` = 0.5`) is generally a good tradeoff.
 
 	This feature can be executed using this command :
 
@@ -199,7 +201,7 @@ Note that the partionning method will not be impacted by this flag beacause in e
 
 		ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -b 1
 
-3. Free Dispersion around centroid vectors (-fd flag): This flag allow to the dispersion vector around the centroid vector of the Bernoulli Mixture Model to be free to be variable for all organisms in a vector. By default, dispersions are constraint to be the same for all organisms for each partition, that is to say, all organisms will have the same impact of the partionning. 
+3. Free Dispersion around centroid vectors (-fd flag): This flag allows to the dispersion vector around the centroid vector of the Bernoulli Mixture Model to be free to be variable for all organisms in a vector. By default, dispersions are constrained to be the same for all organisms for each partition, that is to say, all organisms will have the same impact of the partitioning. 
 
 	This feature can be executed using this command :
 
@@ -208,11 +210,11 @@ Note that the partionning method will not be impacted by this flag beacause in e
 		ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -fd
 
 Evolution curve (-e option)
-----------
+------------------------------------------------------
 
-Contrary to a pangenome where gene families families are partionned in core genome or accessory genome based on a threshold of occurence, this approach esimate the best partionning via a statiscal approach. Thereby this processing required calculation steps so that it is not instantanous. Performing a lot of resampling can thus required heavy calculations and this why it is not acheived by default. Nevertheless, it is possible to perform these resampling using the -e flag. 
+Contrary to a pangenome where gene families are partionned in core genome or accessory genome based on a threshold of occurences, this approach esimates the best partitionning via a statistical approach. Thereby this processing required calculation steps so that it is not instantaneous. Performing a lot of resampling can thus require heavy calculations and this why it is not achieved by default. Nevertheless, it is possible to perform these resampling using the -e flag. 
 
-We also offers de the possibility to customize the resampling using 4 parameters provided to the ep option : RESAMPLING_RATIO, MINIMUN_SAMPLING, MAXIMUN_SAMPLING (See the figure below to obtain an idea of the effect of the 4 parameters). The last parameter allows to jump some combinations of organisms by a determined STEP to reduce the number of computation. For example purpose, to compute all the combinations (strongly discouraged !) RESAMPLING_RATIO must be equal to 1, MINIMUN_SAMPLING to 1, MAXIMUN_SAMPLING to Inf and STEP to 1.
+We also offer the possibility to customize the resampling using 4 parameters provided to the -ep option : RESAMPLING_RATIO, MINIMUN_SAMPLING, MAXIMUN_SAMPLING (See the figure below to obtain an idea of the effect of the 4 parameters). The last parameter allows jumping some combinations of organisms by a determined STEP to reduce the number of computation. For example purpose, to compute all the combinations (strongly discouraged !) RESAMPLING_RATIO must be equal to 1, MINIMUN_SAMPLING to 1, MAXIMUN_SAMPLING to Inf and STEP to 1.
 
 .. image:: images/resampling.png
 
@@ -221,35 +223,36 @@ We also offers de the possibility to customize the resampling using 4 parameters
 
 	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -e -ep 0.01 10 50 1
 
-will generate 1% percent of all resampling with at mininum 10 combination for each size of the set of organisms and 50 maximum. The size of the combination will be increased by a step equals to 1.
+will generate 1% percent of all resampling with at minimum 10 combination for each size of the set of organisms and 50 maximum. The size of the combination will be increased by a step equals to 1.
 
-The curves represent the evolution of the size of the partitions when more and more organisms are added to the pangenome. The plain lines connect the median (crosses) of the resampling distribution while the shadows represent the interquartile ranges. Finally a regression curve is drawn fitting a Heap's law ($F = \kappa N^{\gamma}$) 
+The curves represent the evolution of the size of the partitions when more and more organisms are added to the pangenome. The plain lines connect the median (crosses) of the resampling distribution while the shadows represent the interquartile ranges. Finally, a regression curve is drawn fitting a Heap's law ($F = \kappa N^{\gamma}$) 
 
 
 	.. image:: images/evolution.png
 
 Projection (-pr option)
-----------
+---------------------------
 
-It is possible to project the pangenome against one organism in order to vizualize persistent, shell and cloud regions on this genome. Moreover we project the nomber of neighbors of each gene families in the pangenome to identify hotspots of recombination. To use the feature, you need to use the '-pr' option followed by the position of organisms to process (position in the ORGANISM FILE) or 0 to compute all organisms. 
+It is possible to project the pangenome against one organism in order to visualize persistent, shell and cloud regions on this genome. Moreover, we project the number of neighbors of each gene families in the pangenome to identify hotspots of recombination. To use the feature, you need to use the '-pr' option followed by the position of organisms to process (position in the ORGANISM FILE) or 0 to compute all organisms. 
 
 .. code:: bash
 
 	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -pr 1 7 9  
 
-will project againt the organisms 1, 7 and 9 the information about the pangenome (degrees of nodes and partitions).
+will project against the organisms 1, 7 and 9 the information about the pangenome (degrees of nodes and partitions).
 
-The internal layer reports the contigs, the grey intermediate layer reports the homologue genes, the third layer shows the partition of the gene families of the organism. The hairy external layer shows the number of families neighbors belonging to each partitions of the pangenome. The black line provides the emplacement of the origin of replication if the dnaA gene if found.
+The internal layer reports the contigs, the grey intermediate layer reports the homologous genes, the third layer shows the partition of the gene families of the organism. The hairy external layer shows the number of families neighbors belonging to each partition of the pangenome. The black line provides the emplacement of the origin of replication if the dnaA gene if found.
 
 	.. image:: images/projection.png
 
 
 Metadata (-mt option)
-----------
-It is possible to add metainformation to the pangenome graph. These information must be associated to each organism via a METADATA_FILE. During the construction of the graph, metainformation about the organisms are used to label the covered edges.  
+---------------------------
+It is possible to add metainformation to the pangenome graph. This information must be associated with each organism via a METADATA_FILE. During the construction of the graph, metainformation about the organisms are used to label the covered edges.  
 
-METADATA_FILE is a tab-delimitated file. The first line contain the names of the attributes and the following lines contain associated information for each organism (in the same order as in the ORGANISM_FILE).
+METADATA_FILE is a tab-delimitated file. The first line contains the names of the attributes and the following lines contain associated information for each organism (in the same order as in the ORGANISM_FILE).
 ::
+
 	phylogroup	assembly
 	D	complete
 	A	complete
@@ -276,7 +279,7 @@ METADATA_FILE is a tab-delimitated file. The first line contain the names of the
 
 	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -mt METADATA_FILE
 
-will add to each edge of the partionned pangenome graph, the label "phylogroup" and the label "assembly". When an edge encompass several organism having different values associated to the same label, the value are sorted and merged (separted by a '|').
+will add to each edge of the partitioned pangenome graph, the label "phylogroup" and the label "assembly". When an edge encompasses several organisms having different values associated with the same label, the values are sorted and merged (separated by a '|').
 
 
 Frequently Asked Questions
