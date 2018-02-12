@@ -286,9 +286,3 @@ will add to each edge of the partitioned pangenome graph, the label "phylogroup"
 
 Frequently Asked Questions
 ============================
-
-
-Reference
-============================
-Citation :
-
