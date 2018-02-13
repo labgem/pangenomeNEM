@@ -3,7 +3,7 @@ PPanGGOLiN : Depicting microbial species diversity via a Partitioned Pangenome G
 
 .. image:: images/logo.png
 
-This tool compiles the genomic content of a species (A) also name a pangenome. It is based on a graph approach to model pangenomes in which nodes and edges represent families of homologous genes (B and C, not included in the pipeline) and chromosomal neighborhood information, respectively. This approach takes into account both graph topology (D.a) and occurrences of genes (D.b) to classify gene families into three partitions (i.e. *persistent genome*, *shell genome* and *cloud genome*) yielding what we called Partitioned Pangenome Graph (F). More precisely, the method relies on an Expectation/Maximization algorithm based on Bernoulli Mixture Model (E.a) coupled with a Markov Random field (E.b).
+This tool compiles the genomic content of a species (A) also named a pangenome. It relies on a graph approach to model pangenomes in which nodes and edges represent families of homologous genes (B and C, not included in the pipeline) and chromosomal neighborhood information, respectively. This approach thus takes into account both graph topology (D.a) and occurrences of genes (D.b) to classify gene families into three partitions (i.e. *persistent genome*, *shell genome* and *cloud genome*) yielding to what we called Partitioned Pangenome Graphs (F). More precisely, the method depends upon an Expectation/Maximization algorithm based on Bernoulli Mixture Model (E.a) coupled with a Markov Random field (E.b).
 
 Partitions:
  1) Persistent genome: equivalent to a relaxed core genome (genes conserved in all but a few genomes);
@@ -12,7 +12,7 @@ Partitions:
 
 .. image:: images/workflow.png
 
-A minimum of 5 genomes is generally required to perform a pangenomics analysis using the *core genome*/*accessory genome* paradigm. Using the statistical approach presented here, we recommend using at least 15 genomes having genomic variations (and not only genetic ones) to obtain robust results.
+A minimum of 5 genomes is generally required to perform a pangenomics analysis using the traditional *core genome*/*accessory genome* paradigm. Using the statistical approach presented here, we advice using at least 15 genomes having genomic variations (and not only genetic ones) to obtain robust results.
 
 Installation
 ============================
@@ -23,7 +23,9 @@ PPanGGOLiN can be easily installed via:
 
 	pip install ppanggolin
 
-GCC (>=3.0) will be required, as well as Python 3 and the following modules : "networkx(>=2.00)", "numpy", "scipy", "tqdm" and "python-highcharts"
+GCC (>=3.0) will be required, as well as Python 3 and the following modules : "networkx(>=2.00)", "ordered-set", "numpy", "scipy", "tqdm" and "python-highcharts"
+
+Optionally, in order to draw illustrative plots, R will be required  together with the following packages : ("ggplot2", "ggrepel(last version)",  "reshape2" and "data.table")
 
 Quick usage
 ============================
@@ -42,8 +44,8 @@ The tools required 2 files.
 	This is a tab-delimitated file structured as follows:
 
 	1. The first column is the organism name, it must be unique and can't contain reserved words (see section reserved words).
-	2. The second column is the path to the associated gff3 file (can be relative or absolute). In the gff files, sequences of the genomes are not required at all. Only CDS features will be taken into account, each one must contain an ID attribute and optionally "Name" and "product" attributes. 
-	3. (optional) Further columns are the ID of the contigs in the gff files which are both circulars and perfectly assembled. In this case, it is mandatory the provide the size of the contigs in the gff file either by adding a "region" feature to the gff file having the correct ID attribute or using a '##sequence-region' pragma (as did in prokka).
+	2. The second column is the path to the associated gff3 file (can be relative or absolute). In the gff files, genomes sequences are not required at all. Only CoDing Sequences (CDSs) features will be taken into account and each one containing an "Identifier" (ID) (mandatory), a "Name" (optional) and a "product" (optional) attributes. 
+	3. (optional) Further columns are the contig IDs in the gff files which are both circulars and perfectly assembled. In this case, it is mandatory the provide the size of the contigs in the gff file either by adding a "region" feature to the gff file having the correct ID attribute or using a '##sequence-region' pragma (as in prokka).
 
 	Exemple of ORGANISMS_FILE:
 	::
@@ -114,11 +116,11 @@ Output
 ---------------------------
 The software generates several output files:
 
-1. *graph.gexf* (and *graph_light.gexf* corresponding to the same topology without gene and organism details). GEXF file can be open using Gephi (https://gephi.org/). See the video below (in the section gephi tunning) to obtain an interesting layout of the graph.
+1. *graph.gexf* (and *graph_light.gexf* corresponding to the same topology without gene and organism details). GEXF file can be open using Gephi (https://gephi.org/). See the video below (in the section gephi tunning) to obtain an appealing layout of the graph.
 
 .. image:: images/gephi.gif
 
-2. *matrix.csv* and *matrix.Rtab* corresponds to the gene presences-absences matrix formatted as did in roary (https://sanger-pathogens.github.io/Roary/) except that the second column corresponds to the partition instead of an alternative gene id. When multiple genes are present in one family in a single organism, the identifiers of the gene are merged with a "|" separator.
+2. *matrix.csv* and *matrix.Rtab* correspond to the gene presences-absences matrix formatted as did in Roary (https://sanger-pathogens.github.io/Roary/) except that the second column corresponds to the partition instead of an alternative gene ID. When several genes are present in a single gene family of an organism, identifiers of the gene are merged with a "|" separator.
 
 3. A file generate_plots.R able to generate some figures to visualize some metrics about the pangenome. This file can be executed using the following command : 
 
@@ -157,7 +159,7 @@ Options
 Remove gene families having a high number of gene copies
 ------------------------------------------------------
 
-To minimize the impact of the genomic hubs in the graph caused by gene families scattered all along the genomes like transposase, we add an option allowing to filter gene families having a number of genes above a threshold in at least one organism.
+To minimize the impact of the genomic hubs in the graph caused by gene families scattered all along the genomes like transposases, we offer an option that allows to filter gene families having a number of genes above a threshold in at least one organism.
 
 For example, this command:
 
@@ -165,7 +167,7 @@ For example, this command:
 
 	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -r 10
 
-will remove gene families having more than 10 repeted genes in at least one of the organism. By experience, using a r-value of 10, only few gene families (a dozen) will be removed.
+will remove gene families having more than 10 repeated genes in at least one of the organism. Empirically, using a r-value of 10 will discard only few gene families (a dozen) .
 
 Directed or Undirected graph (-ud option)
 ------------------------------------------------------
@@ -185,7 +187,7 @@ Partionning parameter
 
 The partitioning method can be customized via 3 parameters:
 
-1. Partitioning by chunks (-ck VALUE option): When more than 500 organisms are processed it is advised to partition the pangenome by chuncks. Actually, the method seems to saturate with an large number of dimensions. Chuncks correspond to samples of the organisms to partition simultaneously. It is advised to use chuncks not lower than 200 organisms in order to obtain representative ones. Then the tools will partition the pangenome using multiple chunks in a way that every gene families must be partitionned in at least (total number of organisms)/(chunk size) times. Moreover each gene family must be partitionned mainly in one specific partition (>50% of cases), otherwise the partitioning will continue until validating this criteria.
+1. Partitioning by chunks (-ck VALUE option): When more than 500 organisms are processed it is advised to partition the pangenome by chunks. Actually, the method seems to saturate with an large number of dimensions. Chunks correspond to samples of the organisms to partition simultaneously. We advise to use chunks bigger than 200 organisms in order to obtain representative ones. Then the tools will partition the pangenome using multiple chunks in a way that every gene families must be partitionned in at least (total number of organisms)/(chunk size) times. Moreover each gene family must be partitionned mainly in one specific partition (>50% of cases), otherwise the partitioning will continue until validating this criteria.
 
 	This feature can be executed using this command :
 
@@ -193,7 +195,7 @@ The partitioning method can be customized via 3 parameters:
 
 		ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -ck 300
 
-2. Smoothing strength (-b VALUE option): This option specify the strength of the smoothing (`:math:\beta`) of the partions based on the graph topology (using a Markov Random Field). (`:math:\beta = 0`) means no smoothing while (`:math:\beta` = 1) means a hard smoothing (higher value than 1 are allowed but strongly discouraged). (`:math:\beta` = 0.5`) is generally a good tradeoff.
+2. Smoothing strength (-b VALUE option): This option specify the strength of the smoothing (`:math:\beta`) of the partitions based on the graph topology (using a Markov Random Field). (`:math:\beta = 0`) means no smoothing whereas (`:math:\beta` = 1) means a strong smoothing (value higher than 1 are allowed but highly discouraged). (`:math:\beta` = 0.5`) is generally a good tradeoff.
 
 	This feature can be executed using this command :
 
@@ -201,7 +203,7 @@ The partitioning method can be customized via 3 parameters:
 
 		ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -b 1
 
-3. Free Dispersion around centroid vectors (-fd flag): This flag allows to the dispersion vector around the centroid vector of the Bernoulli Mixture Model to be free to be variable for all organisms in a vector. By default, dispersions are constrained to be the same for all organisms for each partition, that is to say, all organisms will have the same impact of the partitioning. 
+3. Free Dispersion around centroid vectors (-fd flag): This flag allows the dispersion vector around the centroid vector of the Bernoulli Mixture Model to be free to vary for all organisms in a vector. By default, dispersions are constrained to be the same for all organisms for each partition, that is to say, all organisms will have the same impact of the partitioning. 
 
 	This feature can be executed using this command :
 
@@ -212,7 +214,7 @@ The partitioning method can be customized via 3 parameters:
 Evolution curve (-e option)
 ------------------------------------------------------
 
-Contrary to a pangenome where gene families are partionned in core genome or accessory genome based on a threshold of occurences, this approach esimates the best partitionning via a statistical approach. Thereby this processing required calculation steps so that it is not instantaneous. Performing a lot of resampling can thus require heavy calculations and this why it is not achieved by default. Nevertheless, it is possible to perform these resampling using the -e flag. 
+Contrary to a pangenome where gene families are partionned in core genome or accessory genome based on a threshold of occurences, this approach esimates the best partitionning via a statistical approach. Thereby this processing required calculation steps so that it is not instantaneous. Performing a lot of resampling can thus require heavy calculations and this why it is not achieved by default. Nevertheless, it is possible to perform these resampling using the -e flag. Use this flag with caution.
 
 We also offer the possibility to customize the resampling using 4 parameters provided to the -ep option : RESAMPLING_RATIO, MINIMUN_SAMPLING, MAXIMUN_SAMPLING (See the figure below to obtain an idea of the effect of the 4 parameters). The last parameter allows jumping some combinations of organisms by a determined STEP to reduce the number of computation. For example purpose, to compute all the combinations (strongly discouraged !) RESAMPLING_RATIO must be equal to 1, MINIMUN_SAMPLING to 1, MAXIMUN_SAMPLING to Inf and STEP to 1.
 
@@ -225,7 +227,7 @@ We also offer the possibility to customize the resampling using 4 parameters pro
 
 will generate 1% percent of all resampling with at minimum 10 combination for each size of the set of organisms and 50 maximum. The size of the combination will be increased by a step equals to 1.
 
-The curves represent the evolution of the size of the partitions when more and more organisms are added to the pangenome. The plain lines connect the median (crosses) of the resampling distribution while the shadows represent the interquartile ranges. Finally, a regression curve is drawn fitting a Heap's law ($F = \kappa N^{\gamma}$) 
+The curves represent the evolution of the size of the partitions when more and more organisms are added to the pangenome. The plain lines connect medians (crosses) of the resampling distribution while shadows represent the interquartile ranges. Finally, a regression curve is drawn fitting a Heap's law ($F = \kappa N^{\gamma}$). 
 
 
 	.. image:: images/evolution.png
@@ -233,7 +235,7 @@ The curves represent the evolution of the size of the partitions when more and m
 Projection (-pr option)
 ---------------------------
 
-It is possible to project the pangenome against one organism in order to visualize persistent, shell and cloud regions on this genome. Moreover, we project the number of neighbors of each gene families in the pangenome to identify hotspots of recombination. To use the feature, you need to use the '-pr' option followed by the position of organisms to process (position in the ORGANISM FILE) or 0 to compute all organisms. 
+It is possible to project the pangenome against one organism in order to visualize persistent, shell and cloud regions on this genome. Moreover, we project the number of neighbors of each gene families in the pangenome to identify hotspots of recombination. To use the feature, you will need to use the '-pr' option followed by the position of organisms to process (position in the ORGANISM FILE) or 0 to compute all organisms. 
 
 .. code:: bash
 
@@ -241,7 +243,7 @@ It is possible to project the pangenome against one organism in order to visuali
 
 will project against the organisms 1, 7 and 9 the information about the pangenome (degrees of nodes and partitions).
 
-The internal layer reports the contigs, the grey intermediate layer reports the homologous genes, the third layer shows the partition of the gene families of the organism. The hairy external layer shows the number of families neighbors belonging to each partition of the pangenome. The black line provides the emplacement of the origin of replication if the dnaA gene if found.
+The internal layer reports the contigs, the grey intermediate layer reports the homologous genes, the third layer shows the partition of the gene families of the organism. The hairy external layer shows the number of families neighbors belonging to each partition of the pangenome. The black line provides the location of the origin of replication if the dnaA gene if found.
 
 	.. image:: images/projection.png
 
@@ -284,9 +286,3 @@ will add to each edge of the partitioned pangenome graph, the label "phylogroup"
 
 Frequently Asked Questions
 ============================
-
-
-Reference
-============================
-Citation :
-
