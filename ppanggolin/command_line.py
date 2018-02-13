@@ -46,9 +46,7 @@ def plot_Rscript(script_outfile):
 #!/usr/bin/env R
 options(show.error.locations = TRUE)
 
-if(!require("ggplot2")) { install.packages("ggplot2", dep = TRUE,repos = "http://cran.us.r-project.org") }
 library("ggplot2")
-if(!require("reshape2")) { install.packages("reshape2", dep = TRUE,repos = "http://cran.us.r-project.org") }
 library("reshape2")
 
 color_chart = c(pangenome="black", "accessory"="#EB37ED", "core_exact" ="#FF2828", shell = "#00D860", persistent="#F7A507", cloud = "#79DEFF")
@@ -111,10 +109,7 @@ ggsave('"""+OUTPUTDIR+FIGURE_DIR+MATRIX_PLOT_PREFIX+""".pdf', device = "pdf", pl
 
 ########################### START EVOLUTION CURVE #################################
 
-if(!require("ggrepel") || packageVersion("ggrepel") < "0.6.6") { install.packages("ggrepel", dep = TRUE, repos = "http://cran.us.r-project.org") }
 library("ggrepel")
-
-if(!require("data.table")) { install.packages("data.table", dep = TRUE,repos = "http://cran.us.r-project.org") }
 library("data.table")
 
 if (file.exists('"""+OUTPUTDIR+EVOLUTION_DIR+EVOLUTION_STAT_FILE_PREFIX+""".txt')){
@@ -641,9 +636,11 @@ def __main__():
     logging.getLogger().info("""The pangenome computation is complete.""")
 
     if options.plots:
-        logging.getLogger().info("""Several plots will be generated using R (in the directory: """+OUTPUTDIR+FIGURE_DIR+""").
-    If R and the required package (ggplot2, reshape2, ggrepel(>0.6.6), data.table) are not installed don't worry the R script is saved in the directory allowing to generate the figures latter""")
         cmd = "Rscript "+OUTPUTDIR+"/"+SCRIPT_R_FIGURE
+        logging.getLogger().info("""Several plots will be generated using R (in the directory: """+OUTPUTDIR+FIGURE_DIR+""").
+    If R and the required package (ggplot2, reshape2, ggrepel(>0.6.6), data.table) are not installed don't worry, the R script is saved in the directory. To generate the figures latter, you enter :
+    """+cmd)
+        
         logging.getLogger().info(cmd)
         proc = subprocess.Popen(cmd, shell=True)
         proc.communicate()

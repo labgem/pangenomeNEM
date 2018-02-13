@@ -942,7 +942,8 @@ class PPanGGOLiN:
                     del graph_to_save.node[node][key]
                 else:
                     try:
-                        graph_to_save.node[node][key]="|".join(self.neighbors_graph.node[node][key])#because networkx and gephi do not support list type in gexf despite it is possible according to the specification using liststring (https://gephi.org/gexf/1.2draft/data.xsd)
+                        if not isinstance(self.neighbors_graph.node[node][key], str):
+                            graph_to_save.node[node][key]="|".join(self.neighbors_graph.node[node][key])#because networkx and gephi do not support list type in gexf despite it is possible according to the specification using liststring (https://gephi.org/gexf/1.2draft/data.xsd)
                     except TypeError:
                         if key == "length":
                             l = list(self.neighbors_graph.node[node][key])

@@ -2,16 +2,17 @@
 # -*- coding: iso-8859-1 -*-
 
 import os, sys
-from setuptools import setup
+from setuptools import setup, find_packages
 import logging
 import subprocess
 from distutils.command.install import install
 from distutils.command.build import build
 from distutils.command.clean import clean
 
-name = "ppanggolin"
+name = find_packages().pop()
 NEM_dir_path = name+"/NEM/"
 
+print(NEM_dir_path)
 def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
@@ -42,7 +43,7 @@ if __name__ == "__main__":
 
     setup(
         name = name,
-        version = "0.0.1",
+        version = "0.0.2",
         author = "Guillaume GAUTREAU",
         author_email = "ggautrea@genoscope.cns.fr",
         description = "Depict microbial diversity via a partitioned pangenome graph",
@@ -65,5 +66,5 @@ if __name__ == "__main__":
             'console_scripts': [
             name+' = '+name+'.command_line:__main__'
           ]},
-        extras_require= {'all' : [ 'collections', 'ordered-set', 'networkx >= 2.0', 'numpy', 'community', 'tqdm']},
+        extras_require= {'all' : ['futures', 'collections', 'ordered-set', 'networkx >= 2.0', 'numpy', 'scipy','community', 'tqdm', 'python-highcharts']},
         cmdclass={'build': pre_build, 'clean': post_clean})
