@@ -556,7 +556,7 @@ class PPanGGOLiN:
                 def validate_family(result):                    
                     #nonlocal total_BIC
                     try :
-                        (BIC, partitions) = result
+                        partitions = result#(BIC, partitions) = result
 
                         #total_BIC += BIC
                         for node,nem_class in partitions.items():
