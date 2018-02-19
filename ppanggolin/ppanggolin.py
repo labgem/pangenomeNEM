@@ -541,98 +541,98 @@ class PPanGGOLiN:
                 cpt_partition[fam]= {"P":0,"S":0,"C":0,"U":0}
             
             total_BIC = 0
-            #with contextlib.closing(ThreadPool(nb_threads)) as pool:
-            sem = Semaphore(nb_threads)
+            with contextlib.closing(ThreadPool(nb_threads)) as pool:
+                sem = Semaphore(nb_threads)
 
-            validated = set()
-            cpt=0
+                validated = set()
+                cpt=0
 
-            proba_sample = OrderedDict(zip(organisms,[len(organisms)]*len(organisms)))
+                proba_sample = OrderedDict(zip(organisms,[len(organisms)]*len(organisms)))
 
-            pan_size = stats["accessory"]+stats["core_exact"]
-            if inplace:
-                bar = tqdm(total = stats["accessory"]+stats["core_exact"], unit = "families partitionned")
-
-            def validate_family(result):                    
-                #nonlocal total_BIC
-                try :
-                    (BIC, partitions) = result
-
-                    #total_BIC += BIC
-                    for node,nem_class in partitions.items():
-                        cpt_partition[node][nem_class]+=1
-                        sum_partionning = sum(cpt_partition[node].values()) 
-
-                        if sum_partionning > len(organisms)/chunck_size and max(cpt_partition[node].values()) > sum_partionning*0.5:
-                            if node not in validated:
-                                if inplace:
-                                    bar.update()
-                                validated.add(node)
-                                # if max(cpt_partition[node], key=cpt_partition[node].get) == "P" and cpt_partition[node]["S"]==0 and cpt_partition[node]["C"]==0:
-                                #     validated[node]="P"
-                                # elif cpt_partition[node]["S"]==0:
-                                #     validated[node]="C"
-                                # else:
-                                #     validated[node]="S" 
-                finally:
-                    sem.release()
-            
-            while len(validated)<pan_size:
-                if sem.acquire():
-                    # print(organisms)
-                    # print(chunck_size)
-                    # print(proba_sample.values())
-                    # print(len(proba_sample.values()))
-                    # min_o = min(proba_sample.values()) 
-                    # max_o = max(proba_sample.values()) 
-                    # range_o = max_o-min_o
-                    # if min_o != max_o:
-                    #     p = [(p-min_o/range_o)/len(organisms) for p in proba_sample.values()]
-                    # else:
-                    #     p = list(proba_sample.values())
-                    # print(p)
-                    #s = sum(proba_sample.values())
-                    
-                    #orgs = np.random.choice(organisms, size = chunck_size, replace = False, p = [p/s for p in proba_sample.values()])#
-                    orgs = sample(organisms,chunck_size)
-                    orgs = OrderedSet(orgs)
-                    for org, p in proba_sample.items():
-                        if org in orgs:
-                            proba_sample[org] = p - len(organisms)/chunck_size if p >1 else 1
-                        else:
-                            proba_sample[org] = p + len(organisms)/chunck_size
-                    res = pool.apply_async(self.partition,
-                                           args = (nem_dir_path+"/"+str(cpt)+"/",#nem_dir_path
-                                                   orgs,#organisms
-                                                   beta,#beta
-                                                   free_dispersion,#free dispersion
-                                                   chunck_size,#chunck_size
-                                                   False,#inplace
-                                                   False,#just_stats
-                                                   1),#nb_threads
-                                           callback = validate_family)
-
-                    # res = self.partition(nem_dir_path+"/"+str(cpt)+"/",#nem_dir_path
-                    #                                orgs,#organisms
-                    #                                beta,#beta
-                    #                                free_dispersion,#free dispersion
-                    #                                chunck_size,#chunck_size
-                    #                                False,#inplace
-                    #                                False,#just_stats
-                    #                                1)
-                    validate_family(res)
-
-                    cpt +=1
-                else:
-                    time.sleep(0.01)
-
+                pan_size = stats["accessory"]+stats["core_exact"]
                 if inplace:
-                    bar.update()
-                #pool.terminate()                
+                    bar = tqdm(total = stats["accessory"]+stats["core_exact"], unit = "families partitionned")
 
-                #BIC = total_BIC/cpt
-                BIC = 0
-            classification = list()
+                def validate_family(result):                    
+                    #nonlocal total_BIC
+                    try :
+                        (BIC, partitions) = result
+
+                        #total_BIC += BIC
+                        for node,nem_class in partitions.items():
+                            cpt_partition[node][nem_class]+=1
+                            sum_partionning = sum(cpt_partition[node].values()) 
+
+                            if sum_partionning > len(organisms)/chunck_size and max(cpt_partition[node].values()) > sum_partionning*0.5:
+                                if node not in validated:
+                                    if inplace:
+                                        bar.update()
+                                    validated.add(node)
+                                    # if max(cpt_partition[node], key=cpt_partition[node].get) == "P" and cpt_partition[node]["S"]==0 and cpt_partition[node]["C"]==0:
+                                    #     validated[node]="P"
+                                    # elif cpt_partition[node]["S"]==0:
+                                    #     validated[node]="C"
+                                    # else:
+                                    #     validated[node]="S" 
+                    finally:
+                        sem.release()
+                
+                while len(validated)<pan_size:
+                    if sem.acquire():
+                        # print(organisms)
+                        # print(chunck_size)
+                        # print(proba_sample.values())
+                        # print(len(proba_sample.values()))
+                        # min_o = min(proba_sample.values()) 
+                        # max_o = max(proba_sample.values()) 
+                        # range_o = max_o-min_o
+                        # if min_o != max_o:
+                        #     p = [(p-min_o/range_o)/len(organisms) for p in proba_sample.values()]
+                        # else:
+                        #     p = list(proba_sample.values())
+                        # print(p)
+                        #s = sum(proba_sample.values())
+                        
+                        #orgs = np.random.choice(organisms, size = chunck_size, replace = False, p = [p/s for p in proba_sample.values()])#
+                        orgs = sample(organisms,chunck_size)
+                        orgs = OrderedSet(orgs)
+                        for org, p in proba_sample.items():
+                            if org in orgs:
+                                proba_sample[org] = p - len(organisms)/chunck_size if p >1 else 1
+                            else:
+                                proba_sample[org] = p + len(organisms)/chunck_size
+                        res = pool.apply_async(self.partition,
+                                               args = (nem_dir_path+"/"+str(cpt)+"/",#nem_dir_path
+                                                       orgs,#organisms
+                                                       beta,#beta
+                                                       free_dispersion,#free dispersion
+                                                       chunck_size,#chunck_size
+                                                       False,#inplace
+                                                       False,#just_stats
+                                                       1),#nb_threads
+                                               callback = validate_family)
+
+                        # res = self.partition(nem_dir_path+"/"+str(cpt)+"/",#nem_dir_path
+                        #                                orgs,#organisms
+                        #                                beta,#beta
+                        #                                free_dispersion,#free dispersion
+                        #                                chunck_size,#chunck_size
+                        #                                False,#inplace
+                        #                                False,#just_stats
+                        #                                1)
+                        validate_family(res)
+
+                        cpt +=1
+                    else:
+                        time.sleep(0.01)
+
+                    if inplace:
+                        bar.update()
+                    #pool.terminate()                
+
+                    #BIC = total_BIC/cpt
+                    BIC = 0
+                classification = list()
 
             # if just_stats:
             #     print('len(validated)= '+str(len(validated)))
@@ -828,21 +828,21 @@ class PPanGGOLiN:
                 # array[:] = arguments_nem
                 # nemfunctions.mainfunc(c_int(len(arguments_nem)), array)
 
-                if beta == float('Inf'):
-                    starting_heuristic = False
-                    with open(nem_dir_path+"/beta_evol.txt", "w") as beta_evol_file:
-                        for line in str(err).split("\\n"):
-                            if not starting_heuristic and line.startswith("* * Starting heuristic * *"):
-                                beta_evol_file.write("beta\tLmix\n")
-                                starting_heuristic = True
-                                continue
-                            if starting_heuristic:
-                                elements = line.split("=")
-                                if elements[0] == " * * Testing beta ":
-                                   beta = float(elements[1].split("*")[0].strip())
-                                elif elements[0] == "  criterion NEM ":
-                                    Lmix = float(elements[len(elements)-1].strip())
-                                    beta_evol_file.write(str(beta)+"\t"+str(Lmix)+"\n")
+                # if beta == float('Inf'):
+                #     starting_heuristic = False
+                #     with open(nem_dir_path+"/beta_evol.txt", "w") as beta_evol_file:
+                #         for line in str(err).split("\\n"):
+                #             if not starting_heuristic and line.startswith("* * Starting heuristic * *"):
+                #                 beta_evol_file.write("beta\tLmix\n")
+                #                 starting_heuristic = True
+                #                 continue
+                #             if starting_heuristic:
+                #                 elements = line.split("=")
+                #                 if elements[0] == " * * Testing beta ":
+                #                    beta = float(elements[1].split("*")[0].strip())
+                #                 elif elements[0] == "  criterion NEM ":
+                #                     Lmix = float(elements[len(elements)-1].strip())
+                #                     beta_evol_file.write(str(beta)+"\t"+str(Lmix)+"\n")
 
                 if os.path.isfile(nem_dir_path+"/nem_file.uf"):
                     logging.getLogger().debug("Reading NEM results...")
