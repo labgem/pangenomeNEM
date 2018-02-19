@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: iso-8859-1 -*-
-
 from collections import defaultdict, OrderedDict, Counter
 from ordered_set import OrderedSet
 import networkx as nx
@@ -22,6 +21,11 @@ from multiprocessing.pool import ThreadPool
 from multiprocessing import Semaphore
 from highcharts import Highchart
 import contextlib
+
+#import nem
+from ctypes import *
+
+#nemfunctions = cdll.LoadLibrary(nem.__file__)
 
 #import forceatlas2 
 
@@ -475,7 +479,6 @@ class PPanGGOLiN:
                         inplace         = True,
                         just_stats      = False,
                         nb_threads      = 1):
-        print(nb_threads)
         """
             Use the graph topology and the presence or absence of genes from each organism into families to partition the pangenome in three groups ('persistent', 'shell' and 'cloud')
             . seealso:: Read the Mo Dang's thesis to understand NEM, a summary is available here : http://www.kybernetika.cz/content/1998/4/393/paper.pdf
@@ -598,25 +601,25 @@ class PPanGGOLiN:
                             proba_sample[org] = p - len(organisms)/chunck_size if p >1 else 1
                         else:
                             proba_sample[org] = p + len(organisms)/chunck_size
-                    # res = pool.apply_async(self.partition,
-                    #                        args = (nem_dir_path+"/"+str(cpt)+"/",#nem_dir_path
-                    #                                orgs,#organisms
-                    #                                beta,#beta
-                    #                                free_dispersion,#free dispersion
-                    #                                chunck_size,#chunck_size
-                    #                                False,#inplace
-                    #                                False,#just_stats
-                    #                                1),#nb_threads
-                    #                        callback = validate_family)
-
-                    res = self.partition(nem_dir_path+"/"+str(cpt)+"/",#nem_dir_path
+                    res = pool.apply_async(self.partition,
+                                           args = (nem_dir_path+"/"+str(cpt)+"/",#nem_dir_path
                                                    orgs,#organisms
                                                    beta,#beta
                                                    free_dispersion,#free dispersion
                                                    chunck_size,#chunck_size
                                                    False,#inplace
                                                    False,#just_stats
-                                                   1)
+                                                   1),#nb_threads
+                                           callback = validate_family)
+
+                    # res = self.partition(nem_dir_path+"/"+str(cpt)+"/",#nem_dir_path
+                    #                                orgs,#organisms
+                    #                                beta,#beta
+                    #                                free_dispersion,#free dispersion
+                    #                                chunck_size,#chunck_size
+                    #                                False,#inplace
+                    #                                False,#just_stats
+                    #                                1)
                     validate_family(res)
 
                     cpt +=1
@@ -754,6 +757,47 @@ class PPanGGOLiN:
                 # BETA           = ["-B",HEURISTIC,"-H",str(STEP_HEURISTIC),str(BETA_MAX),str(DDROP),str(DLOSS),str(LLOSS)] if beta == float('Inf') else ["-b "+str(beta)]
 
                 WEIGHTED_BETA = beta*len(organisms)
+                # command = " ".join([NEM_LOCATION, 
+                #                     nem_dir_path+"/nem_file",
+                #                     str(Q),
+                #                     "-a", ALGO,
+                #                     "-i", str(ITERMAX),
+                #                     "-m", MODEL, PROPORTION, VARIANCE_MODEL,
+                #                     "-s m "+ nem_dir_path+"/nem_file.m",
+                #                     "-b "+str(WEIGHTED_BETA),
+                #                     "-n", NEIGHBOUR_SPEC,
+                #                     "-c", CONVERGENCE_TH,
+                #                     "-f fuzzy",
+                #                     "-l y"])
+             
+                # logging.getLogger().debug(command)
+
+                # proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE if logging.getLogger().getEffectiveLevel() == logging.INFO else None,
+                #                                             stderr=subprocess.PIPE if logging.getLogger().getEffectiveLevel() == logging.INFO else None)
+                # (out,err) = proc.communicate()
+                # if logging.getLogger().getEffectiveLevel() == logging.INFO:
+                #     with open(nem_dir_path+"/out.txt", "wb") as file_out, open(nem_dir_path+"/err.txt", "wb") as file_err:
+                #         file_out.write(out)
+                #         file_err.write(err)
+
+                # logging.getLogger().debug(out)
+                #logging.getLogger().debug(err)
+
+                arguments_nem = [str.encode(s) for s in ["nem", 
+                                 nem_dir_path+"/nem_file",
+                                 str(Q),
+                                 "-a", ALGO,
+                                 "-i", str(ITERMAX),
+                                 "-m", MODEL, PROPORTION, VARIANCE_MODEL,
+                                 "-s m "+ nem_dir_path+"/nem_file.m",
+                                 "-b "+str(WEIGHTED_BETA),
+                                 "-n", NEIGHBOUR_SPEC,
+                                 "-c", CONVERGENCE_TH,
+                                 "-f fuzzy",
+                                 "-l y"]]
+
+                arguments_nem = [NEM_LOCATION,"tests/yersinia_amandine/test/NEM_results/nem_file" ,"3", "-a", "ncem" ,"-i" ,"100" ,"-m" ,"bern" ,"pk" ,"skd" ,"-s" ,"m" ,"tests/yersinia_amandine/test/NEM_results/nem_file.m", "-b", "0.5" ,"-n" ,"f", "-c", "clas", "0.00001"]
+
                 command = " ".join([NEM_LOCATION, 
                                     nem_dir_path+"/nem_file",
                                     str(Q),
@@ -766,7 +810,7 @@ class PPanGGOLiN:
                                     "-c", CONVERGENCE_TH,
                                     "-f fuzzy",
                                     "-l y"])
-             
+
                 logging.getLogger().debug(command)
 
                 proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE if logging.getLogger().getEffectiveLevel() == logging.INFO else None,
@@ -779,6 +823,10 @@ class PPanGGOLiN:
 
                 logging.getLogger().debug(out)
                 logging.getLogger().debug(err)
+
+                # array = (c_char_p * len(arguments_nem))()
+                # array[:] = arguments_nem
+                # nemfunctions.mainfunc(c_int(len(arguments_nem)), array)
 
                 if beta == float('Inf'):
                     starting_heuristic = False
