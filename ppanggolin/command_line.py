@@ -11,7 +11,7 @@ import math
 from random import shuffle
 from tqdm import tqdm
 tqdm.monitor_interval = 0
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import sys
 import networkx as nx
 from ordered_set import OrderedSet

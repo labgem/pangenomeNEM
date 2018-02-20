@@ -17,7 +17,7 @@ from tqdm import tqdm
 import mmap
 from random import sample
 import time
-from multiprocessing.pool import ThreadPool
+from multiprocessing import Pool
 from multiprocessing import Semaphore
 from highcharts import Highchart
 import contextlib
@@ -479,6 +479,7 @@ class PPanGGOLiN:
                         inplace         = True,
                         just_stats      = False,
                         nb_threads      = 1):
+        
         """
             Use the graph topology and the presence or absence of genes from each organism into families to partition the pangenome in three groups ('persistent', 'shell' and 'cloud')
             . seealso:: Read the Mo Dang's thesis to understand NEM, a summary is available here : http://www.kybernetika.cz/content/1998/4/393/paper.pdf
@@ -533,7 +534,7 @@ class PPanGGOLiN:
                 stats["core_exact"]+=1
 
         BIC = 0
-
+        
         if len(organisms) > chunck_size:
 
             cpt_partition = OrderedDict()
@@ -541,7 +542,16 @@ class PPanGGOLiN:
                 cpt_partition[fam]= {"P":0,"S":0,"C":0,"U":0}
             
             total_BIC = 0
-            with contextlib.closing(ThreadPool(nb_threads)) as pool:
+
+            def conditional_context_manager():
+                if nb_threads == 1:
+                    yield None
+                else:
+                    with contextlib.closing(Pool(nb_threads)) as pool:
+                        yield pool
+
+            for pool in conditional_context_manager():
+
                 sem = Semaphore(nb_threads)
 
                 validated = set()
@@ -553,16 +563,14 @@ class PPanGGOLiN:
                 if inplace:
                     bar = tqdm(total = stats["accessory"]+stats["core_exact"], unit = "families partitionned")
 
-                def validate_family(result):                    
+                def validate_family(result):
                     #nonlocal total_BIC
                     try :
-                        partitions = result#(BIC, partitions) = result
-
+                        (BIC, partitions) = result
                         #total_BIC += BIC
                         for node,nem_class in partitions.items():
                             cpt_partition[node][nem_class]+=1
-                            sum_partionning = sum(cpt_partition[node].values()) 
-
+                            sum_partionning = sum(cpt_partition[node].values())
                             if sum_partionning > len(organisms)/chunck_size and max(cpt_partition[node].values()) > sum_partionning*0.5:
                                 if node not in validated:
                                     if inplace:
@@ -601,35 +609,35 @@ class PPanGGOLiN:
                                 proba_sample[org] = p - len(organisms)/chunck_size if p >1 else 1
                             else:
                                 proba_sample[org] = p + len(organisms)/chunck_size
-                        res = pool.apply_async(self.partition,
-                                               args = (nem_dir_path+"/"+str(cpt)+"/",#nem_dir_path
-                                                       orgs,#organisms
-                                                       beta,#beta
-                                                       free_dispersion,#free dispersion
-                                                       chunck_size,#chunck_size
-                                                       False,#inplace
-                                                       False,#just_stats
-                                                       1),#nb_threads
-                                               callback = validate_family)
-
-                        # res = self.partition(nem_dir_path+"/"+str(cpt)+"/",#nem_dir_path
-                        #                                orgs,#organisms
-                        #                                beta,#beta
-                        #                                free_dispersion,#free dispersion
-                        #                                chunck_size,#chunck_size
-                        #                                False,#inplace
-                        #                                False,#just_stats
-                        #                                1)
-                        validate_family(res)
-
+                        if pool:
+                            res = pool.apply_async(self.partition,
+                                                   args = (nem_dir_path+"/"+str(cpt)+"/",#nem_dir_path
+                                                           orgs,#organisms
+                                                           beta,#beta
+                                                           free_dispersion,#free dispersion
+                                                           chunck_size,#chunck_size
+                                                           False,#inplace
+                                                           False,#just_stats
+                                                           1),#nb_threads
+                                                   callback = validate_family)
+                        else:
+                            res = self.partition(nem_dir_path+"/"+str(cpt)+"/",#nem_dir_path
+                                                           orgs,#organisms
+                                                           beta,#beta
+                                                           free_dispersion,#free dispersion
+                                                           chunck_size,#chunck_size
+                                                           False,#inplace
+                                                           False,#just_stats
+                                                           1)
+                            validate_family(res)
                         cpt +=1
                     else:
                         time.sleep(0.01)
 
                     if inplace:
-                        bar.update()
-                    #pool.terminate()                
-
+                        bar.update()    
+                    if pool:      
+                        pool.terminate()    
                     #BIC = total_BIC/cpt
                     BIC = 0
                 classification = list()
@@ -657,11 +665,13 @@ class PPanGGOLiN:
             #     print('total '+str(stats["accessory"]+stats["core_exact"]))
             #     print(' ')
         else:
+
             classification = ["U"] * (stats["core_exact"]+stats["accessory"])
 
             if len(organisms)<=10:# below 10 organisms a statistical computation do not make any sence
                 logging.getLogger().warning("The number of organisms is too low ("+str(len(organisms))+" organisms used) to partition the pangenome graph in persistent, shell, cloud partition, traditional partitions only (Core and Accessory genome) will be provided")
             else:
+
                 logging.getLogger().debug("Writing nem_file.str nem_file.index nem_file.nei nem_file.dat and nem_file.m files")
                 with open(nem_dir_path+"/nem_file.str", "w") as str_file,\
                      open(nem_dir_path+"/nem_file.index", "w") as index_file,\
@@ -689,6 +699,7 @@ class PPanGGOLiN:
                         row_fam         = []
                         row_dist_score  = []
                         neighbor_number = 0
+
                         try:
                             for neighbor in set(nx.all_neighbors(self.neighbors_graph, node_name)):
                                 coverage = 0
@@ -720,7 +731,6 @@ class PPanGGOLiN:
                         except nx.exception.NetworkXError as nxe:
                             logging.getLogger().debug("The family: "+node_name+" is an isolated family")
                             nei_file.write(str(len(index_fam))+"\t0\n")
-
                     m_file.write("1 0.33333 0.33333 ") # 1 to initialize parameter, 0.333 and 0.333 for to give one third of initial proportition to each class (last 0.33 is automaticaly determined by substraction)
                     m_file.write(" ".join(["1"]*len(organisms))+" ") # persistent binary vector
                     m_file.write(" ".join(["1"]*len(organisms))+" ") # shell binary vector (1 ou 0, whatever because dispersion will be of 0.5)
@@ -925,10 +935,9 @@ class PPanGGOLiN:
                         #logging.getLogger().debug(index.keys())
                 except FileNotFoundError:
                     logging.getLogger().warning("Statistical partitioning do not works, see log here to obtain more details "+nem_dir_path+"/nem_file.log")
+        
         if inplace:
-
             self.BIC = BIC
-
             if self.is_partitionned:
                 for p in SHORT_TO_LONG.values():
                     self.partitions[p] = list()# erase older values
