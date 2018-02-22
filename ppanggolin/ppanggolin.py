@@ -22,7 +22,7 @@ from multiprocessing import Semaphore
 from highcharts import Highchart
 import contextlib
 
-#import nem
+from nem import nem
 from ctypes import *
 
 #nemfunctions = cdll.LoadLibrary(nem.__file__)
@@ -749,13 +749,14 @@ class PPanGGOLiN:
                 #weighted_degree = sum(self.neighbors_graph.degree(weight="weight").values())/nx.number_of_edges(self.neighbors_graph)
 
                 Q              = 3 # number of partitions
-                ALGO           = "ncem" #fuzzy classification by mean field approximation
-                ITERMAX        = 100 # number of iteration max 
-                MODEL          = "bern" # multivariate Bernoulli mixture model
-                PROPORTION     = "pk" #equal proportion :  "p_"     varying proportion : "pk"
-                VARIANCE_MODEL = "skd" if free_dispersion else "sk_"#one variance per partition and organism : "sdk"      one variance per partition, same in all organisms : "sd_"   one variance per organism, same in all partion : "s_d"    same variance in organisms and partitions : "s__" 
-                NEIGHBOUR_SPEC = "f"# "f" specify to use all neighbors, orther argument is "4" to specify to use only the 4 neighbors with the higher weight (4 because for historic reason due to the 4 pixel neighbors of each pixel)
-                CONVERGENCE_TH = "clas "+str(0.000001)
+                ALGO           = b"ncem" #fuzzy classification by mean field approximation
+                ITERMAX        = 10000 # number of iteration max 
+                MODEL          = b"bern" # multivariate Bernoulli mixture model
+                PROPORTION     = b"pk" #equal proportion :  "p_"     varying proportion : "pk"
+                VARIANCE_MODEL = b"skd" if free_dispersion else b"sk_"#one variance per partition and organism : "sdk"      one variance per partition, same in all organisms : "sd_"   one variance per organism, same in all partion : "s_d"    same variance in organisms and partitions : "s__" 
+                #NEIGHBOUR_SPEC = "f"# "f" specify to use all neighbors, orther argument is "4" to specify to use only the 4 neighbors with the higher weight (4 because for historic reason due to the 4 pixel neighbors of each pixel)
+                CONVERGENCE    = b"clas"
+                CONVERGENCE_TH = 0.00000001
 
                 # HEURISTIC      = "heu_d"# "psgrad" = pseudo-likelihood gradient ascent, "heu_d" = heuristic using drop of fuzzy within cluster inertia, "heu_l" = heuristic using drop of mixture likelihood
                 # STEP_HEURISTIC = 0.5 # step of beta increase
@@ -793,46 +794,57 @@ class PPanGGOLiN:
                 # logging.getLogger().debug(out)
                 #logging.getLogger().debug(err)
 
-                arguments_nem = [str.encode(s) for s in ["nem", 
-                                 nem_dir_path+"/nem_file",
-                                 str(Q),
-                                 "-a", ALGO,
-                                 "-i", str(ITERMAX),
-                                 "-m", MODEL, PROPORTION, VARIANCE_MODEL,
-                                 "-s m "+ nem_dir_path+"/nem_file.m",
-                                 "-b "+str(WEIGHTED_BETA),
-                                 "-n", NEIGHBOUR_SPEC,
-                                 "-c", CONVERGENCE_TH,
-                                 "-f fuzzy",
-                                 "-l y"]]
+                nem(Fname          = nem_dir_path.encode('ascii')+b"/nem_file",
+                    nk             = Q,
+                    algo           = ALGO,
+                    beta           = WEIGHTED_BETA,
+                    convergence    = CONVERGENCE,
+                    convergence_th = CONVERGENCE_TH,
+                    format         = b"fuzzy",
+                    it_max         = ITERMAX,
+                    dolog          = True,
+                    model_family   = MODEL,
+                    proportion     = PROPORTION,
+                    dispersion     = VARIANCE_MODEL)
 
-                arguments_nem = [NEM_LOCATION,"tests/yersinia_amandine/test/NEM_results/nem_file" ,"3", "-a", "ncem" ,"-i" ,"100" ,"-m" ,"bern" ,"pk" ,"skd" ,"-s" ,"m" ,"tests/yersinia_amandine/test/NEM_results/nem_file.m", "-b", "0.5" ,"-n" ,"f", "-c", "clas", "0.00001"]
+                # arguments_nem = [str.encode(s) for s in ["nem", 
+                #                  nem_dir_path+"/nem_file",
+                #                  str(Q),
+                #                  "-a", ALGO,
+                #                  "-i", str(ITERMAX),
+                #                  "-m", MODEL, PROPORTION, VARIANCE_MODEL,
+                #                  "-s m "+ nem_dir_path+"/nem_file.m",
+                #                  "-b "+str(WEIGHTED_BETA),
+                #                  "-n", NEIGHBOUR_SPEC,
+                #                  "-c", CONVERGENCE_TH,
+                #                  "-f fuzzy",
+                #                  "-l y"]]
 
-                command = " ".join([NEM_LOCATION, 
-                                    nem_dir_path+"/nem_file",
-                                    str(Q),
-                                    "-a", ALGO,
-                                    "-i", str(ITERMAX),
-                                    "-m", MODEL, PROPORTION, VARIANCE_MODEL,
-                                    "-s m "+ nem_dir_path+"/nem_file.m",
-                                    "-b "+str(WEIGHTED_BETA),
-                                    "-n", NEIGHBOUR_SPEC,
-                                    "-c", CONVERGENCE_TH,
-                                    "-f fuzzy",
-                                    "-l y"])
+                # command = " ".join([NEM_LOCATION, 
+                #                     nem_dir_path+"/nem_file",
+                #                     str(Q),
+                #                     "-a", ALGO,
+                #                     "-i", str(ITERMAX),
+                #                     "-m", MODEL, PROPORTION, VARIANCE_MODEL,
+                #                     "-s m "+ nem_dir_path+"/nem_file.m",
+                #                     "-b "+str(WEIGHTED_BETA),
+                #                     "-n", NEIGHBOUR_SPEC,
+                #                     "-c", CONVERGENCE_TH,
+                #                     "-f fuzzy",
+                #                     "-l y"])
 
-                logging.getLogger().debug(command)
+                # logging.getLogger().debug(command)
 
-                proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE if logging.getLogger().getEffectiveLevel() == logging.INFO else None,
-                                                            stderr=subprocess.PIPE if logging.getLogger().getEffectiveLevel() == logging.INFO else None)
-                (out,err) = proc.communicate()
-                if logging.getLogger().getEffectiveLevel() == logging.INFO:
-                    with open(nem_dir_path+"/out.txt", "wb") as file_out, open(nem_dir_path+"/err.txt", "wb") as file_err:
-                        file_out.write(out)
-                        file_err.write(err)
+                # proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE if logging.getLogger().getEffectiveLevel() == logging.INFO else None,
+                #                                             stderr=subprocess.PIPE if logging.getLogger().getEffectiveLevel() == logging.INFO else None)
+                # (out,err) = proc.communicate()
+                # if logging.getLogger().getEffectiveLevel() == logging.INFO:
+                #     with open(nem_dir_path+"/out.txt", "wb") as file_out, open(nem_dir_path+"/err.txt", "wb") as file_err:
+                #         file_out.write(out)
+                #         file_err.write(err)
 
-                logging.getLogger().debug(out)
-                logging.getLogger().debug(err)
+                # logging.getLogger().debug(out)
+                # logging.getLogger().debug(err)
 
                 # array = (c_char_p * len(arguments_nem))()
                 # array[:] = arguments_nem
@@ -867,7 +879,7 @@ class PPanGGOLiN:
                         proportion = []
 
                         parameter = parameter_nem_file.readlines()
-                        M = float(parameter[6].split()[3]) # M is markov ps-like
+                        M = float(parameter[2].split()[3]) # M is markov ps-like
                         BIC = -2 * M - (Q * len(organisms) * 2 + Q - 1) * math.log(len(index_fam))
                         logging.getLogger().debug("The Bayesian Criterion Index of the partionning is "+str(BIC))
 

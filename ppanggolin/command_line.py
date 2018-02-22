@@ -20,9 +20,7 @@ from decimal import Decimal
 from scipy.special import comb
 from time import gmtime, strftime
 from ppanggolin import *
-
-
-__version__ = "0.0.1"
+import pkg_resources
 
 ### PATH AND FILE NAME
 OUTPUTDIR                  = None 
@@ -334,7 +332,7 @@ def __main__():
     parser = argparse.ArgumentParser(prog = "ppanggolin",
                                      description='Build a partitioned pangenome graph from annotated genomes and gene families. Reserved words are : "id", "label", "name", "weight", "partition", "partition_exact", "length", "length_min", "length_max", "length_avg", "length_med", "product", "nb_gene", "community".', 
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-?', '--version', action='version', version=__version__)
+    parser.add_argument('-?', '--version', action='version', version=pkg_resources.get_distribution("ppanggolin").version)
     parser.add_argument('-o', '--organisms', type=argparse.FileType('r'), nargs=1, metavar=('ORGANISMS_FILE'), help="""
     A tab delimited file containg at least 2 mandatory fields by row and as many optional fields as the number of well assembled circular contigs. 
     Each row corresponds to an organism to be added to the pangenome.
