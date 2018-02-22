@@ -196,7 +196,7 @@ class PPanGGOLiN:
         """ 
         self.undirected = undirected
 
-        logging.getLogger().info("Reading "+families_tsv_file.name+" families file ...")
+        logging.getLogger().info("Reading "+families_tsv_file.name+" the gene families file ...")
         families    = dict()
         first_iter  = True
         for line in families_tsv_file:
@@ -206,7 +206,7 @@ class PPanGGOLiN:
 
         self.circular_contig_size = {}
 
-        logging.getLogger().info("Reading "+organisms_file.name+" list of organism files ...")
+        logging.getLogger().info("Reading "+organisms_file.name+" the list of organism files ...")
 
         def get_num_lines(file_path):
             fp = open(file_path, "r+")
@@ -543,15 +543,12 @@ class PPanGGOLiN:
             
             total_BIC = 0
 
-            def conditional_context_manager():
-                if nb_threads == 1:
-                    yield None
-                else:
-                    with contextlib.closing(Pool(nb_threads)) as pool:
-                        yield pool
+            @contextlib.contextmanager
+            def empty_cm():
+                yield None
 
-            for pool in conditional_context_manager():
-
+            with contextlib.closing(Pool(processes = nb_threads)) if nb_threads>1 else empty_cm() as pool:
+            
                 sem = Semaphore(nb_threads)
 
                 validated = set()
@@ -609,7 +606,7 @@ class PPanGGOLiN:
                                 proba_sample[org] = p - len(organisms)/chunck_size if p >1 else 1
                             else:
                                 proba_sample[org] = p + len(organisms)/chunck_size
-                        if pool:
+                        if nb_threads>1:
                             res = pool.apply_async(self.partition,
                                                    args = (nem_dir_path+"/"+str(cpt)+"/",#nem_dir_path
                                                            orgs,#organisms
@@ -636,11 +633,11 @@ class PPanGGOLiN:
 
                     if inplace:
                         bar.update()    
-                    if pool:      
-                        pool.terminate()    
-                    #BIC = total_BIC/cpt
-                    BIC = 0
-                classification = list()
+                if nb_threads>1:      
+                    pool.terminate()    
+                #BIC = total_BIC/cpt
+                BIC = 0
+            classification = list()
 
             # if just_stats:
             #     print('len(validated)= '+str(len(validated)))
