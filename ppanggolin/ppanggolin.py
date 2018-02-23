@@ -547,43 +547,44 @@ class PPanGGOLiN:
             def empty_cm():
                 yield None
 
+            validated = set()
+            cpt=0
+
+            if inplace:
+                    bar = tqdm(total = stats["accessory"]+stats["core_exact"], unit = "families partitionned")
+
+            sem = Semaphore(nb_threads)
+
+            def validate_family(result):
+                #nonlocal total_BIC
+                try:
+                    (BIC, partitions) = result
+                    #total_BIC += BIC
+                    for node,nem_class in partitions.items():
+                        cpt_partition[node][nem_class]+=1
+                        sum_partionning = sum(cpt_partition[node].values())
+                        if sum_partionning > len(organisms)/chunck_size and max(cpt_partition[node].values()) > sum_partionning*0.5:
+                            if node not in validated:
+                                if inplace:
+                                    bar.update()
+                                validated.add(node)
+                                # if max(cpt_partition[node], key=cpt_partition[node].get) == "P" and cpt_partition[node]["S"]==0 and cpt_partition[node]["C"]==0:
+                                        #     validated[node]="P"
+                                        # elif cpt_partition[node]["S"]==0:
+                                        #     validated[node]="C"
+                                        # else:
+                                        #     validated[node]="S" 
+                finally:
+                    sem.release()
+
             with contextlib.closing(Pool(processes = nb_threads)) if nb_threads>1 else empty_cm() as pool:
             
-                sem = Semaphore(nb_threads)
-
-                validated = set()
-                cpt=0
-
                 proba_sample = OrderedDict(zip(organisms,[len(organisms)]*len(organisms)))
 
                 pan_size = stats["accessory"]+stats["core_exact"]
-                if inplace:
-                    bar = tqdm(total = stats["accessory"]+stats["core_exact"], unit = "families partitionned")
-
-                def validate_family(result):
-                    #nonlocal total_BIC
-                    try :
-                        (BIC, partitions) = result
-                        #total_BIC += BIC
-                        for node,nem_class in partitions.items():
-                            cpt_partition[node][nem_class]+=1
-                            sum_partionning = sum(cpt_partition[node].values())
-                            if sum_partionning > len(organisms)/chunck_size and max(cpt_partition[node].values()) > sum_partionning*0.5:
-                                if node not in validated:
-                                    if inplace:
-                                        bar.update()
-                                    validated.add(node)
-                                    # if max(cpt_partition[node], key=cpt_partition[node].get) == "P" and cpt_partition[node]["S"]==0 and cpt_partition[node]["C"]==0:
-                                    #     validated[node]="P"
-                                    # elif cpt_partition[node]["S"]==0:
-                                    #     validated[node]="C"
-                                    # else:
-                                    #     validated[node]="S" 
-                    finally:
-                        sem.release()
                 
                 while len(validated)<pan_size:
-                    if sem.acquire():
+                    if sem.acquire():#
                         # print(organisms)
                         # print(chunck_size)
                         # print(proba_sample.values())
@@ -619,22 +620,23 @@ class PPanGGOLiN:
                                                    callback = validate_family)
                         else:
                             res = self.partition(nem_dir_path+"/"+str(cpt)+"/",#nem_dir_path
-                                                           orgs,#organisms
-                                                           beta,#beta
-                                                           free_dispersion,#free dispersion
-                                                           chunck_size,#chunck_size
-                                                           False,#inplace
-                                                           False,#just_stats
-                                                           1)
+                                                 orgs,#organisms
+                                                 beta,#beta
+                                                 free_dispersion,#free dispersion
+                                                 chunck_size,#chunck_size
+                                                 False,#inplace
+                                                 False,#just_stats
+                                                 1)
                             validate_family(res)
                         cpt +=1
                     else:
                         time.sleep(0.01)
 
-                    if inplace:
-                        bar.update()    
-                if nb_threads>1:      
-                    pool.terminate()    
+                    # if inplace:
+                    #     bar.update()    
+                # if nb_threads>1:
+                #     time.sleep(1)
+                #     pool.terminate()    
                 #BIC = total_BIC/cpt
                 BIC = 0
             classification = list()
