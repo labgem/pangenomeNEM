@@ -294,7 +294,7 @@ int nem(const char* Fname,
       StatModel.Spec.K = nk ;
     if ( nk <= 0 )
     {
-        fprintf( out_stderr, "Nb of classes must be > 0 (here %s)\n",
+        fprintf( out_stderr, "Nb of classes must be > 0 (here %d)\n",
                nk ) ;
         return STS_E_ARG ;
     }
@@ -532,8 +532,8 @@ int nem(const char* Fname,
     }
 
     fprintf( out_stderr, "\nData : " ) ;
-    if ( strcmp( datadescS, "" ) ) fprintf( stderr, "%s\n", datadescS ) ;
-    else                          fprintf( stderr, "\n" ) ;
+    if ( strcmp( datadescS, "" ) ) fprintf( out_stderr, "%s\n", datadescS ) ;
+    else                          fprintf( out_stderr, "\n" ) ;
 
     fprintf( out_stderr, "  file names =  %10s   |   nb points   = %10d\n", 
              Fname, Data.NbPts ) ;
