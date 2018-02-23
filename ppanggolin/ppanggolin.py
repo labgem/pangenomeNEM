@@ -467,7 +467,7 @@ class PPanGGOLiN:
                 contig_annot[gene_start]=gene_info_start
 
             # if light:
-            #     del self.annotations[organism]
+            #    del self.annotations[organism]
 
         self.pan_size = nx.number_of_nodes(self.neighbors_graph)
 
@@ -479,23 +479,26 @@ class PPanGGOLiN:
                         inplace         = True,
                         just_stats      = False,
                         nb_threads      = 1):
-        
+        #            :param mode : a str specyfying if the pangenome will be parition in 2 partitions ("persistent" and "accessory") or 3 partitions ("persistent", "shell" and "accessory")
         """
             Use the graph topology and the presence or absence of genes from each organism into families to partition the pangenome in three groups ('persistent', 'shell' and 'cloud')
             . seealso:: Read the Mo Dang's thesis to understand NEM, a summary is available here : http://www.kybernetika.cz/content/1998/4/393/paper.pdf
-            :param mode : a str specyfying if the pangenome will be parition in 2 partitions ("persistent" and "accessory") or 3 partitions ("persistent", "shell" and "accessory")
             :param nem_dir_path: a str containing a path to store temporary file of the NEM program
+            :param organisms: a list of organism to used to obtain the partition (must be included in the organism attributes of the object) or None to used all organisms in the object
             :param beta: a float containing the spatial coefficient of smoothing of the clustering results using the weighted graph topology (0.00 turn off the spatial clustering)
             :param free_dispersion: a bool specyfing if the dispersion around the centroid vector of each paritition is the same for all the organisms or if the dispersion is free
-            :param organisms: a list of organism to used to obtain the partition (must be included in the organism attributes of the object) or None to used all organisms in the object
-            :param inplace: a boolean specifying if the partition must be stored in the object of returned (throw an error if inplace is true and organisms parameter i not None)
             :param chunck_size: an int specifying the size of the chunks
+            :param inplace: a boolean specifying if the partition must be stored in the object of returned (throw an error if inplace is true and organisms parameter i not None)
+            :param just_stats: a boolean specifying if the partitions must be returned or just stats about them (number of families in each partition)
+            :param nb_threads: an integer specifying the number of threads to use (works only if the number of organisms is higher than the chunck_size)
             :type str: 
+            :type list: 
             :type float: 
             :type bool: 
-            :type list: 
-
-            .. warning:: please use the function neighborhoodComputation before
+            :type int: 
+            :type bool: 
+            :type bool: 
+            :type int: 
         """ 
         
         if organisms is None:
@@ -513,14 +516,11 @@ class PPanGGOLiN:
             logging.getLogger().warning("The pangenome was already partionned, inplace=true parameter will erase previous nem file intermediate files")
             self.delete_nem_intermediate_files()
 
-        if not os.path.exists(nem_dir_path):
-            #NEM requires 5 files: nem_file.index, nem_file.str, nem_file.dat, nem_file.m and nem_file.nei
-            os.makedirs(nem_dir_path)
         if inplace:
             self.nem_intermediate_files = nem_dir_path
 
         stats = defaultdict(int)
-        classification = []
+        partitions = []
         
         #core exact first
         families = []
@@ -551,14 +551,14 @@ class PPanGGOLiN:
             cpt=0
 
             if inplace:
-                    bar = tqdm(total = stats["accessory"]+stats["core_exact"], unit = "families partitionned")
+                bar = tqdm(total = stats["accessory"]+stats["core_exact"], unit = "families partitionned")
 
             sem = Semaphore(nb_threads)
 
             def validate_family(result):
                 #nonlocal total_BIC
                 try:
-                    (BIC, partitions) = result
+                    partitions = result
                     #total_BIC += BIC
                     for node,nem_class in partitions.items():
                         cpt_partition[node][nem_class]+=1
@@ -608,25 +608,21 @@ class PPanGGOLiN:
                             else:
                                 proba_sample[org] = p + len(organisms)/chunck_size
                         if nb_threads>1:
-                            res = pool.apply_async(self.partition,
+                            res = pool.apply_async(run_partitioning,
                                                    args = (nem_dir_path+"/"+str(cpt)+"/",#nem_dir_path
-                                                           orgs,#organisms
-                                                           beta,#beta
-                                                           free_dispersion,#free dispersion
-                                                           chunck_size,#chunck_size
-                                                           False,#inplace
-                                                           False,#just_stats
-                                                           1),#nb_threads
+                                                           self.neighbors_graph,
+                                                           orgs,
+                                                           stats["core_exact"]+stats["accessory"],
+                                                           beta,
+                                                           free_dispersion),                                                        
                                                    callback = validate_family)
                         else:
-                            res = self.partition(nem_dir_path+"/"+str(cpt)+"/",#nem_dir_path
-                                                 orgs,#organisms
-                                                 beta,#beta
-                                                 free_dispersion,#free dispersion
-                                                 chunck_size,#chunck_size
-                                                 False,#inplace
-                                                 False,#just_stats
-                                                 1)
+                            res = run_partitioning(nem_dir_path+"/"+str(cpt)+"/",#nem_dir_path
+                                                self.neighbors_graph,
+                                                orgs,
+                                                stats["core_exact"]+stats["accessory"],
+                                                beta,
+                                                free_dispersion)
                             validate_family(res)
                         cpt +=1
                     else:
@@ -636,22 +632,23 @@ class PPanGGOLiN:
                     #     bar.update()    
                 if nb_threads>1:
                     time.sleep(1)
-                    pool.terminate()    
+                    pool.close()
+                    pool.join() 
                 #BIC = total_BIC/cpt
                 BIC = 0
-            classification = list()
+            partitions = dict()
 
             # if just_stats:
             #     print('len(validated)= '+str(len(validated)))
             #     print('len(cpt_partition)= '+str(len(cpt_partition)))
 
             for fam, data in cpt_partition.items():
-                classification.append(max(data, key=data.get))
+                partitions[fam]=max(data, key=data.get)
 
             # if just_stats:
             #     print("stat")
-            #     #print(classification)
-            #     c = Counter(classification)      
+            #     #print(partitions)
+            #     c = Counter(partitions)      
             #     print('stats["P"] '+str(c["P"]))
             #     print('stats["S"] '+str(c["S"]))
             #     print('stats["C"] '+str(c["C"])) 
@@ -664,296 +661,15 @@ class PPanGGOLiN:
             #     print('total '+str(stats["accessory"]+stats["core_exact"]))
             #     print(' ')
         else:
-
-            classification = ["U"] * (stats["core_exact"]+stats["accessory"])
-
-            if len(organisms)<=10:# below 10 organisms a statistical computation do not make any sence
-                logging.getLogger().warning("The number of organisms is too low ("+str(len(organisms))+" organisms used) to partition the pangenome graph in persistent, shell, cloud partition, traditional partitions only (Core and Accessory genome) will be provided")
-            else:
-
-                logging.getLogger().debug("Writing nem_file.str nem_file.index nem_file.nei nem_file.dat and nem_file.m files")
-                with open(nem_dir_path+"/nem_file.str", "w") as str_file,\
-                     open(nem_dir_path+"/nem_file.index", "w") as index_file,\
-                     open(nem_dir_path+"/column_org_file", "w") as org_file,\
-                     open(nem_dir_path+"/nem_file.nei", "w") as nei_file,\
-                     open(nem_dir_path+"/nem_file.dat", "w") as dat_file,\
-                     open(nem_dir_path+"/nem_file.m", "w") as m_file:
-
-                    nei_file.write("1\n")
-                    
-                    org_file.write(" ".join([org for org in organisms])+"\n")
-                    org_file.close()
-
-                    
-                    index_fam = OrderedDict()
-                    for node_name, node_organisms in self.neighbors_graph.nodes(data=True):
-                        logging.getLogger().debug(node_organisms)
-                        logging.getLogger().debug(organisms)
-                        
-                        if not organisms.isdisjoint(node_organisms): # if at least one commun organism
-                            dat_file.write("\t".join(["1" if org in node_organisms else "0" for org in organisms])+"\n")
-                            index_fam[node_name] = len(index_fam)+1
-                            index_file.write(str(len(index_fam))+"\t"+str(node_name)+"\n")
-                    for node_name, index in index_fam.items():
-                        row_fam         = []
-                        row_dist_score  = []
-                        neighbor_number = 0
-
-                        try:
-                            for neighbor in set(nx.all_neighbors(self.neighbors_graph, node_name)):
-                                coverage = 0
-                                if self.neighbors_graph.is_directed():
-                                    cov_sens, cov_antisens = (0,0)
-                                    try:
-                                        cov_sens = sum([pre_abs for org, pre_abs in self.neighbors_graph[node_name][neighbor].items() if ((org in organisms) and (org not in RESERVED_WORDS))])
-                                    except KeyError:
-                                        pass
-                                    try:
-                                        cov_antisens = sum([pre_abs for org, pre_abs in self.neighbors_graph[neighbor][node_name].items() if ((org in organisms) and (org not in RESERVED_WORDS))])
-                                    except KeyError:
-                                        pass
-                                    coverage = cov_sens + cov_antisens
-                                else:
-                                    coverage = sum([pre_abs for org, pre_abs in self.neighbors_graph[node_name][neighbor].items() if ((org in organisms) and (org not in RESERVED_WORDS))])
-
-                                if coverage==0:
-                                    continue
-                                distance_score = coverage/self.nb_organisms
-                                row_fam.append(str(index_fam[neighbor]))
-                                row_dist_score.append(str(round(distance_score,4)))
-                                neighbor_number += 1
-                            if neighbor_number>0:
-                                nei_file.write("\t".join([str(item) for sublist in [[index_fam[node_name]],[neighbor_number],row_fam,row_dist_score] for item in sublist])+"\n")
-                            else:
-                                nei_file.write(str(len(index_fam))+"\t0\n")
-                                logging.getLogger().debug("The family: "+node_name+" is an isolated family in the selected organisms")
-                        except nx.exception.NetworkXError as nxe:
-                            logging.getLogger().debug("The family: "+node_name+" is an isolated family")
-                            nei_file.write(str(len(index_fam))+"\t0\n")
-                    m_file.write("1 0.33333 0.33333 ") # 1 to initialize parameter, 0.333 and 0.333 for to give one third of initial proportition to each class (last 0.33 is automaticaly determined by substraction)
-                    m_file.write(" ".join(["1"]*len(organisms))+" ") # persistent binary vector
-                    m_file.write(" ".join(["1"]*len(organisms))+" ") # shell binary vector (1 ou 0, whatever because dispersion will be of 0.5)
-                    m_file.write(" ".join(["0"]*len(organisms))+" ") # cloud binary vector
-                    m_file.write(" ".join(["0.1"]*len(organisms))+" ") # persistent dispersition vector (low)
-                    m_file.write(" ".join(["0.5"]*len(organisms))+" ") # shell dispersition vector (high)
-                    m_file.write(" ".join(["0.1"]*len(organisms))) # cloud dispersition vector (low)
-
-                    str_file.write("S\t"+str(len(index_fam))+"\t"+
-                                         str(len(organisms))+"\n")
-
-                logging.getLogger().debug("Running NEM...")
-                # weighted_degree = sum(list(self.neighbors_graph.degree(weight="weight")).values())/nx.number_of_edges(self.neighbors_graph)
-                # logging.getLogger().debug("weighted_degree: "+str(weighted_degree))
-                # logging.getLogger().debug("org/weighted_degree: "+str(self.nb_organisms/weighted_degree))    
-                #weighted_degree = sum(self.neighbors_graph.degree(weight="weight").values())/nx.number_of_edges(self.neighbors_graph)
-
-                Q              = 3 # number of partitions
-                ALGO           = b"ncem" #fuzzy classification by mean field approximation
-                ITERMAX        = 10000 # number of iteration max 
-                MODEL          = b"bern" # multivariate Bernoulli mixture model
-                PROPORTION     = b"pk" #equal proportion :  "p_"     varying proportion : "pk"
-                VARIANCE_MODEL = b"skd" if free_dispersion else b"sk_"#one variance per partition and organism : "sdk"      one variance per partition, same in all organisms : "sd_"   one variance per organism, same in all partion : "s_d"    same variance in organisms and partitions : "s__" 
-                #NEIGHBOUR_SPEC = "f"# "f" specify to use all neighbors, orther argument is "4" to specify to use only the 4 neighbors with the higher weight (4 because for historic reason due to the 4 pixel neighbors of each pixel)
-                CONVERGENCE    = b"clas"
-                CONVERGENCE_TH = 0.00000001
-
-                # HEURISTIC      = "heu_d"# "psgrad" = pseudo-likelihood gradient ascent, "heu_d" = heuristic using drop of fuzzy within cluster inertia, "heu_l" = heuristic using drop of mixture likelihood
-                # STEP_HEURISTIC = 0.5 # step of beta increase
-                # BETA_MAX       = float(len(organisms)) #maximal value of beta to test,
-                # DDROP          = 0.8 #threshold of allowed D drop (higher = less detection)
-                # DLOSS          = 0.5 #threshold of allowed D loss (higher = less detection)
-                # LLOSS          = 0.02 #threshold of allowed L loss (higher = less detection)
-                
-                # BETA           = ["-B",HEURISTIC,"-H",str(STEP_HEURISTIC),str(BETA_MAX),str(DDROP),str(DLOSS),str(LLOSS)] if beta == float('Inf') else ["-b "+str(beta)]
-
-                WEIGHTED_BETA = beta*len(organisms)
-                # command = " ".join([NEM_LOCATION, 
-                #                     nem_dir_path+"/nem_file",
-                #                     str(Q),
-                #                     "-a", ALGO,
-                #                     "-i", str(ITERMAX),
-                #                     "-m", MODEL, PROPORTION, VARIANCE_MODEL,
-                #                     "-s m "+ nem_dir_path+"/nem_file.m",
-                #                     "-b "+str(WEIGHTED_BETA),
-                #                     "-n", NEIGHBOUR_SPEC,
-                #                     "-c", CONVERGENCE_TH,
-                #                     "-f fuzzy",
-                #                     "-l y"])
-             
-                # logging.getLogger().debug(command)
-
-                # proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE if logging.getLogger().getEffectiveLevel() == logging.INFO else None,
-                #                                             stderr=subprocess.PIPE if logging.getLogger().getEffectiveLevel() == logging.INFO else None)
-                # (out,err) = proc.communicate()
-                # if logging.getLogger().getEffectiveLevel() == logging.INFO:
-                #     with open(nem_dir_path+"/out.txt", "wb") as file_out, open(nem_dir_path+"/err.txt", "wb") as file_err:
-                #         file_out.write(out)
-                #         file_err.write(err)
-
-                # logging.getLogger().debug(out)
-                #logging.getLogger().debug(err)
-
-                nem(Fname          = nem_dir_path.encode('ascii')+b"/nem_file",
-                    nk             = Q,
-                    algo           = ALGO,
-                    beta           = WEIGHTED_BETA,
-                    convergence    = CONVERGENCE,
-                    convergence_th = CONVERGENCE_TH,
-                    format         = b"fuzzy",
-                    it_max         = ITERMAX,
-                    dolog          = True,
-                    model_family   = MODEL,
-                    proportion     = PROPORTION,
-                    dispersion     = VARIANCE_MODEL)
-
-                # arguments_nem = [str.encode(s) for s in ["nem", 
-                #                  nem_dir_path+"/nem_file",
-                #                  str(Q),
-                #                  "-a", ALGO,
-                #                  "-i", str(ITERMAX),
-                #                  "-m", MODEL, PROPORTION, VARIANCE_MODEL,
-                #                  "-s m "+ nem_dir_path+"/nem_file.m",
-                #                  "-b "+str(WEIGHTED_BETA),
-                #                  "-n", NEIGHBOUR_SPEC,
-                #                  "-c", CONVERGENCE_TH,
-                #                  "-f fuzzy",
-                #                  "-l y"]]
-
-                # command = " ".join([NEM_LOCATION, 
-                #                     nem_dir_path+"/nem_file",
-                #                     str(Q),
-                #                     "-a", ALGO,
-                #                     "-i", str(ITERMAX),
-                #                     "-m", MODEL, PROPORTION, VARIANCE_MODEL,
-                #                     "-s m "+ nem_dir_path+"/nem_file.m",
-                #                     "-b "+str(WEIGHTED_BETA),
-                #                     "-n", NEIGHBOUR_SPEC,
-                #                     "-c", CONVERGENCE_TH,
-                #                     "-f fuzzy",
-                #                     "-l y"])
-
-                # logging.getLogger().debug(command)
-
-                # proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE if logging.getLogger().getEffectiveLevel() == logging.INFO else None,
-                #                                             stderr=subprocess.PIPE if logging.getLogger().getEffectiveLevel() == logging.INFO else None)
-                # (out,err) = proc.communicate()
-                # if logging.getLogger().getEffectiveLevel() == logging.INFO:
-                #     with open(nem_dir_path+"/out.txt", "wb") as file_out, open(nem_dir_path+"/err.txt", "wb") as file_err:
-                #         file_out.write(out)
-                #         file_err.write(err)
-
-                # logging.getLogger().debug(out)
-                # logging.getLogger().debug(err)
-
-                # array = (c_char_p * len(arguments_nem))()
-                # array[:] = arguments_nem
-                # nemfunctions.mainfunc(c_int(len(arguments_nem)), array)
-
-                # if beta == float('Inf'):
-                #     starting_heuristic = False
-                #     with open(nem_dir_path+"/beta_evol.txt", "w") as beta_evol_file:
-                #         for line in str(err).split("\\n"):
-                #             if not starting_heuristic and line.startswith("* * Starting heuristic * *"):
-                #                 beta_evol_file.write("beta\tLmix\n")
-                #                 starting_heuristic = True
-                #                 continue
-                #             if starting_heuristic:
-                #                 elements = line.split("=")
-                #                 if elements[0] == " * * Testing beta ":
-                #                    beta = float(elements[1].split("*")[0].strip())
-                #                 elif elements[0] == "  criterion NEM ":
-                #                     Lmix = float(elements[len(elements)-1].strip())
-                #                     beta_evol_file.write(str(beta)+"\t"+str(Lmix)+"\n")
-
-                if os.path.isfile(nem_dir_path+"/nem_file.uf"):
-                    logging.getLogger().debug("Reading NEM results...")
-                else:
-                    logging.getLogger().error("No NEM output file found: "+ nem_dir_path+"/nem_file.uf")
-                
-                
-                try:
-                    with open(nem_dir_path+"/nem_file.uf","r") as classification_nem_file, open(nem_dir_path+"/nem_file.mf","r") as parameter_nem_file:
-                        sum_mu_k = []
-                        sum_epsilon_k = []
-                        proportion = []
-
-                        parameter = parameter_nem_file.readlines()
-                        M = float(parameter[2].split()[3]) # M is markov ps-like
-                        BIC = -2 * M - (Q * len(organisms) * 2 + Q - 1) * math.log(len(index_fam))
-                        logging.getLogger().debug("The Bayesian Criterion Index of the partionning is "+str(BIC))
-
-                        for k, line in enumerate(parameter[-3:]):
-                            logging.getLogger().debug(line)
-                            vector = line.split() 
-                            mu_k = [bool(float(mu_kj)) for mu_kj in vector[0:len(organisms)]]
-                            logging.getLogger().debug(mu_k)
-                            logging.getLogger().debug(len(mu_k))
-
-                            epsilon_k = [float(epsilon_kj) for epsilon_kj in vector[len(organisms)+1:]]
-                            logging.getLogger().debug(epsilon_k)
-                            logging.getLogger().debug(len(epsilon_k))
-                            proportion = float(vector[len(organisms)])
-                            logging.getLogger().debug(proportion)
-                            sum_mu_k.append(sum(mu_k))
-                            logging.getLogger().debug(sum(mu_k))
-                            sum_epsilon_k.append(sum(epsilon_k))
-                            logging.getLogger().debug(sum(epsilon_k))
-
-
-                        
-                        #persistent is defined by a sum of mu near of nb_organism and a low sum of epsilon
-                        max_mu_k     = max(sum_mu_k)
-                        persistent_k = sum_mu_k.index(max_mu_k)
-
-                        #shell is defined by an higher sum of epsilon_k
-                        max_epsilon_k = max(sum_epsilon_k)
-                        shell_k       = sum_epsilon_k.index(max_epsilon_k)
-
-                        # the other one should be cloud (basicaly with low sum_mu_k and low epsilon_k)
-                        cloud_k = set([0,1,2]) - set([persistent_k, shell_k])
-                        cloud_k = list(cloud_k)[0]
-
-                        # but if the difference between epsilon_k of shell and cloud is tiny, we check using the sum of mu_k which basicaly must be lower in cloud
-                        # if (sum_epsilon_k[shell_k]-sum_epsilon_k[cloud_k])<0.05 and sum_mu_k[shell_k]<sum_mu_k[cloud_k]:
-                        #     # otherwise we permutate
-                        #     (shell_k, cloud_k) = (cloud_k, shell_k)
-
-                        logging.getLogger().debug(sum_mu_k)
-                        logging.getLogger().debug(sum_epsilon_k)
-
-                        logging.getLogger().debug(persistent_k)
-                        logging.getLogger().debug(shell_k)
-                        logging.getLogger().debug(cloud_k)
-
-                        partition                 = {}
-                        partition[persistent_k] = "P"#PERSISTENT
-                        partition[shell_k]      = "S"#SHELL
-                        partition[cloud_k]      = "C"#CLOUD
-
-                        for i, line in enumerate(classification_nem_file):
-                            elements = [float(el) for el in line.split()]
-                            max_prob = max([float(el) for el in elements])
-                            positions_max_prob = [pos for pos, prob in enumerate(elements) if prob == max_prob]
-                            logging.getLogger().debug(positions_max_prob)
-                            logging.getLogger().debug(i)
-
-                            if (len(positions_max_prob)>1):
-                                classification[i]="S"#SHELL in case of doubt (equiprobable partition), gene families is attributed to shell
-                            else:
-                                classification[i] = partition[positions_max_prob.pop()]
-
-                        logging.getLogger().debug(partition)
-                        #logging.getLogger().debug(index.keys())
-                except FileNotFoundError:
-                    logging.getLogger().warning("Statistical partitioning do not works, see log here to obtain more details "+nem_dir_path+"/nem_file.log")
-        
+            partitions = run_partition(nem_dir_path, self.neighbors_graph, organisms, stats["core_exact"]+stats["accessory"] , beta, free_dispersion)
+            
         if inplace:
             self.BIC = BIC
             if self.is_partitionned:
                 for p in SHORT_TO_LONG.values():
                     self.partitions[p] = list()# erase older values
 
-            for node, nem_class in zip(self.neighbors_graph.nodes(), classification):
+            for node, nem_class in partitions.items():
                 nb_orgs=0
                 for key in list(self.neighbors_graph.node[node].keys()):
                     if key not in RESERVED_WORDS:
@@ -983,12 +699,13 @@ class PPanGGOLiN:
             self.is_partitionned=True
         else:
             if just_stats:
-                for node_name, nem_class in zip(self.neighbors_graph.nodes(data=False), classification):
+                for node_name, nem_class in partitions.items():
                     stats[SHORT_TO_LONG[nem_class]]+=1
                 return stats
             else:
-                return (BIC,dict(zip(index_fam.keys(), classification)))
+                return partitions
 
+    
     def export_to_GEXF(self, graph_output_path, compressed=False, metadata = None, all_node_attributes = True, all_edge_attributes = True):
         """
             Export the Partionned Pangenome Graph Of Linked Neighbors to a GEXF file  
@@ -1397,7 +1114,7 @@ class PPanGGOLiN:
         """ 
         for organism in organisms_to_project:
             with open(out_dir+"/"+organism+".csv","w") as out_file:
-                out_file.write("gene\tcontig\tori\tfamily\tpartition\tpersistent\tshell\tcloud\n")
+                out_file.write("gene\tcontig\tori\tfamily\tnb_copy_in_org\tpartition\tpersistent\tshell\tcloud\n")
                 for contig, contig_annot in self.annotations[organism].items():
                     for gene, gene_info in contig_annot.items():
                         if gene_info[FAMILY] not in self.families_repeted:
@@ -1406,9 +1123,300 @@ class PPanGGOLiN:
                                                       contig,
                                                       "T" if (gene_info[NAME].upper() == "DNAA" or gene_info[PRODUCT].upper() == "DNAA") else "F",
                                                       gene_info[FAMILY],
+                                                      str(len(self.neighbors_graph.node[gene_info[FAMILY]][organism])),
                                                       self.neighbors_graph.node[gene_info[FAMILY]]["partition"],
                                                       str(nei_partitions.count("persistent")),
                                                       str(nei_partitions.count("shell")),
                                                       str(nei_partitions.count("cloud"))])+"\n")
 
 ################ END OF CLASS PPanGGOLiN ################
+
+################ FUNCTION run_partitioning ################
+
+def run_partitioning(nem_dir_path, graph, organisms, pan_size, beta, free_dispersion):
+    
+    if len(organisms)<=10:# below 10 organisms a statistical computation do not make any sence
+        logging.getLogger().warning("The number of organisms is too low ("+str(len(organisms))+" organisms used) to partition the pangenome graph in persistent, shell, cloud partition, traditional partitions only (Core and Accessory genome) will be provided")
+
+    if not os.path.exists(nem_dir_path):
+        #NEM requires 5 files: nem_file.index, nem_file.str, nem_file.dat, nem_file.m and nem_file.nei
+        os.makedirs(nem_dir_path)
+
+    logging.getLogger().debug("Writing nem_file.str nem_file.index nem_file.nei nem_file.dat and nem_file.m files")
+    with open(nem_dir_path+"/nem_file.str", "w") as str_file,\
+         open(nem_dir_path+"/nem_file.index", "w") as index_file,\
+         open(nem_dir_path+"/column_org_file", "w") as org_file,\
+         open(nem_dir_path+"/nem_file.nei", "w") as nei_file,\
+         open(nem_dir_path+"/nem_file.dat", "w") as dat_file,\
+         open(nem_dir_path+"/nem_file.m", "w") as m_file:
+
+        nei_file.write("1\n")
+        
+        org_file.write(" ".join([org for org in organisms])+"\n")
+        org_file.close()
+
+        
+        index_fam = OrderedDict()
+        for node_name, node_organisms in graph.nodes(data=True):
+            logging.getLogger().debug(node_organisms)
+            logging.getLogger().debug(organisms)
+            
+            if not organisms.isdisjoint(node_organisms): # if at least one commun organism
+                dat_file.write("\t".join(["1" if org in node_organisms else "0" for org in organisms])+"\n")
+                index_fam[node_name] = len(index_fam)+1
+                index_file.write(str(len(index_fam))+"\t"+str(node_name)+"\n")
+        for node_name, index in index_fam.items():
+            row_fam         = []
+            row_dist_score  = []
+            neighbor_number = 0
+
+            try:
+                for neighbor in set(nx.all_neighbors(graph, node_name)):
+                    coverage = 0
+                    if graph.is_directed():
+                        cov_sens, cov_antisens = (0,0)
+                        try:
+                            cov_sens = sum([pre_abs for org, pre_abs in graph[node_name][neighbor].items() if ((org in organisms) and (org not in RESERVED_WORDS))])
+                        except KeyError:
+                            pass
+                        try:
+                            cov_antisens = sum([pre_abs for org, pre_abs in graph[neighbor][node_name].items() if ((org in organisms) and (org not in RESERVED_WORDS))])
+                        except KeyError:
+                            pass
+                        coverage = cov_sens + cov_antisens
+                    else:
+                        coverage = sum([pre_abs for org, pre_abs in graph[node_name][neighbor].items() if ((org in organisms) and (org not in RESERVED_WORDS))])
+
+                    if coverage==0:
+                        continue
+                    distance_score = coverage/len(organisms)
+                    row_fam.append(str(index_fam[neighbor]))
+                    row_dist_score.append(str(round(distance_score,4)))
+                    neighbor_number += 1
+                if neighbor_number>0:
+                    nei_file.write("\t".join([str(item) for sublist in [[index_fam[node_name]],[neighbor_number],row_fam,row_dist_score] for item in sublist])+"\n")
+                else:
+                    nei_file.write(str(len(index_fam))+"\t0\n")
+                    logging.getLogger().debug("The family: "+node_name+" is an isolated family in the selected organisms")
+            except nx.exception.NetworkXError as nxe:
+                logging.getLogger().debug("The family: "+node_name+" is an isolated family")
+                nei_file.write(str(len(index_fam))+"\t0\n")
+        m_file.write("1 0.33333 0.33333 ") # 1 to initialize parameter, 0.333 and 0.333 for to give one third of initial proportition to each class (last 0.33 is automaticaly determined by substraction)
+        m_file.write(" ".join(["1"]*len(organisms))+" ") # persistent binary vector
+        m_file.write(" ".join(["1"]*len(organisms))+" ") # shell binary vector (1 ou 0, whatever because dispersion will be of 0.5)
+        m_file.write(" ".join(["0"]*len(organisms))+" ") # cloud binary vector
+        m_file.write(" ".join(["0.1"]*len(organisms))+" ") # persistent dispersition vector (low)
+        m_file.write(" ".join(["0.5"]*len(organisms))+" ") # shell dispersition vector (high)
+        m_file.write(" ".join(["0.1"]*len(organisms))) # cloud dispersition vector (low)
+
+        str_file.write("S\t"+str(len(index_fam))+"\t"+
+                             str(len(organisms))+"\n")
+
+    logging.getLogger().debug("Running NEM...")
+    # weighted_degree = sum(list(self.neighbors_graph.degree(weight="weight")).values())/nx.number_of_edges(self.neighbors_graph)
+    # logging.getLogger().debug("weighted_degree: "+str(weighted_degree))
+    # logging.getLogger().debug("org/weighted_degree: "+str(self.nb_organisms/weighted_degree))    
+    #weighted_degree = sum(self.neighbors_graph.degree(weight="weight").values())/nx.number_of_edges(self.neighbors_graph)
+
+    Q              = 3 # number of partitions
+    ALGO           = b"ncem" #fuzzy classification by mean field approximation
+    ITERMAX        = 10000 # number of iteration max 
+    MODEL          = b"bern" # multivariate Bernoulli mixture model
+    PROPORTION     = b"pk" #equal proportion :  "p_"     varying proportion : "pk"
+    VARIANCE_MODEL = b"skd" if free_dispersion else b"sk_"#one variance per partition and organism : "sdk"      one variance per partition, same in all organisms : "sd_"   one variance per organism, same in all partion : "s_d"    same variance in organisms and partitions : "s__" 
+    #NEIGHBOUR_SPEC = "f"# "f" specify to use all neighbors, orther argument is "4" to specify to use only the 4 neighbors with the higher weight (4 because for historic reason due to the 4 pixel neighbors of each pixel)
+    CONVERGENCE    = b"clas"
+    CONVERGENCE_TH = 0.00000001
+
+    # HEURISTIC      = "heu_d"# "psgrad" = pseudo-likelihood gradient ascent, "heu_d" = heuristic using drop of fuzzy within cluster inertia, "heu_l" = heuristic using drop of mixture likelihood
+    # STEP_HEURISTIC = 0.5 # step of beta increase
+    # BETA_MAX       = float(len(organisms)) #maximal value of beta to test,
+    # DDROP          = 0.8 #threshold of allowed D drop (higher = less detection)
+    # DLOSS          = 0.5 #threshold of allowed D loss (higher = less detection)
+    # LLOSS          = 0.02 #threshold of allowed L loss (higher = less detection)
+    
+    # BETA           = ["-B",HEURISTIC,"-H",str(STEP_HEURISTIC),str(BETA_MAX),str(DDROP),str(DLOSS),str(LLOSS)] if beta == float('Inf') else ["-b "+str(beta)]
+
+    WEIGHTED_BETA = beta*len(organisms)
+    # command = " ".join([NEM_LOCATION, 
+    #                     nem_dir_path+"/nem_file",
+    #                     str(Q),
+    #                     "-a", ALGO,
+    #                     "-i", str(ITERMAX),
+    #                     "-m", MODEL, PROPORTION, VARIANCE_MODEL,
+    #                     "-s m "+ nem_dir_path+"/nem_file.m",
+    #                     "-b "+str(WEIGHTED_BETA),
+    #                     "-n", NEIGHBOUR_SPEC,
+    #                     "-c", CONVERGENCE_TH,
+    #                     "-f fuzzy",
+    #                     "-l y"])
+ 
+    # logging.getLogger().debug(command)
+
+    # proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE if logging.getLogger().getEffectiveLevel() == logging.INFO else None,
+    #                                             stderr=subprocess.PIPE if logging.getLogger().getEffectiveLevel() == logging.INFO else None)
+    # (out,err) = proc.communicate()
+    # if logging.getLogger().getEffectiveLevel() == logging.INFO:
+    #     with open(nem_dir_path+"/out.txt", "wb") as file_out, open(nem_dir_path+"/err.txt", "wb") as file_err:
+    #         file_out.write(out)
+    #         file_err.write(err)
+
+    # logging.getLogger().debug(out)
+    #logging.getLogger().debug(err)
+
+    nem(Fname          = nem_dir_path.encode('ascii')+b"/nem_file",
+        nk             = Q,
+        algo           = ALGO,
+        beta           = WEIGHTED_BETA,
+        convergence    = CONVERGENCE,
+        convergence_th = CONVERGENCE_TH,
+        format         = b"fuzzy",
+        it_max         = ITERMAX,
+        dolog          = True,
+        model_family   = MODEL,
+        proportion     = PROPORTION,
+        dispersion     = VARIANCE_MODEL)
+
+    # arguments_nem = [str.encode(s) for s in ["nem", 
+    #                  nem_dir_path+"/nem_file",
+    #                  str(Q),
+    #                  "-a", ALGO,
+    #                  "-i", str(ITERMAX),
+    #                  "-m", MODEL, PROPORTION, VARIANCE_MODEL,
+    #                  "-s m "+ nem_dir_path+"/nem_file.m",
+    #                  "-b "+str(WEIGHTED_BETA),
+    #                  "-n", NEIGHBOUR_SPEC,
+    #                  "-c", CONVERGENCE_TH,
+    #                  "-f fuzzy",
+    #                  "-l y"]]
+
+    # command = " ".join([NEM_LOCATION, 
+    #                     nem_dir_path+"/nem_file",
+    #                     str(Q),
+    #                     "-a", ALGO,
+    #                     "-i", str(ITERMAX),
+    #                     "-m", MODEL, PROPORTION, VARIANCE_MODEL,
+    #                     "-s m "+ nem_dir_path+"/nem_file.m",
+    #                     "-b "+str(WEIGHTED_BETA),
+    #                     "-n", NEIGHBOUR_SPEC,
+    #                     "-c", CONVERGENCE_TH,
+    #                     "-f fuzzy",
+    #                     "-l y"])
+
+    # logging.getLogger().debug(command)
+
+    # proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE if logging.getLogger().getEffectiveLevel() == logging.INFO else None,
+    #                                             stderr=subprocess.PIPE if logging.getLogger().getEffectiveLevel() == logging.INFO else None)
+    # (out,err) = proc.communicate()
+    # if logging.getLogger().getEffectiveLevel() == logging.INFO:
+    #     with open(nem_dir_path+"/out.txt", "wb") as file_out, open(nem_dir_path+"/err.txt", "wb") as file_err:
+    #         file_out.write(out)
+    #         file_err.write(err)
+
+    # logging.getLogger().debug(out)
+    # logging.getLogger().debug(err)
+
+    # array = (c_char_p * len(arguments_nem))()
+    # array[:] = arguments_nem
+    # nemfunctions.mainfunc(c_int(len(arguments_nem)), array)
+
+    # if beta == float('Inf'):
+    #     starting_heuristic = False
+    #     with open(nem_dir_path+"/beta_evol.txt", "w") as beta_evol_file:
+    #         for line in str(err).split("\\n"):
+    #             if not starting_heuristic and line.startswith("* * Starting heuristic * *"):
+    #                 beta_evol_file.write("beta\tLmix\n")
+    #                 starting_heuristic = True
+    #                 continue
+    #             if starting_heuristic:
+    #                 elements = line.split("=")
+    #                 if elements[0] == " * * Testing beta ":
+    #                    beta = float(elements[1].split("*")[0].strip())
+    #                 elif elements[0] == "  criterion NEM ":
+    #                     Lmix = float(elements[len(elements)-1].strip())
+    #                     beta_evol_file.write(str(beta)+"\t"+str(Lmix)+"\n")
+    partitions_list = ["U"] * len(index_fam)
+    if os.path.isfile(nem_dir_path+"/nem_file.uf"):
+        logging.getLogger().debug("Reading NEM results...")
+    else:
+        logging.getLogger().warning("No NEM output file found: "+ nem_dir_path+"/nem_file.uf")
+
+    try:
+        with open(nem_dir_path+"/nem_file.uf","r") as partitions_nem_file, open(nem_dir_path+"/nem_file.mf","r") as parameter_nem_file:
+            sum_mu_k = []
+            sum_epsilon_k = []
+            proportion = []
+
+            parameter = parameter_nem_file.readlines()
+            M = float(parameter[2].split()[3]) # M is markov ps-like
+            BIC = -2 * M - (Q * len(organisms) * 2 + Q - 1) * math.log(len(index_fam))
+            logging.getLogger().debug("The Bayesian Criterion Index of the partionning is "+str(BIC))
+
+            for k, line in enumerate(parameter[-3:]):
+                logging.getLogger().debug(line)
+                vector = line.split() 
+                mu_k = [bool(float(mu_kj)) for mu_kj in vector[0:len(organisms)]]
+                logging.getLogger().debug(mu_k)
+                logging.getLogger().debug(len(mu_k))
+
+                epsilon_k = [float(epsilon_kj) for epsilon_kj in vector[len(organisms)+1:]]
+                logging.getLogger().debug(epsilon_k)
+                logging.getLogger().debug(len(epsilon_k))
+                proportion = float(vector[len(organisms)])
+                logging.getLogger().debug(proportion)
+                sum_mu_k.append(sum(mu_k))
+                logging.getLogger().debug(sum(mu_k))
+                sum_epsilon_k.append(sum(epsilon_k))
+                logging.getLogger().debug(sum(epsilon_k))
+
+
+            
+            #persistent is defined by a sum of mu near of nb_organism and a low sum of epsilon
+            max_mu_k     = max(sum_mu_k)
+            persistent_k = sum_mu_k.index(max_mu_k)
+
+            #shell is defined by an higher sum of epsilon_k
+            max_epsilon_k = max(sum_epsilon_k)
+            shell_k       = sum_epsilon_k.index(max_epsilon_k)
+
+            # the other one should be cloud (basicaly with low sum_mu_k and low epsilon_k)
+            cloud_k = set([0,1,2]) - set([persistent_k, shell_k])
+            cloud_k = list(cloud_k)[0]
+
+            # but if the difference between epsilon_k of shell and cloud is tiny, we check using the sum of mu_k which basicaly must be lower in cloud
+            # if (sum_epsilon_k[shell_k]-sum_epsilon_k[cloud_k])<0.05 and sum_mu_k[shell_k]<sum_mu_k[cloud_k]:
+            #     # otherwise we permutate
+            #     (shell_k, cloud_k) = (cloud_k, shell_k)
+
+            logging.getLogger().debug(sum_mu_k)
+            logging.getLogger().debug(sum_epsilon_k)
+
+            logging.getLogger().debug(persistent_k)
+            logging.getLogger().debug(shell_k)
+            logging.getLogger().debug(cloud_k)
+
+            partition                 = {}
+            partition[persistent_k] = "P"#PERSISTENT
+            partition[shell_k]      = "S"#SHELL
+            partition[cloud_k]      = "C"#CLOUD
+
+            for i, line in enumerate(partitions_nem_file):
+                elements = [float(el) for el in line.split()]
+                max_prob = max([float(el) for el in elements])
+                positions_max_prob = [pos for pos, prob in enumerate(elements) if prob == max_prob]
+                logging.getLogger().debug(positions_max_prob)
+                logging.getLogger().debug(i)
+
+                if (len(positions_max_prob)>1):
+                    partitions_list[i]="S"#SHELL in case of doubt (equiprobable partition), gene families is attributed to shell
+                else:
+                    partitions_list[i] = partition[positions_max_prob.pop()]
+
+            logging.getLogger().debug(partition)
+            #logging.getLogger().debug(index.keys())
+    except FileNotFoundError:
+        logging.getLogger().warning("Statistical partitioning do not works, see log here to obtain more details "+nem_dir_path+"/nem_file.log")
+    return(dict(zip(index_fam.keys(), partitions_list)))
+
+
+################ END OF FILE ################
