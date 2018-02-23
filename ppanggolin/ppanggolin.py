@@ -634,9 +634,9 @@ class PPanGGOLiN:
 
                     # if inplace:
                     #     bar.update()    
-                # if nb_threads>1:
-                #     time.sleep(1)
-                #     pool.terminate()    
+                if nb_threads>1:
+                    time.sleep(1)
+                    pool.terminate()    
                 #BIC = total_BIC/cpt
                 BIC = 0
             classification = list()
