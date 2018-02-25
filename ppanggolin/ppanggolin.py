@@ -661,7 +661,7 @@ class PPanGGOLiN:
             #     print('total '+str(stats["accessory"]+stats["core_exact"]))
             #     print(' ')
         else:
-            partitions = run_partition(nem_dir_path, self.neighbors_graph, organisms, stats["core_exact"]+stats["accessory"] , beta, free_dispersion)
+            partitions = run_partitioning(nem_dir_path, self.neighbors_graph, organisms, stats["core_exact"]+stats["accessory"] , beta, free_dispersion)
             
         if inplace:
             self.BIC = BIC
@@ -689,10 +689,11 @@ class PPanGGOLiN:
                     logging.getLogger().error("nb_orgs can't be > to self.nb_organisms")
                     exit(1)
 
-            if len(self.families_repeted)>0:
-                logging.getLogger().info("Gene families that have been discarded because there are repeated:\t"+" ".join(self.families_repeted))
-            else:
-                logging.getLogger().info("No gene families have been discarded because there are repeated")
+            if self.families_repeted_th > 0:
+                if len(self.families_repeted)>0:
+                    logging.getLogger().info("Gene families that have been discarded because there are repeated:\t"+" ".join(self.families_repeted))
+                else:
+                    logging.getLogger().info("No gene families have been discarded because there are repeated")
 
             logging.getLogger().debug(nx.number_of_edges(self.neighbors_graph))
 
@@ -1152,7 +1153,7 @@ def run_partitioning(nem_dir_path, graph, organisms, pan_size, beta, free_disper
 
         nei_file.write("1\n")
         
-        org_file.write(" ".join([org for org in organisms])+"\n")
+        org_file.write(" ".join(["\""+org+"\"" for org in organisms])+"\n")
         org_file.close()
 
         
