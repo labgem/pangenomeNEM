@@ -3,39 +3,35 @@
 
 from collections import defaultdict, OrderedDict
 from ordered_set import OrderedSet
-import argparse
+import networkx as nx
 import logging
-import random 
-import time
-import math
-from random import shuffle
+import sys
+import argparse
+from random import shuffle, sample
 from tqdm import tqdm
 tqdm.monitor_interval = 0
 from concurrent.futures import ProcessPoolExecutor, as_completed
-import sys
-import networkx as nx
-from ordered_set import OrderedSet
-import numpy as np
-from decimal import Decimal
-from scipy.special import comb
-from time import gmtime, strftime
-from ppanggolin import *
+from time import gmtime, strftime, time
+import subprocess
 import pkg_resources
+from ppanggolin import *
+from utils import *
 
 ### PATH AND FILE NAME
-OUTPUTDIR                  = None 
-NEM_DIR                    = "/NEM_results/"
-FIGURE_DIR                 = "/figures/"
-PROJECTION_DIR             = "/projections/"
-EVOLUTION_DIR              = "/evolutions/"
-PARTITION_DIR              = "/partitions/"
-GRAPH_FILE_PREFIX          = "/graph"
-MATRIX_FILES_PREFIX        = "/matrix"
-USHAPE_PLOT_PREFIX         = "/Ushaped_plot"
-MATRIX_PLOT_PREFIX         = "/Presence_absence_matrix_plot"
-EVOLUTION_CURVE_PREFIX     = "/evolution_curve"
-EVOLUTION_STAT_FILE_PREFIX = "/stat_evol"
-SCRIPT_R_FIGURE            = "/generate_plots.R"
+OUTPUTDIR                   = None 
+NEM_DIR                     = "/NEM_results/"
+FIGURE_DIR                  = "/figures/"
+PROJECTION_DIR              = "/projections/"
+EVOLUTION_DIR               = "/evolutions/"
+PARTITION_DIR               = "/partitions/"
+GRAPH_FILE_PREFIX           = "/graph"
+MATRIX_FILES_PREFIX         = "/matrix"
+USHAPE_PLOT_PREFIX          = "/Ushaped_plot"
+MATRIX_PLOT_PREFIX          = "/presence_absence_matrix_plot"
+EVOLUTION_CURVE_PREFIX      = "/evolution_curve"
+EVOLUTION_STATS_FILE_PREFIX = "/evol_stats"
+SUMMARY_STATS_FILE_PREFIX   = "/summary_stats"
+SCRIPT_R_FIGURE             = "/generate_plots.R"
 
 def plot_Rscript(script_outfile):
     """
@@ -111,8 +107,8 @@ ggsave('"""+OUTPUTDIR+FIGURE_DIR+MATRIX_PLOT_PREFIX+""".pdf', device = "pdf", pl
 library("ggrepel")
 library("data.table")
 
-if (file.exists('"""+OUTPUTDIR+EVOLUTION_DIR+EVOLUTION_STAT_FILE_PREFIX+""".txt')){
-    data <- read.table('"""+OUTPUTDIR+EVOLUTION_DIR+EVOLUTION_STAT_FILE_PREFIX+""".txt', header = TRUE)
+if (file.exists('"""+OUTPUTDIR+EVOLUTION_DIR+EVOLUTION_STATS_FILE_PREFIX+""".txt')){
+    data <- read.table('"""+OUTPUTDIR+EVOLUTION_DIR+EVOLUTION_STATS_FILE_PREFIX+""".txt', header = TRUE)
     data <- melt(data, id = "nb_org")
     colnames(data) <- c("nb_org","partition","value")
 
@@ -232,57 +228,6 @@ for (org_csv in list.files(path = '"""+OUTPUTDIR+PROJECTION_DIR+"""', pattern = 
 #### START - NEED TO BE AT THE HIGHEST LEVEL OF THE MODULE TO ALLOW MULTIPROCESSING
 
 
-# Calcul du nombre total de combinaisons uniques de n elements
-def combinationTotalNb(size):
-    return pow(2,size)-1
-
-# Generation d'une sous-liste al<C3><A9>atoire de taille n
-def randomSublist(items,n):
-    item_array = np.array(items)
-    index_array = np.arange(item_array.size)
-    np.random.shuffle(index_array)
-    ordered_index_array = sorted(index_array[:n])
-    return list(item_array[ordered_index_array])
-
-# Generation de toutes les combinaisons uniques (sans notion d'ordre) d'elements donnes
-def exactCombinations(items):
-    len_item  = len(items);
-    combinations = defaultdict(list)
-    for i in range(1, 1<<len_item):
-            c = []
-            for j in range(0, len_item):
-                    if(i & (1 << j)):
-                            c.append(items[j])
-            combinations[len(c)].append(c)
-    return combinations
-
-# Echantillonage proportionnel d'un nombre donne de combinaisons (sans remise)
-def samplingCombinations(items, sample_ratio, sample_min, sample_max=100, step = 1):
-    samplingCombinationList = defaultdict(list)
-    item_size = len(items)
-    combTotNb = combinationTotalNb(item_size)
-    for k in range(1, item_size+1, step):
-        tmp_comb = []
-        combNb = Decimal(comb(item_size, k))
-        combNb = sys.float_info.max if combNb>sys.float_info.max else combNb # to avoid to reach infinit values
-        combNb_sample = math.ceil(Decimal(combNb)/Decimal(sample_ratio))
-        # Plus petit echantillonage possible pour un k donn<C3><A9> = sample_min
-        if ((combNb_sample < sample_min) and k != item_size):
-            combNb_sample = sample_min
-        # Plus grand echantillonage possible
-        if (sample_max != None and (combNb_sample > sample_max)):
-            combNb_sample = sample_max
-        
-        i = 0;
-        while(i < combNb_sample):
-            comb_sub = randomSublist(items,k)
-            # Echantillonnage sans remise
-            if (comb_sub not in tmp_comb):
-                tmp_comb.append(comb)
-                samplingCombinationList[len(comb_sub)].append(comb_sub)
-            i+=1
-    return samplingCombinationList
-
 # Generate list of combinations of organisms exaustively or following a binomial coeficient
 def organismsCombinations(orgs, nbOrgThr, sample_ratio, sample_min, sample_max = 100, step = 1):
     if (len(orgs) <= nbOrgThr):
@@ -389,17 +334,18 @@ def __main__():
     Free the memory elements which are no longer used""")
     parser.add_argument("-p", "--plots", default=False, action="store_true", help="""
     Generate Rscript able to draw plots and run it. (required R in the path and the packages ggplot2, ggrepel, data.table and reshape2 to be installed)""")
-    parser.add_argument("-ud", "--undirected", default=False, action="store_true", help="""
-    generate undirected graph
+    parser.add_argument("-di", "--directed", default=False, action="store_true", help="""
+    generate directed graph
     """)
     parser.add_argument("-e", "--evolution", default=False, action="store_true", help="""
     Relaunch the script using less and less organism in order to obtain a curve of the evolution of the pangenome metrics
     """)
-    parser.add_argument("-ep", "--evolution_resampling_param", nargs=4, default=[0.1,10,30,1], metavar=('RESAMPLING_RATIO','MINIMUM_RESAMPLING','MAXIMUM_RESAMPLING','STEP'), help="""
+    parser.add_argument("-ep", "--evolution_resampling_param", nargs=5, default=[0.1,10,30,1,float("Inf")], metavar=('RESAMPLING_RATIO','MINIMUM_RESAMPLING','MAXIMUM_RESAMPLING','STEP','LIMIT'), help="""
     1st argument is the resampling ratio (FLOAT)
     2st argument is the minimum number of resampling for each number of organisms (INTEGER)
-    3nd argument is the maximum number of resampling for each number of organisms (INTEGER)
+    3nd argument is the maximum number of resampling for each number of organisms (INTEGER or Inf)
     4rd argument is the step between each number of organisms (INTEGER)
+    5rd argument is the limit of the size of the samples (INTEGER or Inf)
     """)
     parser.add_argument("-pr", "--projection", type = int, nargs = "+", metavar=('LINE_NUMBER_OR_ZERO'), help="""
     Project the graph as a circos plot on each organism.
@@ -407,7 +353,7 @@ def __main__():
     It provides a circular plot (well assembled representative organisms must be prefered).
     0 means all organisms (it is discouraged to use -p and -pr 0 in the same time because the projection of the graph on all the organisms can take a long time).
     """)
-    parser.add_argument("-ck", "--chunck_size", type = int, nargs = 1, default = [400], metavar=('SIZE'), help="""
+    parser.add_argument("-ck", "--chunck_size", type = int, nargs = 1, default = [500], metavar=('SIZE'), help="""
     Size of the chunks to perform the partionning by chunks.
     If the number of organisms used is higher than SIZE, the partionning will be performed by chunks of size SIZE
     """)
@@ -436,8 +382,8 @@ def __main__():
         list_dir.append(PROJECTION_DIR)
     if options.evolution:
         list_dir.append(EVOLUTION_DIR)
-        (RESAMPLING_RATIO, RESAMPLING_MIN, RESAMPLING_MAX, STEP) = options.evolution_resampling_param
-        (RESAMPLING_RATIO, RESAMPLING_MIN, RESAMPLING_MAX, STEP) = (float(RESAMPLING_RATIO), int(RESAMPLING_MIN), int(RESAMPLING_MAX), int(STEP))
+        (RESAMPLING_RATIO, RESAMPLING_MIN, RESAMPLING_MAX, STEP, LIMIT) = options.evolution_resampling_param
+        (RESAMPLING_RATIO, RESAMPLING_MIN, RESAMPLING_MAX, STEP, LIMIT) = (float(RESAMPLING_RATIO), int(RESAMPLING_MIN), int(RESAMPLING_MAX) if str(RESAMPLING_MAX).upper() != "Inf" else sys.maxsize, int(STEP), int(LIMIT) if str(LIMIT).upper() != "INF" else sys.maxsize)
     for directory in list_dir:
         if not os.path.exists(directory):
             os.makedirs(OUTPUTDIR+directory)
@@ -453,7 +399,6 @@ def __main__():
         attribute_names = list()
         for num, line in enumerate(options.metadata[0]):
             elements = [el.strip() for el in line.split("\t")]
-            
             if num == 0:
                 attribute_names = elements
             else:
@@ -466,7 +411,7 @@ def __main__():
                      options.gene_families[0],
                      options.remove_high_copy_number_families[0],
                      options.infer_singletons,
-                     options.undirected)
+                     options.directed)
 
     if options.metadata[0]:
         metadata = OrderedDict(zip(list(pan.organisms),metadata))
@@ -539,10 +484,12 @@ def __main__():
     pan.export_to_GEXF(OUTPUTDIR+GRAPH_FILE_PREFIX+(".gz" if options.compress_graph else ""), options.compress_graph, metadata)
     logging.getLogger().info("Writing GEXF light file")
     pan.export_to_GEXF(OUTPUTDIR+GRAPH_FILE_PREFIX+"_light"+(".gz" if options.compress_graph else ""), options.compress_graph, metadata, False,False)
-    for partition, families in pan.partitions.items(): 
-        file = open(OUTPUTDIR+PARTITION_DIR+"/"+partition+".txt","w")
-        file.write("\n".join(families))
-        file.close()
+    with open(OUTPUTDIR+"/pangenome.txt","w") as pan_text:
+        for partition, families in pan.partitions.items(): 
+            file = open(OUTPUTDIR+PARTITION_DIR+"/"+partition+".txt","w")
+            file.write("\n".join(families))
+            pan_text.write("\n".join(families))
+            file.close()
     pan.write_matrix(OUTPUTDIR+MATRIX_FILES_PREFIX)
     if options.projection:
         logging.getLogger().info("Projection...")
@@ -568,7 +515,8 @@ def __main__():
     #-------------
 
     logging.getLogger().info(pan)
-
+    with open(OUTPUTDIR+"/"+SUMMARY_STATS_FILE_PREFIX+".txt","w") as file_stats:
+        file_stats.write(str(pan))
     #-------------
 
     plot_Rscript(script_outfile = OUTPUTDIR+"/"+SCRIPT_R_FIGURE)
@@ -584,24 +532,23 @@ def __main__():
         combinations = organismsCombinations(list(pan.organisms), nbOrgThr=1, sample_ratio=RESAMPLING_RATIO, sample_min=RESAMPLING_MIN, sample_max=RESAMPLING_MAX)
         
         del combinations[pan.nb_organisms]
-        del combinations[1]
+
         global shuffled_comb
         shuffled_comb = combinations
-        shuffled_comb = [OrderedSet(comb) for nb_org, combs in combinations.items() for comb in combs if nb_org%STEP == 0]
-        random.shuffle(shuffled_comb)
+        shuffled_comb = [OrderedSet(comb) for nb_org, combs in combinations.items() for comb in combs if nb_org%STEP == 0 and nb_org<LIMIT]
+        shuffle(shuffled_comb)
 
-    
         global evol
-        evol =  open(OUTPUTDIR+EVOLUTION_DIR+EVOLUTION_STAT_FILE_PREFIX+".txt","w")
+        evol =  open(OUTPUTDIR+EVOLUTION_DIR+EVOLUTION_STATS_FILE_PREFIX+".txt","w")
 
         evol.write("nb_org\tpersistent\tshell\tcloud\tcore_exact\taccessory\tpangenome\n")
-        evol.write("\t".join([str(pan.nb_organisms),
-                                      str(len(pan.partitions["persistent"])),
-                                      str(len(pan.partitions["shell"])),
-                                      str(len(pan.partitions["cloud"])),
-                                      str(len(pan.partitions["core_exact"])),
-                                      str(len(pan.partitions["accessory"])),
-                                      str(len(pan.partitions["accessory"])+len(pan.partitions["core_exact"]))])+"\n")
+        evol.write("\t".join([str(pan.nb_organisms),    
+                              str(len(pan.partitions["persistent"])),
+                              str(len(pan.partitions["shell"])),
+                              str(len(pan.partitions["cloud"])),
+                              str(len(pan.partitions["core_exact"])),
+                              str(len(pan.partitions["accessory"])),
+                              str(len(pan.partitions["accessory"])+len(pan.partitions["core_exact"]))])+"\n")
         evol.flush()
 
         with ProcessPoolExecutor(options.cpu[0]) as executor:

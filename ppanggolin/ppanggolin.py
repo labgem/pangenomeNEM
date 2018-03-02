@@ -3,31 +3,24 @@
 from collections import defaultdict, OrderedDict, Counter
 from ordered_set import OrderedSet
 import networkx as nx
-import os
+import logging
 import sys
 import math
-import logging
+import time
+import os
 import shutil
 import gzip
-import numpy as np
 #import community
 import tempfile
-import subprocess
 from tqdm import tqdm
 import mmap
 from random import sample
-import time
-from multiprocessing import Pool
-from multiprocessing import Semaphore
+from multiprocessing import Pool, Semaphore
 from highcharts import Highchart
 import contextlib
-
-from nem import nem
-from ctypes import *
-
-#nemfunctions = cdll.LoadLibrary(nem.__file__)
-
-#import forceatlas2 
+from ppanggolin import *
+from utils import *
+from nem import *
 
 NEM_LOCATION  = os.path.dirname(os.path.abspath(__file__))+"/nem_exe"
 (TYPE, FAMILY, START, END, STRAND, NAME, PRODUCT) = range(0, 7)#data index in annotation
@@ -79,7 +72,7 @@ class PPanGGOLiN:
 
             .. attribute:: neighbors_graph
 
-                a networkx undirected graph. Node correspond to gene families and edges to chromosomal colocalization beween families. Organisms supporting each edge are stored in edge attribute as weel as the edge weight (number of organism coverinf each edge).
+                a networkx graph. Node correspond to gene families and edges to chromosomal colocalization beween families. Organisms supporting each edge are stored in edge attribute as weel as the edge weight (number of organism coverinf each edge).
                 Nodes attributes contains the gene identifiers of each organism supporting this node.
 
             .. attribute:: organisms
@@ -142,7 +135,7 @@ class PPanGGOLiN:
             >>>pan = PPanGGOLiN("file", organisms, gene_families, remove_high_copy_number_families)
             >>>pan = PPanGGOLiN("args", annotations, organisms, circular_contig_size, families_repeted)# load direclty the main attributes
         """ 
-        self.undirected               = False
+        self.directed                 = False
         self.annotations              = dict()
         self.neighbors_graph          = None
         self.organisms                = OrderedSet()
@@ -170,7 +163,7 @@ class PPanGGOLiN:
              self.organisms,
              self.circular_contig_size,
              self.families_repeted,
-             self.undirected) = args 
+             self.directed) = args 
         elif init_from == "database":
             logging.getLogger().error("database is not yet implemented")
             pass
@@ -179,24 +172,26 @@ class PPanGGOLiN:
         self.nb_organisms = len(self.organisms)
 
         logging.getLogger().info("Computing gene neighborhood ...")
-        self.__neighborhood_computation(undirected = self.undirected)
+        self.__neighborhood_computation(directed = self.directed)
 
-    def __initialize_from_files(self, organisms_file, families_tsv_file, lim_occurence = 0, infer_singletons = False, undirected = False):
+    def __initialize_from_files(self, organisms_file, families_tsv_file, lim_occurence = 0, infer_singletons = False, directed = False):
         """ 
             :param organisms_file: a file listing organims by compute, first column is organism name, second is path to gff file and optionnally other other to provide the name of circular contig
             :param families_tsv_file: a file listing families. The first element is the family identifier (by convention, we advice to use the identifier of the average gene of the family) and then the next elements are the identifiers of the genes belonging to this family.
             :param lim_occurence: a int containing the threshold of the maximum number copy of each families. Families exceeding this threshold are removed and are listed in the families_repeted attribute.
             :param infer_singletons: a bool specifying if singleton must be explicitely present in the families_tsv_file (False) or if single gene in gff files must be automatically infered as a singleton family (True)
-            :param undirected: a bool specifying if the pangenome graph is undirected or directed
+            :param directed: a bool specifying if the pangenome graph is directed or undirected
             :type file: 
             :type file: 
             :type int: 
             :type bool: 
             :type bool: 
         """ 
-        self.undirected = undirected
-
+        self.directed = directed
         logging.getLogger().info("Reading "+families_tsv_file.name+" the gene families file ...")
+
+        families_tsv_file = read_compressed_or_not(families_tsv_file)
+        organisms_file    = read_compressed_or_not(organisms_file)
         families    = dict()
         first_iter  = True
         for line in families_tsv_file:
@@ -258,7 +253,7 @@ class PPanGGOLiN:
 
             gene_id_auto = False
 
-            with open(gff_file_path,'r') as gff_file:
+            with read_compressed_or_not(gff_file_path) as gff_file:
                 for line in gff_file:
                     if line.startswith('##',0,2):
                         if line.startswith('FASTA',2,7):
@@ -316,8 +311,8 @@ class PPanGGOLiN:
                         annot[gff_fields[GFF_seqname]][protein] = ["CDS",family,int(gff_fields[GFF_start]),int(gff_fields[GFF_end]),gff_fields[GFF_strand], name, product]
 
             for seq_id in list(annot):#sort genes by annotation start coordinate
-                annot[seq_id] = OrderedDict(sorted(annot[seq_id].items(), key= lambda item: item[1][START]))
-                    
+                annot[seq_id] = OrderedDict(sorted(annot[seq_id].items(), key = lambda item: item[1][START]))
+                print(annot[seq_id])
             if (lim_occurence > 0):
                 fam_to_remove =[fam for fam, occ in cpt_fam_occ.items() if occ > lim_occurence]
                 logging.getLogger().debug("highly repeted families found (>"+str(lim_occurence)+" in "+organism+"): "+" ".join(fam_to_remove))
@@ -410,26 +405,23 @@ class PPanGGOLiN:
         except KeyError:
             self.neighbors_graph[fam_id][fam_id_nei]["length"]=set([length])
 
-    def __neighborhood_computation(self, undirected = False):#,light = False, untangle_multi_copy_families = False
+    def __neighborhood_computation(self, directed = False):#,light = False, untangle_multi_copy_families = False
         """ Use the information already loaded (annotation) to build the pangenome graph
-            :param undirected: a bool specifying if the graph is directed or undirected
+            :param directed: a bool specifying if the graph is directed or undirected
             :type bool: 
         """ 
         #:param light: a bool specifying is the annotation attribute must be detroyed at each step to save memory
         if self.neighbors_graph is None:
-            if undirected:
-                self.neighbors_graph = nx.Graph()
-            else:
+            if directed:
                 self.neighbors_graph = nx.DiGraph()
+            else:
+                self.neighbors_graph = nx.Graph()
 
         bar = tqdm(list(self.annotations),total=len(self.annotations),unit = "organism")
         for organism in bar:
-
             bar.set_description("Processing "+organism)
             bar.refresh()
-
             for contig, contig_annot in self.annotations[organism].items():
-                
                 try:
                     (gene_start, gene_info_start) = contig_annot.popitem(last=False)
                     while (gene_info_start[FAMILY] in self.families_repeted):
@@ -465,7 +457,7 @@ class PPanGGOLiN:
                     self.__add_link(gene_info_start[FAMILY],family_id_nei,organism, (self.circular_contig_size[contig] - end_family_nei) + gene_info_start[START])
 
                 contig_annot[gene_start]=gene_info_start
-
+                contig_annot.move_to_end(gene_start, last=False)#move to the beginning
             # if light:
             #    del self.annotations[organism]
 
@@ -733,16 +725,16 @@ class PPanGGOLiN:
                     except TypeError:
                         if key == "length":
                             l = list(self.neighbors_graph.node[node][key])
-                            graph_to_save.node[node]["length_avg"] = float(np.mean(l))
-                            graph_to_save.node[node]["length_med"] = float(np.median(l))
+                            graph_to_save.node[node]["length_avg"] = float(mean(l))
+                            graph_to_save.node[node]["length_med"] = float(median(l))
                             graph_to_save.node[node]["length_min"] = min(l)
                             graph_to_save.node[node]["length_max"] = max(l)
                             del graph_to_save.node[node]["length"]
 
         for node_i, node_j, data in self.neighbors_graph.edges(data = True):
             l = list(data["length"])
-            graph_to_save[node_i][node_j]["length_avg"] = float(np.mean(l))
-            graph_to_save[node_i][node_j]["length_med"] = float(np.median(l))
+            graph_to_save[node_i][node_j]["length_avg"] = float(mean(l))
+            graph_to_save[node_i][node_j]["length_med"] = float(median(l))
             graph_to_save[node_i][node_j]["length_min"] = min(l)
             graph_to_save[node_i][node_j]["length_max"] = max(l)
             del graph_to_save[node_i][node_j]["length"]
@@ -851,7 +843,7 @@ class PPanGGOLiN:
                                                '""',#11
                                                str(min(l)),#12
                                                str(max(l)),#13
-                                               str(round(np.mean(l),2))]#14
+                                               str(round(mean(l),2))]#14
                                                +genes)+"\n")#15
             if csv:
                 logging.getLogger().info("Writing csv matrix")
@@ -1133,11 +1125,12 @@ class PPanGGOLiN:
 ################ END OF CLASS PPanGGOLiN ################
 
 ################ FUNCTION run_partitioning ################
+""" """
 
 def run_partitioning(nem_dir_path, graph, organisms, pan_size, beta, free_dispersion):
     
     if len(organisms)<=10:# below 10 organisms a statistical computation do not make any sence
-        logging.getLogger().warning("The number of organisms is too low ("+str(len(organisms))+" organisms used) to partition the pangenome graph in persistent, shell, cloud partition, traditional partitions only (Core and Accessory genome) will be provided")
+        logging.getLogger().warning("The number of organisms is too low ("+str(len(organisms))+" organisms used) to partition the pangenome graph in persistent, shell and cloud genome. Add new organisms to obtain more robust metrics.")
 
     if not os.path.exists(nem_dir_path):
         #NEM requires 5 files: nem_file.index, nem_file.str, nem_file.dat, nem_file.m and nem_file.nei
@@ -1396,7 +1389,7 @@ def run_partitioning(nem_dir_path, graph, organisms, pan_size, beta, free_disper
             logging.getLogger().debug(shell_k)
             logging.getLogger().debug(cloud_k)
 
-            partition                 = {}
+            partition               = {}
             partition[persistent_k] = "P"#PERSISTENT
             partition[shell_k]      = "S"#SHELL
             partition[cloud_k]      = "C"#CLOUD
@@ -1416,8 +1409,9 @@ def run_partitioning(nem_dir_path, graph, organisms, pan_size, beta, free_disper
             logging.getLogger().debug(partition)
             #logging.getLogger().debug(index.keys())
     except FileNotFoundError:
-        logging.getLogger().warning("Statistical partitioning do not works, see log here to obtain more details "+nem_dir_path+"/nem_file.log")
+        logging.getLogger().warning("Statistical partitioning do not works (the number of organisms used is probably too low), see logs here to obtain more details "+nem_dir_path+"/nem_file.log")
     return(dict(zip(index_fam.keys(), partitions_list)))
+
 
 
 ################ END OF FILE ################

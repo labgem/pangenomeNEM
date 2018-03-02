@@ -68,7 +68,7 @@ if __name__ == "__main__":
             'console_scripts': [
             name+' = '+name+'.command_line:__main__'
           ]},
-        extras_require= {'all' : ['futures', 'collections', 'ordered-set', 'networkx >= 2.0', 'numpy', 'scipy','community', 'tqdm', 'python-highcharts'],
+        extras_require= {'all' : ['futures', 'collections', 'ordered-set', 'networkx >= 2.0', 'tqdm', 'python-highcharts'],
                         ':python_version == "2.7"': ['futures']},
         #cmdclass={'build': pre_build, 'clean': post_clean},
         #ext_modules = cythonize(Extension("nem",sources = [NEM_dir_path+'nem.pyx'], libraries=[NEM_dir_path])))#,
