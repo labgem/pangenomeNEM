@@ -263,6 +263,9 @@ def resample(index):
                           str(stats["core_exact"]+stats["accessory"])])+"\n")
     evol.flush()
 
+    if options.delete_nem_intermediate_files:
+        shutil.rmtree(OUTPUTDIR+EVOLUTION_DIR+"/nborg"+str(len(shuffled_comb[index]))+"_"+str(index))
+
 #### END - NEED TO BE AT THE HIGHEST LEVEL OF THE MODULE TO ALLOW MULTIPROCESSING
 
 def __main__():
@@ -578,7 +581,7 @@ def __main__():
     "Execution time of writing output files: " +str(round(end_writing_output_file-start_writing_output_file, 2))+" s\n"+
     (("Execution time of evolution: " +str(round(end_evolution-start_evolution, 2))+" s\n") if options.evolution else "")+
 
-    "Total execution time: " +str(round(time.time()-start_loading, 2))+" s\n")
+    "Total execution time: " +str(round(time()-start_loading, 2))+" s\n")
 
     logging.getLogger().info("""The pangenome computation is complete.""")
 
@@ -593,7 +596,7 @@ def __main__():
         proc.communicate()
 
     if options.delete_nem_intermediate_files:
-            pan.delete_nem_intermediate_files()  
+        pan.delete_nem_intermediate_files()  
 
     logging.getLogger().info("Finished !")
     exit(0)
