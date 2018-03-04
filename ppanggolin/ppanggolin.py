@@ -22,7 +22,6 @@ from ppanggolin import *
 from utils import *
 from nem import *
 
-NEM_LOCATION  = os.path.dirname(os.path.abspath(__file__))+"/nem_exe"
 (TYPE, FAMILY, START, END, STRAND, NAME, PRODUCT) = range(0, 7)#data index in annotation
 (ORGANISM_ID, ORGANISM_GFF_FILE) = range(0, 2)#data index in the file listing organisms 
 
