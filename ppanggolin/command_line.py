@@ -15,8 +15,10 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from time import gmtime, strftime, time
 import subprocess
 import pkg_resources
+import traceback
 from ppanggolin.utils import *
 from ppanggolin.ppanggolin import *
+
 
 ### PATH AND FILE NAME
 OUTPUTDIR                   = None 
@@ -561,8 +563,7 @@ def __main__():
             for f in tqdm(as_completed(futures), total = len(shuffled_comb), unit = 'pangenome resampled'):
                 ex = f.exception()
                 if ex:
-                    #logging.getLogger().error(ex.with_traceback(None))
-                    logging.getLogger().error(ex.args)
+                    logging.getLogger().error(traceback.print_exception(ex))
                     executor.shutdown(wait=False)
                     exit(1)
 
