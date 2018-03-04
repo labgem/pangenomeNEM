@@ -6,11 +6,10 @@ import networkx as nx
 import logging
 import sys
 import math
-import time
+from time import time
 import os
 import shutil
 import gzip
-#import community
 import tempfile
 from tqdm import tqdm
 import mmap
@@ -18,9 +17,8 @@ from random import sample
 from multiprocessing import Pool, Semaphore
 from highcharts import Highchart
 import contextlib
-from ppanggolin import *
-from utils import *
 from nem import *
+from ppanggolin.utils import *
 
 (TYPE, FAMILY, START, END, STRAND, NAME, PRODUCT) = range(0, 7)#data index in annotation
 (ORGANISM_ID, ORGANISM_GFF_FILE) = range(0, 2)#data index in the file listing organisms 
