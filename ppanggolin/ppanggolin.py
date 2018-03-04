@@ -6,7 +6,7 @@ import networkx as nx
 import logging
 import sys
 import math
-from time import time
+from time import time, sleep
 import os
 import shutil
 import gzip
@@ -614,12 +614,12 @@ class PPanGGOLiN:
                             validate_family(res)
                         cpt +=1
                     else:
-                        time.sleep(0.01)
+                        sleep(0.01)
 
                     # if inplace:
                     #     bar.update()    
                 if nb_threads>1:
-                    time.sleep(1)
+                    sleep(1)
                     pool.close()
                     pool.join() 
                 #BIC = total_BIC/cpt
