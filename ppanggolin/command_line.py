@@ -537,7 +537,7 @@ def __main__():
             logging.disable(logging.WARNING)# disable WARNING message to not disturb the progess bar
         combinations = organismsCombinations(list(pan.organisms), nbOrgThr=1, sample_ratio=RESAMPLING_RATIO, sample_min=RESAMPLING_MIN, sample_max=RESAMPLING_MAX)
         
-        del combinations[pan.nb_organisms]
+        #del combinations[pan.nb_organisms]
 
         global shuffled_comb
         shuffled_comb = combinations
