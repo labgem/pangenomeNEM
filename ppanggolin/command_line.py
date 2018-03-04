@@ -6,6 +6,7 @@ from ordered_set import OrderedSet
 import networkx as nx
 import logging
 import sys
+import os
 import argparse
 from random import shuffle, sample
 from tqdm import tqdm
@@ -14,8 +15,8 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from time import gmtime, strftime, time
 import subprocess
 import pkg_resources
-from ppanggolin import *
-from utils import *
+from ppanggolin.utils import *
+from ppanggolin.ppanggolin import *
 
 ### PATH AND FILE NAME
 OUTPUTDIR                   = None 
@@ -404,7 +405,7 @@ def __main__():
             else:
                 metadata.append(dict(zip(attribute_names,elements)))
 
-    start_loading = time.time()
+    start_loading = time()
     global pan
     pan = PPanGGOLiN("file",
                      options.organisms[0],
@@ -424,13 +425,13 @@ def __main__():
     # #-------------
     
     # start_neighborhood_computation = time.time()
-    end_loading = time.time()
+    end_loading = time()
     #-------------
 
     #-------------
     logging.getLogger().info("Partitionning...")
 
-    start_partitioning = time.time()
+    start_partitioning = time()
     pan.partition(nem_dir_path    = OUTPUTDIR+NEM_DIR,
                   organisms       = None,
                   beta            = options.beta_smoothing[0],
@@ -439,7 +440,7 @@ def __main__():
                   inplace         = True,
                   just_stats      = False,
                   nb_threads      = options.cpu[0])
-    end_partitioning = time.time()
+    end_partitioning = time()
     #-------------
 
     #-------------
@@ -476,7 +477,7 @@ def __main__():
     #-------------
 
     #-------------
-    start_writing_output_file = time.time()
+    start_writing_output_file = time()
 
     
     #pan.tile_plot(OUTPUTDIR+FIGURE_DIR)
@@ -493,10 +494,10 @@ def __main__():
     pan.write_matrix(OUTPUTDIR+MATRIX_FILES_PREFIX)
     if options.projection:
         logging.getLogger().info("Projection...")
-        start_projection = time.time()
+        start_projection = time()
         pan.projection_polar_histogram(OUTPUTDIR+PROJECTION_DIR, [pan.organisms.__getitem__(index-1) for index in options.projection] if options.projection[0] > 0 else list(pan.organisms))
-        end_projection = time.time()
-    end_writing_output_file = time.time()
+        end_projection = time()
+    end_writing_output_file = time()
 
     pan.ushaped_plot(OUTPUTDIR+FIGURE_DIR)
     del pan.annotations # no more required for the following process
@@ -525,7 +526,7 @@ def __main__():
 
         logging.getLogger().info("Evolution...")
 
-        start_evolution = time.time()
+        start_evolution = time()
         if not options.verbose:
             logging.disable(logging.INFO)# disable INFO message to not disturb the progess bar
             logging.disable(logging.WARNING)# disable WARNING message to not disturb the progess bar
@@ -564,7 +565,7 @@ def __main__():
 
         evol.close()
 
-        end_evolution = time.time()
+        end_evolution = time()
         logging.disable(logging.NOTSET)#restaure info and warning messages 
 
     #-------------

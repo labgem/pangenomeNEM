@@ -187,7 +187,7 @@ Partionning parameter
 
 The partitioning method can be customized via 3 parameters:
 
-1. Partitioning by chunks (-ck VALUE option): When more than 500 organisms are processed it is advised to partition the pangenome by chunks. Actually, the method seems to saturate with an large number of dimensions. Chunks correspond to samples of the organisms to partition simultaneously. We advise to use chunks bigger than 200 organisms in order to obtain representative ones. Then the tools will partition the pangenome using multiple chunks in a way that every gene families must be partitionned in at least (total number of organisms)/(chunk size) times. Moreover each gene family must be partitionned mainly in one specific partition (>50% of cases), otherwise the partitioning will continue until validating this criteria.
+1. Partitioning by chunks (-ck VALUE option): When more than 500 organisms are processed it is advised to partition the pangenome by chunks. Actually, the method seems to saturate with an large number of dimensions. Chunks correspond to samples of the organisms to partition simultaneously. We advise to use chunks of 500 organisms in order to obtain representative ones. Then the tools will partition the pangenome using multiple chunks in a way that every gene families must be partitionned in at least (total number of organisms)/(chunk size) times. Moreover each gene family must be partitionned mainly in one specific partition (>50% of cases), otherwise the partitioning will continue until validating this criteria.
 
 	This feature can be executed using this command :
 
