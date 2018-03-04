@@ -323,15 +323,15 @@ def __main__():
     parser.add_argument("-cg", "--compress_graph", default=False, action="store_true", help="""
     Compress (using gzip) the files containing the partionned pangenome graph""")
     parser.add_argument("-c", "--cpu", default=[1],  type=int, nargs=1, metavar=('NB_CPU'), help="""
-    Number of cpu to use""")
+    Number of cpu to use (several cpu will be used only if the option -e is set or/and if the -ck option is below the number of organisms provided)""")
     #parser.add_argument("-ss", "--subpartition_shell", default = 0, type=int, nargs=1, help = """
     #Subpartition the shell genome in n subpartition, n can be ajusted automatically if n = -1, 0 desactivate shell genome subpartitioning""")
     parser.add_argument("-v", "--verbose", default=False, action="store_true", help="""
     Show all messages including debugging ones""")
     # parser.add_argument("-as", "--already_sorted", default=False, action="store_true", help="""
     # Accelerate loading of gff files if there are sorted by the coordinate of gene annotations (starting point) for each contig""")
-    parser.add_argument("-l", "--freemem", default=False, action="store_true", help="""
-    Free the memory elements which are no longer used""")
+    #parser.add_argument("-l", "--freemem", default=False, action="store_true", help="""
+    #Free the memory elements which are no longer used""")
     parser.add_argument("-p", "--plots", default=False, action="store_true", help="""
     Generate Rscript able to draw plots and run it. (required R in the path and the packages ggplot2, ggrepel, data.table and reshape2 to be installed)""")
     parser.add_argument("-di", "--directed", default=False, action="store_true", help="""

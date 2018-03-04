@@ -7,6 +7,7 @@ from decimal import Decimal
 from collections import defaultdict
 import math
 from random import sample
+from io import TextIOWrapper
 
 """ argument can be a file descriptor (compressed or not) or file path (compressed or not) and return a readable file descriptor"""
 def read_compressed_or_not(file_or_file_path):
@@ -20,7 +21,7 @@ def read_compressed_or_not(file_or_file_path):
             return(file)
     if file.read(2).startswith(b'\x1f\x8b'):
         file.seek(0)
-        return(gzip.GzipFile(fileobj=file))
+        return(TextIOWrapper(gzip.open(filename=file, mode = "r")))
     else:
         file.close()
         file = open(file.name,"r")

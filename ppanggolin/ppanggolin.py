@@ -312,7 +312,6 @@ class PPanGGOLiN:
 
             for seq_id in list(annot):#sort genes by annotation start coordinate
                 annot[seq_id] = OrderedDict(sorted(annot[seq_id].items(), key = lambda item: item[1][START]))
-                print(annot[seq_id])
             if (lim_occurence > 0):
                 fam_to_remove =[fam for fam, occ in cpt_fam_occ.items() if occ > lim_occurence]
                 logging.getLogger().debug("highly repeted families found (>"+str(lim_occurence)+" in "+organism+"): "+" ".join(fam_to_remove))
