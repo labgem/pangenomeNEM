@@ -30,10 +30,12 @@ def read_compressed_or_not(file_or_file_path):
 """ The number of combinations of n things taken k at a time."""
 def comb_k_n(k,n):
     if (k == 0):
-            return 1
+        return 1
+    if (k > n):
+        return 0
     result = 1
     for i in range(0, k):
-            result *= float(n - i)/(i + 1);
+        result *= float(n - i)/(i + 1);
     return sys.maxsize if result==float("Inf") else int(round(result)) 
 
 # proportional sampling
@@ -41,7 +43,7 @@ def samplingCombinations(items, sample_ratio, sample_min, sample_max=100, step =
     samplingCombinationList = defaultdict(list)
     item_size = len(items)
     combTotNb = pow(2,item_size)-1
-    for k in range(1, item_size+1, step):
+    for k in range(1, item_size, step):
         tmp_comb = []
         combNb = Decimal(comb_k_n(item_size, k))
         combNb = sys.float_info.max if combNb>sys.float_info.max else combNb # to avoid to reach infinit values
