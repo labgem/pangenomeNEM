@@ -4,7 +4,7 @@
 import sys
 import gzip
 from decimal import Decimal
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 import math
 from random import sample
 from io import TextIOWrapper
@@ -80,3 +80,22 @@ def median(numbers):
     else:
         i = n//2
         return (numbers[i - 1] + numbers[i])/2
+
+"""insertion of element at the top of an OrderedDict (for compatibility with python 2.7)
+from : https://stackoverflow.com/questions/16664874/how-can-i-add-an-element-at-the-top-of-an-ordereddict-in-python/18326914
+"""
+def ordered_dict_prepend(dct, key, value, dict_setitem=dict.__setitem__):
+    root = dct._OrderedDict__root
+    first = root[1]
+
+    if key in dct:
+        link = dct._OrderedDict__map[key]
+        link_prev, link_next, _ = link
+        link_prev[1] = link_next
+        link_next[0] = link_prev
+        link[0] = root
+        link[1] = first
+        root[1] = first[0] = link
+    else:
+        root[1] = first[0] = dct._OrderedDict__map[key] = [root, first, key]
+        dict_setitem(dct, key, value)

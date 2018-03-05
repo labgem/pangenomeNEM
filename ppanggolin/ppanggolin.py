@@ -456,8 +456,7 @@ class PPanGGOLiN:
                 if contig in self.circular_contig_size:#circularization
                     self.__add_link(gene_info_start[FAMILY],family_id_nei,organism, (self.circular_contig_size[contig] - end_family_nei) + gene_info_start[START])
 
-                contig_annot[gene_start]=gene_info_start
-                contig_annot.move_to_end(gene_start, last=False)#move to the beginning
+                ordered_dict_prepend(contig_annot,gene_start,gene_info_start)#insert at the top
             # if light:
             #    del self.annotations[organism]
 
