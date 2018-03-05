@@ -326,11 +326,15 @@ class PPanGGOLiN:
 
         if self.pan_size != 0:
             pan_str += "Pan-genome size:"+str(self.pan_size)+"\n"
+            pan_str += "\n"
             pan_str += "Exact core-genome size:"+str(len(self.partitions["core_exact"]))+"\n"
             pan_str += "Exact variable-genome size:"+str(self.pan_size-len(self.partitions["core_exact"]))+"\n"
+            pan_str += "\n"
             pan_str += "Persistent genome size:"+str(len(self.partitions["persistent"]))+"\n"
             pan_str += "Shell genome size:"+str(len(self.partitions["shell"]))+"\n"
             pan_str += "Cloud genome cloud:"+str(len(self.partitions["cloud"]))+"\n"
+            pan_str += "\n"
+            pan_str += "Genome with undefined partition:"+str(len(self.partitions["undefined"]))+"\n"
         else:
             pan_str += "No partitioning have been performed on this Pangenome instance\n"
             pan_str += "Run the partitioning function to obtain more detailled statistics...\n"
@@ -1390,6 +1394,9 @@ def run_partitioning(nem_dir_path, graph, organisms, pan_size, beta, free_disper
             partition[shell_k]      = "S"#SHELL
             partition[cloud_k]      = "C"#CLOUD
 
+            if partition[0] != "P" or partition[1] != "S" or partition[2] != "C":
+                raise ValueError("vector mu_k and epsilon_k value in the mf file are not relevant with the initialisation value in the m file")
+
             for i, line in enumerate(partitions_nem_file):
                 elements = [float(el) for el in line.split()]
                 max_prob = max([float(el) for el in elements])
@@ -1406,6 +1413,9 @@ def run_partitioning(nem_dir_path, graph, organisms, pan_size, beta, free_disper
             #logging.getLogger().debug(index.keys())
     except FileNotFoundError:
         logging.getLogger().warning("Statistical partitioning do not works (the number of organisms used is probably too low), see logs here to obtain more details "+nem_dir_path+"/nem_file.log")
+    except ValueError:
+        ## return the default partitions_list which correspond to undefined
+        pass
     return(dict(zip(index_fam.keys(), partitions_list)))
 
 

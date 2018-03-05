@@ -433,7 +433,7 @@ def __main__():
     #-------------
 
     #-------------
-    logging.getLogger().info("Partitionning...")
+    logging.getLogger().info("Partitioning...")
 
     start_partitioning = time()
     pan.partition(nem_dir_path    = OUTPUTDIR+NEM_DIR,
