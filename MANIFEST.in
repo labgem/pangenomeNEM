@@ -1,4 +1,5 @@
 include README.rst
 include VERSION
+include LICENSE
 recursive-include images *.png *.gif
 recursive-include ppanggolin *
