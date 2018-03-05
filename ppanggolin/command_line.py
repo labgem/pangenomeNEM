@@ -226,7 +226,6 @@ for (org_csv in list.files(path = '"""+OUTPUTDIR+PROJECTION_DIR+"""', pattern = 
     logging.getLogger().info("Writing R script generating plot")
     with open(script_outfile,"w") as script_file:
         script_file.write(rscript)
-    logging.getLogger().info("Running R script generating plot")
 
 #### START - NEED TO BE AT THE HIGHEST LEVEL OF THE MODULE TO ALLOW MULTIPROCESSING
 
@@ -561,10 +560,8 @@ def __main__():
             for f in tqdm(as_completed(futures), total = len(shuffled_comb), unit = 'pangenome resampled'):
                 ex = f.exception()
                 if ex:
-                    logging.getLogger().error(traceback.print_exception(ex))
                     executor.shutdown(wait=False)
-                    exit(1)
-
+                    raise ex
         evol.close()
 
         end_evolution = time()
@@ -585,9 +582,10 @@ def __main__():
     logging.getLogger().info("""The pangenome computation is complete.""")
 
     if options.plots:
+        logging.getLogger().info("Running R script generating plot")
         cmd = "Rscript "+OUTPUTDIR+"/"+SCRIPT_R_FIGURE
         logging.getLogger().info("""Several plots will be generated using R (in the directory: """+OUTPUTDIR+FIGURE_DIR+""").
-    If R and the required package (ggplot2, reshape2, ggrepel(>0.6.6), data.table) are not installed don't worry, the R script is saved in the directory. To generate the figures latter, you enter :
+    If R and the required package (ggplot2, reshape2, ggrepel(>0.6.6), data.table) are not installed don't worry, the R script is saved in the directory. To generate the figures latter, just use the following command :
     """+cmd)
         
         logging.getLogger().info(cmd)
