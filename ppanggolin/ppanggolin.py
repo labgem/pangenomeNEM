@@ -462,7 +462,7 @@ class PPanGGOLiN:
                     contig_annot[gene_start]=gene_info_start
                     contig_annot.move_to_end(gene_start, last=False)#move to the beginning
             # if light:
-            #    del self.annotations[organism]
+            del self.annotations[organism]
 
         self.pan_size = nx.number_of_nodes(self.neighbors_graph)
 
