@@ -456,7 +456,11 @@ class PPanGGOLiN:
                 if contig in self.circular_contig_size:#circularization
                     self.__add_link(gene_info_start[FAMILY],family_id_nei,organism, (self.circular_contig_size[contig] - end_family_nei) + gene_info_start[START])
 
-                ordered_dict_prepend(contig_annot,gene_start,gene_info_start)#insert at the top
+                if sys.version_info < (3,):
+                    ordered_dict_prepend(contig_annot,gene_start,gene_info_start)#insert at the top
+                else:
+                    contig_annot[gene_start]=gene_info_start
+                    contig_annot.move_to_end(gene_start, last=False)#move to the beginning
             # if light:
             #    del self.annotations[organism]
 
@@ -575,7 +579,7 @@ class PPanGGOLiN:
                 pan_size = stats["accessory"]+stats["core_exact"]
                 
                 while len(validated)<pan_size:
-                    if sem.acquire():#
+                    if sem.acquire() if nb_threads>1 else True:#
                         # print(organisms)
                         # print(chunck_size)
                         # print(proba_sample.values())
