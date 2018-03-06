@@ -229,15 +229,6 @@ for (org_csv in list.files(path = '"""+OUTPUTDIR+PROJECTION_DIR+"""', pattern = 
 
 #### START - NEED TO BE AT THE HIGHEST LEVEL OF THE MODULE TO ALLOW MULTIPROCESSING
 
-
-# Generate list of combinations of organisms exaustively or following a binomial coeficient
-def organismsCombinations(orgs, nbOrgThr, sample_ratio, sample_min, sample_max = 100, step = 1):
-    if (len(orgs) <= nbOrgThr):
-        comb_list = exactCombinations(orgs)
-    else:
-        comb_list = samplingCombinations(orgs, sample_ratio, sample_min, sample_max, step)
-    return comb_list
-
 shuffled_comb = []
 evol = None
 pan = None
@@ -534,7 +525,7 @@ def __main__():
         if not options.verbose:
             logging.disable(logging.INFO)# disable INFO message to not disturb the progess bar
             logging.disable(logging.WARNING)# disable WARNING message to not disturb the progess bar
-        combinations = organismsCombinations(list(pan.organisms), nbOrgThr=1, sample_ratio=RESAMPLING_RATIO, sample_min=RESAMPLING_MIN, sample_max=RESAMPLING_MAX)
+        combinations = samplingCombinations(list(pan.organisms), sample_ratio=RESAMPLING_RATIO, sample_min=RESAMPLING_MIN, sample_max=RESAMPLING_MAX)
         
         global shuffled_comb
         shuffled_comb = combinations

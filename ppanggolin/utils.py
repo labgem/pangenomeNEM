@@ -8,6 +8,7 @@ from collections import defaultdict, OrderedDict
 import math
 from random import sample
 from io import TextIOWrapper
+import mmap
 
 """ argument can be a file descriptor (compressed or not) or file path (compressed or not) and return a readable file descriptor"""
 def read_compressed_or_not(file_or_file_path):
@@ -26,6 +27,14 @@ def read_compressed_or_not(file_or_file_path):
         file.close()
         file = open(file.name,"r")
         return(file)
+
+def get_num_lines(file):
+    fp = open(file.name, "r+")
+    buf = mmap.mmap(fp.fileno(), 0)
+    lines = 0
+    while buf.readline():
+        lines += 1
+    return lines
 
 """ The number of combinations of n things taken k at a time."""
 def comb_k_n(k,n):
