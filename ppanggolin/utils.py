@@ -22,7 +22,10 @@ def read_compressed_or_not(file_or_file_path):
             return(file)
     if file.read(2).startswith(b'\x1f\x8b'):
         file.seek(0)
-        return(TextIOWrapper(gzip.open(filename=file, mode = "r")))
+        if sys.version_info < (3,):# if python2
+            return(gzip.open(filename=file.name, mode = "r"))
+        else:# if python3
+            return(TextIOWrapper(gzip.open(filename=file, mode = "r")))
     else:
         file.close()
         file = open(file.name,"r")

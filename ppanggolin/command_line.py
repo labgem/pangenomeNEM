@@ -16,9 +16,8 @@ from time import gmtime, strftime, time
 import subprocess
 import pkg_resources
 import traceback
-from ppanggolin.utils import *
-from ppanggolin.ppanggolin import *
-
+from .ppanggolin import *
+from .utils import *
 
 ### PATH AND FILE NAME
 OUTPUTDIR                   = None 

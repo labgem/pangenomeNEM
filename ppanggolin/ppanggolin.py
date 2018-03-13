@@ -17,7 +17,7 @@ from multiprocessing import Pool, Semaphore
 from highcharts import Highchart
 import contextlib
 from nem import *
-from ppanggolin.utils import *
+from .utils import *
 
 (TYPE, FAMILY, START, END, STRAND, NAME, PRODUCT) = range(0, 7)#data index in annotation
 (ORGANISM_ID, ORGANISM_GFF_FILE) = range(0, 2)#data index in the file listing organisms 
@@ -316,7 +316,7 @@ class PPanGGOLiN:
         pan_str += "Number of organisms: "+str(self.nb_organisms)+"\n"
 
         if self.pan_size != 0:
-            pan_str += "Pan-genome size:"+str(self.pan_size)+"\n"
+            pan_str += "Pangenome size:"+str(self.pan_size)+"\n"
             pan_str += "\n"
             pan_str += "Exact core-genome size:"+str(len(self.partitions["core_exact"]))+"\n"
             pan_str += "Exact variable-genome size:"+str(self.pan_size-len(self.partitions["core_exact"]))+"\n"
@@ -325,13 +325,46 @@ class PPanGGOLiN:
             pan_str += "Shell genome size:"+str(len(self.partitions["shell"]))+"\n"
             pan_str += "Cloud genome cloud:"+str(len(self.partitions["cloud"]))+"\n"
             pan_str += "\n"
-            pan_str += "Genome with undefined partition:"+str(len(self.partitions["undefined"]))+"\n"
+            pan_str += "Gene families with undefined partition:"+str(len(self.partitions["undefined"]))+"\n"
         else:
             pan_str += "No partitioning have been performed on this Pangenome instance\n"
             pan_str += "Run the partitioning function to obtain more detailled statistics...\n"
         pan_str += "----------------------------------"
 
-        return(pan_str)    
+        return(pan_str)
+
+    def __repr__(self):
+        return(self.__str__())
+
+    def __len__(self):
+        """ return the number of gene families into this pangenome """
+        self.pan_size
+
+
+    def __iadd__(self, another_pan):
+        """ add a pangenome to this pangenome (reset the partionning) """
+
+        self.annotations.update(another_pan.annotations)
+        self.neighbors_graph          = None
+        self.organisms                = self.organisms.union(another_pan.organisms)
+        self.nb_organisms             = len(self.organisms)
+        self.circular_contig_size     = self.circular_contig_size.update(another_pan.circular_contig_size)
+        self.families_repeted         = self.families_repeted.union(another_pan.families_repeted)
+        self.pan_size                 = 0
+        self.is_partitionned          = False
+        self.delete_nem_intermediate_files()
+        self.partitions               = {}
+        self.partitions["undefined"]  = list()
+        self.partitions["persistent"] = list()
+        self.partitions["shell"]      = list()
+        self.partitions["cloud"]      = list()
+        self.partitions["core_exact"] = list()
+        self.partitions["accessory"]  = list()
+        self.BIC                      = None
+
+        self.__neighborhood_computation()
+
+        return(self)
 
     def __add_gene(self, fam_id, org, gene, name, length, product):#, multi_copy = None
         """
@@ -453,7 +486,7 @@ class PPanGGOLiN:
                     contig_annot[gene_start]=gene_info_start
                     contig_annot.move_to_end(gene_start, last=False)#move to the beginning
             # if light:
-            del self.annotations[organism]
+            #     del self.annotations[organism]
 
         self.pan_size = nx.number_of_nodes(self.neighbors_graph)
 
@@ -478,7 +511,6 @@ class PPanGGOLiN:
             org_file.write(" ".join(["\""+org+"\"" for org in organisms])+"\n")
             org_file.close()
 
-            
             index_fam = OrderedDict()
             for node_name, node_organisms in self.neighbors_graph.nodes(data=True):
                 logging.getLogger().debug(node_organisms)
@@ -1412,7 +1444,7 @@ def run_partitioning(nem_dir_path, nb_org, beta, free_dispersion):
 
             logging.getLogger().debug(partition)
             #logging.getLogger().debug(index.keys())
-    except FileNotFoundError:
+    except IOError:
         logging.getLogger().warning("Statistical partitioning do not works (the number of organisms used is probably too low), see logs here to obtain more details "+nem_dir_path+"/nem_file.log")
     except ValueError:
         ## return the default partitions_list which correspond to undefined

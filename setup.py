@@ -32,14 +32,16 @@ if __name__ == "__main__":
         packages=[name],
         long_description=read('README.rst'),
         classifiers=[
-            "Environment :: Console",
             "Development Status :: 3 - Alpha",
+            "Environment :: Console",
             "Intended Audience :: Science/Research",
-            "Topic :: Scientific/Engineering :: Bio-Informatics",
-            "Programming Language :: Python",
-            "Programming Language :: C",
             "License :: OSI Approved :: CEA CNRS Inria Logiciel Libre License, version 2.1 (CeCILL-2.1)",
-        ],
+            "Natural Language :: English",
+            "Operating System :: POSIX :: Linux",
+            "Programming Language :: Python",
+            "Programming Language :: Python :: Implementation :: CPython",
+            "Topic :: Scientific/Engineering :: Bio-Informatics"
+       ],
         entry_points={
             'console_scripts': [
             name+' = '+name+'.command_line:__main__'
