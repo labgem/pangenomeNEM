@@ -206,7 +206,7 @@ class PPanGGOLiN:
             bar.set_description("Processing "+elements[ORGANISM_GFF_FILE])
             bar.refresh()
             if len(elements)>2:
-                self.circular_contig_size.update({contig_id: None for contig_id in elements[2:len(elements)]})# size of the circular contig is initialized to None (waiting to read the gff files to fill the dictionnaries with the correct values)
+                self.circular_contig_size.update({contig_id: None for contig_id in elements[2:len(elements)]})  # size of the circular contig is initialized to None (waiting to read the gff files to fill the dictionnaries with the correct values)
             self.annotations[elements[0]] = self.__load_gff(elements[ORGANISM_GFF_FILE], families, elements[ORGANISM_ID], lim_occurence, infer_singletons)
         check_circular_contigs = {contig: size for contig, size in self.circular_contig_size.items() if size == None }
         if len(check_circular_contigs) > 0:
@@ -935,7 +935,7 @@ class PPanGGOLiN:
                                                +['"'+org+'"' for org in list(self.organisms)])+"\n")#15
 
                     for node, data in self.neighbors_graph.nodes(data=True):
-                        genes  = [('"'+"|".join(data[org])+'"' if gene_or_not else "1") if org in data else ('""' if gene_or_not else "0") for org in self.organisms]
+                        genes  = [('"'+"|".join(data[org])+'"' if gene_or_not else str(len(data[org]))) if org in data else ('""' if gene_or_not else "0") for org in self.organisms]
                         nb_org = len([gene for gene in genes if gene != ('""' if gene_or_not else "0")])
                         l = list(data["length"])
                         matrix.write(sep.join(['"'+node+'"',#1
@@ -1204,32 +1204,52 @@ class PPanGGOLiN:
 
     #                 self.neighbors_graph.node[index_inv[i+1]]["subshell"]=str(classes[0])
 
-
-    def projection_polar_histogram(self, out_dir, organisms_to_project):
+    def projection(self, out_dir, organisms_to_project):
         """
-            generate tile projection_polar_histogram representation
+            generate files about the projection of the partition of the graph on the organisms
+            return statistics about the number of genes in each organism to project for each partition in the file out_dir/nb_gene.csv
             :param outdir: a str containing the path of the output directory (name of files will be the name of organisms)
-            :organisms_to_project: a list of str containing the name of the organism
+            :param organisms_to_project: a list of str containing the name of the organism
             :type str:
             :type list
+            :return: stats: 
+            :rtype: dict 
         """ 
-        for organism in organisms_to_project:
-            with open(out_dir+"/"+organism+".csv","w") as out_file:
-                out_file.write("gene\tcontig\tori\tfamily\tnb_copy_in_org\tpartition\tpersistent\tshell\tcloud\n")
-                for contig, contig_annot in self.annotations[organism].items():
-                    for gene, gene_info in contig_annot.items():
-                        if gene_info[FAMILY] not in self.families_repeted:
-                            nei_partitions = [self.neighbors_graph.node[nei]["partition"] for nei in nx.all_neighbors(self.neighbors_graph,gene_info[FAMILY])]
-                            out_file.write("\t".join([gene,
-                                                      contig,
-                                                      "T" if (gene_info[NAME].upper() == "DNAA" or gene_info[PRODUCT].upper() == "DNAA") else "F",
-                                                      gene_info[FAMILY],
-                                                      str(len(self.neighbors_graph.node[gene_info[FAMILY]][organism])),
-                                                      self.neighbors_graph.node[gene_info[FAMILY]]["partition"],
-                                                      str(nei_partitions.count("persistent")),
-                                                      str(nei_partitions.count("shell")),
-                                                      str(nei_partitions.count("cloud"))])+"\n")
-
+        if self.is_partitionned:
+            with open(out_dir+"/nb_gene.csv","w") as nb_gene_file:
+                nb_gene_file.write("org\tpersistent\tshell\tcloud\tcore_exact\taccessory\tpangenome\n")
+                for organism in organisms_to_project:
+                    nb_genes_by_partition = defaultdict(int)
+                    with open(out_dir+"/"+organism+".csv","w") as out_file:
+                        out_file.write("gene\tcontig\tcoord_start\ttcoord_end\tstrand\tori\tfamily\tnb_copy_in_org\tpartition\tpersistent\tshell\tcloud\n")
+                        for contig, contig_annot in self.annotations[organism].items():
+                            for gene, gene_info in contig_annot.items():
+                                if gene_info[FAMILY] not in self.families_repeted:
+                                    nb_genes_by_partition[self.neighbors_graph.node[gene_info[FAMILY]]["partition"]]+=1
+                                    nb_genes_by_partition[self.neighbors_graph.node[gene_info[FAMILY]]["partition_exact"]]+=1
+                                    nb_genes_by_partition["pangenome"]+=1
+                                    nei_partitions = [self.neighbors_graph.node[nei]["partition"] for nei in nx.all_neighbors(self.neighbors_graph,gene_info[FAMILY])]
+                                    out_file.write("\t".join([gene,
+                                                              contig,
+                                                              str(gene_info[START]),
+                                                              str(gene_info[END]),
+                                                              gene_info[STRAND],
+                                                              "T" if (gene_info[NAME].upper() == "DNAA" or gene_info[PRODUCT].upper() == "DNAA") else "F",
+                                                              gene_info[FAMILY],
+                                                              str(len(self.neighbors_graph.node[gene_info[FAMILY]][organism])),
+                                                              self.neighbors_graph.node[gene_info[FAMILY]]["partition"],
+                                                              str(nei_partitions.count("persistent")),
+                                                              str(nei_partitions.count("shell")),
+                                                              str(nei_partitions.count("cloud"))])+"\n")
+                    nb_gene_file.write("\t".join([organism,
+                                                  str(nb_genes_by_partition["persistent"]),
+                                                  str(nb_genes_by_partition["shell"]),
+                                                  str(nb_genes_by_partition["cloud"]),
+                                                  str(nb_genes_by_partition["core_exact"]),
+                                                  str(nb_genes_by_partition["accessory"]),
+                                                  str(nb_genes_by_partition["pangenome"])])+"\n")
+        else:
+            logging.getLogger().warning("The pangenome must be partionned before using this method (projection)")
 ################ END OF CLASS PPanGGOLiN ################
 
 ################ FUNCTION run_partitioning ################

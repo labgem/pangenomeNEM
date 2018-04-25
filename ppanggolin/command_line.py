@@ -55,7 +55,7 @@ data_header           <- c("Gene","Non-unique Gene name","Annotation","No. isola
 family_data           <- binary_matrix[,colnames(binary_matrix) %in% data_header]
 family_data           <- binary_matrix[,colnames(binary_matrix)[1:14]]
 binary_matrix         <- binary_matrix[,!(colnames(binary_matrix) %in% data_header)]
-binary_matrix           <- binary_matrix[,colnames(binary_matrix)[15:ncol(binary_matrix)]]
+binary_matrix         <- binary_matrix[,colnames(binary_matrix)[15:ncol(binary_matrix)]]
 occurences            <- rowSums(binary_matrix)
 classification_vector <- family_data$partition
 classification_vector <- family_data[,2]
@@ -166,56 +166,82 @@ if (file.exists('"""+OUTPUTDIR+EVOLUTION_DIR+EVOLUTION_STATS_FILE_PREFIX+""".txt
 for (org_csv in list.files(path = '"""+OUTPUTDIR+PROJECTION_DIR+"""', pattern = "*.csv$", full.names = T)){
     org_name <- tools::file_path_sans_ext(basename(org_csv))
     data <- read.table(org_csv, header = T)
-    data <- cbind(data, pos = seq(nrow(data)))
+    if(org_name=="nb_gene"){
+        data.melted = melt(data,id.var="org")
+        colnames(data.melted) <- c("org","partition","nb_genes")
+        is_outlier <- function(x) {
+            return(x < quantile(x, 0.25) - 1.5 * IQR(x) | x > quantile(x, 0.75) + 1.5 * IQR(x))
+        }
+        data.melted_persistent = data.melted[data.melted$partition =="persistent",]
+        data.melted_persistent <- data.melted_persistent[is_outlier(data.melted_persistent$nb_genes),]
+        data.melted_shell = data.melted[data.melted$partition =="shell",]
+        data.melted_shell <- data.melted_shell[is_outlier(data.melted_shell$nb_genes),]
+        data.melted_cloud = data.melted[data.melted$partition =="cloud",]
+        data.melted_cloud <- data.melted_cloud[is_outlier(data.melted_cloud$nb_genes),]
+        data.melted_core_exact = data.melted[data.melted$partition =="core_exact",]
+        data.melted_core_exact <- data.melted_core_exact[is_outlier(data.melted_core_exact$nb_genes),]
+        data.melted_accessory = data.melted[data.melted$partition =="accessory",]
+        data.melted_accessory <- data.melted_accessory[is_outlier(data.melted_accessory$nb_genes),]
+        data.melted_pangenome = data.melted[data.melted$partition =="cloud",]
+        data.melted_pangenome <- data.melted_pangenome[is_outlier(data.melted_pangenome$nb_genes),]
 
-    max_degree_log2p1 <- max(apply(data,1,FUN = function(x){
-            sum(log2(as.numeric(x[6:8])+1))
-        }))
+        plot = ggplot(data.melted)+
+               ggtitle(paste0("number of genes resulting of the projection of the partionning on each organism (nb organism=", nrow(data),")"))+
+               geom_boxplot(aes(x = partition,y = nb_genes, fill = partition))+
+               geom_text_repel(data = rbind(data.melted_persistent,data.melted_shell,data.melted_cloud, data.melted_core_exact, data.melted_accessory, data.melted_pangenome),
+                               aes(x=partition, y=nb_genes, label = org))+
+               scale_fill_manual(name = "partitioning", values = color_chart)
+    }
+    else{
+        data <- cbind(data, pos = seq(nrow(data)))
 
-    ori <- which(data$ori == T, arr.ind=T)
-    data$ori <- NULL
+        max_degree_log2p1 <- max(apply(data,1,FUN = function(x){
+                sum(log2(as.numeric(x[10:12])+1))
+            }))
 
-    duplicated_fam     <- unique(data[duplicated(data$family),"family"])
-    data$family <- ifelse(data$family %in% duplicated_fam, data$family, NA)
-    data$family = as.factor(data$family)
-    colors_duplicated_fam <- rainbow(length(duplicated_fam))
-    names(colors_duplicated_fam) <- duplicated_fam
+        ori <- which(data$ori == T, arr.ind=T)
+        data$ori <- NULL
 
-    data_melted <- melt(data, id.var=c("contig", "gene","family","partition","pos"))
-    data_melted$variable <- factor(data_melted$variable, levels = rev(c("persistent","shell","cloud")), ordered=TRUE)
+        duplicated_fam     <- unique(data[duplicated(data$family),"family"])
+        data$family <- ifelse(data$family %in% duplicated_fam, data$family, NA)
+        data$family = as.factor(data$family)
+        colors_duplicated_fam <- rainbow(length(duplicated_fam))
+        names(colors_duplicated_fam) <- duplicated_fam
 
-    contig <- unique(data_melted$contig)
-    contig_color <-  rainbow(length(contig))
-    names(contig_color) <- contig
+        data_melted <- melt(data, id.var=c("contig", "gene","family","nb_copy_in_org","partition","pos"))
+        data_melted$variable <- factor(data_melted$variable, levels = rev(c("persistent","shell","cloud")), ordered=TRUE)
 
-    data_melted$value <- log2(data_melted$value+1)
+        contig <- unique(data_melted$contig)
+        contig_color <-  rainbow(length(contig))
+        names(contig_color) <- contig
 
-    plot = ggplot(data = data_melted)+
-    ggtitle(paste0("plot corresponding to the file", org_name))+
-    geom_bar(aes_string(x = "gene", y = "value", fill = "variable"),stat="identity", show.legend = FALSE)+
-    scale_y_continuous(limits = c(-30, max_degree_log2p1), breaks = seq(0,ceiling(max_degree_log2p1)))+
-    geom_hline(yintercept = 0)+
-    geom_rect(aes_string(xmin ="pos-1/2", xmax = "pos+1/2", fill = "partition"), ymin = -10, ymax=-1, color = NA, show.legend = FALSE)+
-    geom_hline(yintercept = -10)+
-    geom_rect(aes_string(xmin ="pos-1/2", xmax = "pos+1/2", fill = "family"), ymin = -20, ymax=-11,  color = NA, show.legend = FALSE)+
-    geom_hline(yintercept = -20)+
-    geom_rect(aes_string(xmin ="pos-1/2", xmax = "pos+1/2", fill = "contig"), ymin = -30, ymax=-21,  color = NA)+
-    geom_vline(xintercept = ori)+
-    scale_fill_manual(values = c(color_chart,colors_duplicated_fam, contig_color), na.value = "grey80")+
-    coord_polar()+
-    ylab("log2(degree+1) of the families in wich each gene is")+
-    theme(axis.line        = ggplot2::element_blank(),
-                        axis.text.x      = ggplot2::element_blank(),
-                        axis.ticks.x       = ggplot2::element_blank(),
-                        axis.title.x     = ggplot2::element_blank(),
-                        panel.background = ggplot2::element_blank(),
-                        panel.border     = ggplot2::element_blank(),
-                        panel.grid.major.x = ggplot2::element_blank(),
-                        panel.grid.minor.x = ggplot2::element_blank(),
-                        plot.background  = ggplot2::element_blank(),
-                        plot.margin      = grid::unit(c(0,0,0,0), "cm"),
-                        panel.spacing    = grid::unit(c(0,0,0,0), "cm"))
-
+        data_melted$value <- log2(data_melted$value+1)
+        plot = ggplot(data = data_melted)+
+        ggtitle(paste0("plot corresponding to the file", org_name))+
+        geom_bar(aes_string(x = "gene", y = "value", fill = "variable"),stat="identity", show.legend = FALSE)+
+        scale_y_continuous(limits = c(-30, max_degree_log2p1), breaks = seq(0,ceiling(max_degree_log2p1)))+
+        geom_hline(yintercept = 0)+
+        geom_rect(aes_string(xmin ="pos-1/2", xmax = "pos+1/2", fill = "partition"), ymin = -10, ymax=-1, color = NA, show.legend = FALSE)+
+        geom_hline(yintercept = -10)+
+        geom_rect(aes_string(xmin ="pos-1/2", xmax = "pos+1/2", fill = "family"), ymin = -20, ymax=-11,  color = NA, show.legend = FALSE)+
+        geom_hline(yintercept = -20)+
+        geom_rect(aes_string(xmin ="pos-1/2", xmax = "pos+1/2", fill = "contig"), ymin = -30, ymax=-21,  color = NA)+
+        geom_vline(xintercept = ori)+
+        scale_fill_manual(values = c(color_chart,colors_duplicated_fam, contig_color), na.value = "grey80")+
+        coord_polar()+
+        ylab("log2(degree+1) of the families in wich each gene is")+
+        theme(axis.line        = ggplot2::element_blank(),
+              axis.text.x      = ggplot2::element_blank(),
+              axis.ticks.x     = ggplot2::element_blank(),
+              axis.title.x     = ggplot2::element_blank(),
+              panel.background = ggplot2::element_blank(),
+              panel.border     = ggplot2::element_blank(),
+              panel.grid.major.x = ggplot2::element_blank(),
+              panel.grid.minor.x = ggplot2::element_blank(),
+              plot.background  = ggplot2::element_blank(),
+              plot.margin      = grid::unit(c(0,0,0,0), "cm"),
+              panel.spacing    = grid::unit(c(0,0,0,0), "cm"))
+    }
     ggsave(paste0('"""+OUTPUTDIR+FIGURE_DIR+"""',org_name,'.pdf'), device = "pdf", height= 40, width = 49, plot)
 
 }
@@ -489,7 +515,7 @@ def __main__():
     if options.projection:
         logging.getLogger().info("Projection...")
         start_projection = time()
-        pan.projection_polar_histogram(OUTPUTDIR+PROJECTION_DIR, [pan.organisms.__getitem__(index-1) for index in options.projection] if options.projection[0] > 0 else list(pan.organisms))
+        pan.projection(OUTPUTDIR+PROJECTION_DIR, [pan.organisms.__getitem__(index-1) for index in options.projection] if options.projection[0] > 0 else list(pan.organisms))
         end_projection = time()
     end_writing_output_file = time()
 
@@ -528,7 +554,7 @@ def __main__():
         
         global shuffled_comb
         shuffled_comb = combinations
-        shuffled_comb = [OrderedSet(comb) for nb_org, combs in combinations.items() for comb in combs if nb_org%STEP == 0 and nb_org<LIMIT]
+        shuffled_comb = [OrderedSet(comb) for nb_org, combs in combinations.items() for comb in combs if nb_org%STEP == 0 and nb_org<=LIMIT]
         shuffle(shuffled_comb)
 
         global evol
