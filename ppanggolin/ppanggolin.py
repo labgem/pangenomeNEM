@@ -1221,7 +1221,7 @@ class PPanGGOLiN:
                 for organism in organisms_to_project:
                     nb_genes_by_partition = defaultdict(int)
                     with open(out_dir+"/"+organism+".csv","w") as out_file:
-                        out_file.write("gene\tcontig\tcoord_start\ttcoord_end\tstrand\tori\tfamily\tnb_copy_in_org\tpartition\tpersistent\tshell\tcloud\n")
+                        out_file.write("gene\tcontig\tcoord_start\tcoord_end\tstrand\tori\tfamily\tnb_copy_in_org\tpartition\tpersistent\tshell\tcloud\n")
                         for contig, contig_annot in self.annotations[organism].items():
                             for gene, gene_info in contig_annot.items():
                                 if gene_info[FAMILY] not in self.families_repeted:
