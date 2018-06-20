@@ -770,11 +770,13 @@ class PPanGGOLiN:
                                                 logging.getLogger().debug(gene_info[FAMILY])
                                                 new_family_name = gene_info[FAMILY]+suffix
                                                 new_seed_path[i+1]=new_family_name
-                                                if i < k:                                                    
+                                                if i < k:                                                   
                                                     if gene_info[FAMILY] in self.untangled_neighbors_graph:
-                                                        #some things to do
+                                                        #some things to do                                                        
                                                         self.untangled_neighbors_graph.remove_node(gene_info[FAMILY])
                                                     separation_tree[gene_info[FAMILY]].add(new_family_name)
+                                                    if self.is_partitionned:
+                                                        self.untangled_neighbors_graph.nodes["partition"]="undefined"
                                                     self.__add_gene(new_family_name,org,gene,gene_info[NAME],gene_info[END]-gene_info[START],gene_info[PRODUCT],"untangled_neighbors_graph")
                                                     self.annotations[org][self.index[gene][CONTIG_INDEX]][gene][FAMILY]=new_family_name
 
