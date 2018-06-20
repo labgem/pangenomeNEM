@@ -93,6 +93,24 @@ def median(numbers):
         i = n//2
         return (numbers[i - 1] + numbers[i])/2
 
+def standard_deviation(lst, population=True):
+    """Calculates the standard deviation for a list of numbers.
+    from https://codeselfstudy.com/blogs/how-to-calculate-standard-deviation-in-python"""
+    num_items = len(lst)
+    mean = sum(lst) / num_items
+    differences = [x - mean for x in lst]
+    sq_differences = [d ** 2 for d in differences]
+    ssd = sum(sq_differences)
+ 
+    # Note: it would be better to return a value and then print it outside
+    # the function, but this is just a quick way to print out the values along
+    # the way.
+    if population is True:
+        variance = ssd / num_items
+    else:
+        variance = ssd / (num_items - 1)
+    sd = sqrt(variance)
+
 """insertion of element at the top of an OrderedDict (for compatibility with python 2.7)
 from : https://stackoverflow.com/questions/16664874/how-can-i-add-an-element-at-the-top-of-an-ordereddict-in-python/18326914
 """

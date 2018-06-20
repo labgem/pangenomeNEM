@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: iso-8859-1 -*-
-from collections import defaultdict, OrderedDict, Counter
+from collections import defaultdict, OrderedDict, Counter, deque
+from bidict import bidict
 from ordered_set import OrderedSet
 import networkx as nx
 import logging
@@ -18,17 +19,18 @@ from highcharts import Highchart
 import contextlib
 from nem import *
 from .utils import *
+import pdb
 
 (TYPE, FAMILY, START, END, STRAND, NAME, PRODUCT) = range(0, 7)#data index in annotation
+(ORGANISM_INDEX,CONTIG_INDEX,POSITION_INDEX) = range(0, 3)#index
 (ORGANISM_ID, ORGANISM_GFF_FILE) = range(0, 2)#data index in the file listing organisms 
-
 (GFF_seqname, GFF_source, GFF_feature, GFF_start, GFF_end, GFF_score, GFF_strand, GFF_frame, GFF_attribute) = range(0,9) 
-
-RESERVED_WORDS = set(["id", "label", "name", "weight", "partition", "partition_exact", "length", "length_min", "length_max", "length_avg", "length_med", "product", 'nb_gene', 'community'])
-
+(MU,EPSILON,PROPORTION) = range(0, 3)
+(FAMILIES_PARTITION,PARTITION_PARAMETERS) = range(0, 2)
+RESERVED_WORDS = set(["id", "label", "name", "weight", "partition", "partition_exact", "length", "length_min", "length_max", "length_avg", "length_med", "product", 'nb_genes', 'community','subpartition_shell',"viz"])
 SHORT_TO_LONG = {'A':'accessory','CE':'core_exact','P':'persistent','S':'shell','C':'cloud','U':'undefined'}
-
-COLORS = {"pangenome":"black", "accessory":"#EB37ED", "core_exact" :"#FF2828", "shell": "#00D860", "persistent":"#F7A507", "cloud":"#79DEFF"}
+COLORS = {"pangenome":"black", "accessory":"#EB37ED", "core_exact" :"#FF2828", "shell": "#00D860", "persistent":"#F7A507", "cloud":"#79DEFF", "undefined":"#828282"}
+COLORS_RGB = {"pangenome":{'r': 0, 'g': 0, 'b': 0, 'a': 0}, "accessory":{'r': 235, 'g': 55, 'b': 237, 'a': 0}, "core_exact" :{'r': 255, 'g': 40, 'b': 40, 'a': 0}, "shell": {'r': 0, 'g': 216, 'b': 96, 'a': 0}, "persistent":{'r': 247, 'g': 165, 'b': 7, 'a': 0}, "cloud":{'r': 121, 'g': 222, 'b': 255, 'a': 0}, "undefined":{'r': 130, 'g': 130, 'b': 130, 'a': 0}}
 
 """
     :mod:`ppanggolin` -- Depict microbial diversity
@@ -131,26 +133,30 @@ class PPanGGOLiN:
             >>>pan = PPanGGOLiN("file", organisms, gene_families, remove_high_copy_number_families)
             >>>pan = PPanGGOLiN("args", annotations, organisms, circular_contig_size, families_repeted)# load direclty the main attributes
         """ 
-        self.directed                 = False
-        self.annotations              = dict()
-        self.neighbors_graph          = None
-        self.organisms                = OrderedSet()
-        self.nb_organisms             = 0
-        self.circular_contig_size     = dict()
-        self.families_repeted_th      = 0
-        self.families_repeted         = set()
-        self.pan_size                 = 0
-        self.is_partitionned          = False
-        self.nem_intermediate_files   = None
-        self.partitions               = {}
-        self.partitions["undefined"]  = list()
-        self.partitions["persistent"] = list()
-        self.partitions["shell"]      = list()
-        self.partitions["cloud"]      = list()
-        self.partitions["core_exact"] = list()
-        self.partitions["accessory"]  = list()
-        self.BIC                      = None # Bayesian Index Criterion
-        #self.partitions_by_organisms  = defaultdict(lambda: defaultdict(set))
+        self.directed                      = False
+        self.annotations                   = dict()
+        self.neighbors_graph               = None
+        self.untangled_neighbors_graph     = None
+        self.index                         = bidict()
+        self.organisms                     = OrderedSet()
+        self.nb_organisms                  = 0
+        self.circular_contig_size          = dict()
+        self.families_repeted_th           = 0
+        self.families_repeted              = set()
+        self.pan_size                      = 0
+        self.is_partitionned               = False
+        self.nem_intermediate_files        = None
+        self.partitions                    = {}
+        self.partitions["undefined"]       = list()
+        self.partitions["persistent"]      = list()
+        self.partitions["shell"]           = list()
+        self.partitions["cloud"]           = list()
+        self.partitions["core_exact"]      = list()
+        self.partitions["accessory"]       = list()
+        self.BIC                           = None # Bayesian Index Criterion
+        self.partitions_by_organism        = dict()
+        self.subpartitions_shell_parameters = {}
+        self.subpartition_shell            = {}
 
         if init_from == "file":
             self.__initialize_from_files(*args)
@@ -314,10 +320,9 @@ class PPanGGOLiN:
         pan_str ="\n"
         pan_str += "----------- Statistics -----------\n"
         pan_str += "Number of organisms: "+str(self.nb_organisms)+"\n"
-
-        if self.pan_size != 0:
-            pan_str += "Pangenome size:"+str(self.pan_size)+"\n"
-            pan_str += "\n"
+        pan_str += "Pangenome size:"+str(self.pan_size)+"\n"
+        pan_str += "\n"
+        if self.is_partitionned:    
             pan_str += "Exact core-genome size:"+str(len(self.partitions["core_exact"]))+"\n"
             pan_str += "Exact variable-genome size:"+str(self.pan_size-len(self.partitions["core_exact"]))+"\n"
             pan_str += "\n"
@@ -327,11 +332,29 @@ class PPanGGOLiN:
             pan_str += "\n"
             pan_str += "Gene families with undefined partition:"+str(len(self.partitions["undefined"]))+"\n"
         else:
-            pan_str += "No partitioning have been performed on this Pangenome instance\n"
-            pan_str += "Run the partitioning function to obtain more detailled statistics...\n"
+            pan_str += "No partitioning have been performed on this PPanGGOLiN instance\n"
+            pan_str += "Run the partition() method to obtain more detailled statistics...\n"
         pan_str += "----------------------------------"
 
         return(pan_str)
+
+    def add_organism(self, new_orgs, new_annotations, new_circular_contig_size, new_families_repeted):
+        self.annotations.update(new_annotations)
+        self.index                     = bidict()
+        self.organisms = self.organisms + new_orgs
+        self.nb_organisms = len(self.organisms)
+        self.circular_contig_size.update(new_circular_contig_size)
+        self.families_repeted = self.families_repeted + new_families_repeted
+        self.delete_nem_intermediate_files()
+        self.partitions                = {}
+        self.partitions["undefined"]   = list()
+        self.partitions["persistent"]  = list()
+        self.partitions["shell"]       = list()
+        self.partitions["cloud"]       = list()
+        self.partitions["core_exact"]  = list()
+        self.partitions["accessory"]   = list()
+        self.BIC                       = None 
+        self.__neighborhood_computation(self.neighbors_graph.is_directed(),update=new_orgs)
 
     def __repr__(self):
         return(self.__str__())
@@ -366,7 +389,7 @@ class PPanGGOLiN:
 
         return(self)
 
-    def __add_gene(self, fam_id, org, gene, name, length, product):#, multi_copy = None
+    def __add_gene(self, fam_id, org, gene, name, length, product, graph_type = "neighbors_graph"):
         """
             Add gene to the pangenome graph
             :param fam_id: The family identifier
@@ -384,24 +407,28 @@ class PPanGGOLiN:
             :type str: 
             :type str: 
         """ 
-        self.neighbors_graph.add_node(fam_id)
+        graph = self.neighbors_graph
+        if graph_type == "untangled_neighbors_graph":
+            graph = self.untangled_neighbors_graph
+
+        graph.add_node(fam_id)
 
         try: 
-            self.neighbors_graph.node[fam_id]["nb_gene"]+=1
+            graph.node[fam_id]["nb_genes"]+=1
         except KeyError:
-            self.neighbors_graph.node[fam_id]["nb_gene"]=1
+            graph.node[fam_id]["nb_genes"]=1
         try:
-            self.neighbors_graph.node[fam_id][org].add(gene)
+            graph.node[fam_id][org].add(gene)
         except KeyError:
-            self.neighbors_graph.node[fam_id][org] = set([gene])
+            graph.node[fam_id][org] = set([gene])
 
         for attribute in ["name","length","product"]:
             try:
-                self.neighbors_graph.node[fam_id][attribute].add(locals()[attribute])
+                graph.node[fam_id][attribute].add(locals()[attribute])
             except KeyError:
-                self.neighbors_graph.node[fam_id][attribute]=set([locals()[attribute]])
+                graph.node[fam_id][attribute]=set([locals()[attribute]])
 
-    def __add_link(self, fam_id, fam_id_nei, org, length):
+    def __add_link(self, fam_id, fam_id_nei, org, length, graph_type = "neighbors_graph"):
         """
             Add line between families of a the pangenome graph
             :param fam_id: The family identifier the first node (need to be have at least one gene belonging to this family already added to the graph via the method __add_gene())
@@ -412,27 +439,32 @@ class PPanGGOLiN:
             :type str:
             :type str: 
         """ 
+        graph = self.neighbors_graph
+        if graph_type == "untangled_neighbors_graph":
+            graph = self.untangled_neighbors_graph
 
         if not self.neighbors_graph.has_edge(fam_id,fam_id_nei):
-            self.neighbors_graph.add_edge(fam_id, fam_id_nei)
+            graph.add_edge(fam_id, fam_id_nei)
             # logging.getLogger().debug([str(i) for i in [fam_id, fam_id_nei, org]])
         try:
-            self.neighbors_graph[fam_id][fam_id_nei][org]+=1
+            graph[fam_id][fam_id_nei][org]+=1
         except KeyError:
-            self.neighbors_graph[fam_id][fam_id_nei][org]=1
+            graph[fam_id][fam_id_nei][org]=1
             try:
-                self.neighbors_graph[fam_id][fam_id_nei]["weight"]+=1.0
+                graph[fam_id][fam_id_nei]["weight"]+=1.0
             except KeyError:
-                self.neighbors_graph[fam_id][fam_id_nei]["weight"]=1.0
+                graph[fam_id][fam_id_nei]["weight"]=1.0
         try:
-            self.neighbors_graph[fam_id][fam_id_nei]["length"].add(length)
+            graph[fam_id][fam_id_nei]["length"].add(length)
         except KeyError:
-            self.neighbors_graph[fam_id][fam_id_nei]["length"]=set([length])
+            graph[fam_id][fam_id_nei]["length"]=set([length])
 
-    def __neighborhood_computation(self, directed = False):#,light = False, untangle_multi_copy_families = False
+    def __neighborhood_computation(self, directed = False, update=False):#,light = False, 
         """ Use the information already loaded (annotation) to build the pangenome graph
             :param directed: a bool specifying if the graph is directed or undirected
+            :param update: an optional list of organism to update a previous graph
             :type bool: 
+            :type list:
         """ 
         #:param light: a bool specifying is the annotation attribute must be detroyed at each step to save memory
         if self.neighbors_graph is None:
@@ -441,10 +473,14 @@ class PPanGGOLiN:
             else:
                 self.neighbors_graph = nx.Graph()
 
-        bar = tqdm(list(self.annotations),total=len(self.annotations),unit = "organism")
-        for organism in bar:
-            bar.set_description("Processing "+organism)
-            bar.refresh()
+        if update:
+            orgs = update
+        else:
+            orgs = tqdm(list(self.annotations),total=len(self.annotations),unit = "organism")
+        for organism in orgs:
+            if not update:
+                orgs.set_description("Processing "+organism)
+                orgs.refresh()
             for contig, contig_annot in self.annotations[organism].items():
                 try:
                     (gene_start, gene_info_start) = contig_annot.popitem(last=False)
@@ -452,17 +488,18 @@ class PPanGGOLiN:
                             (gene_start, gene_info_start) = contig_annot.popitem(last=False)
                 except KeyError:
                     continue
-
+                    
                 self.__add_gene(gene_info_start[FAMILY],
                                 organism,
                                 gene_start,
                                 gene_info_start[NAME],
                                 gene_info_start[END]-gene_info_start[START],
                                 gene_info_start[PRODUCT])
+                self.index[gene_start]=(organism,contig,0)
 
                 family_id_nei, end_family_nei  = gene_info_start[FAMILY], gene_info_start[END]
                 logging.getLogger().debug(gene_info_start)
-                for gene, gene_info in contig_annot.items():
+                for pos, (gene, gene_info) in enumerate(contig_annot.items()):
                     logging.getLogger().debug(gene_info)
                     logging.getLogger().debug(gene)
                     if gene_info[FAMILY] not in self.families_repeted:
@@ -472,6 +509,7 @@ class PPanGGOLiN:
                                         gene_info[NAME],
                                         gene_info[END]-gene_info[START],
                                         gene_info[PRODUCT])
+                        self.index[gene]=(organism,contig,pos+1)
                         self.neighbors_graph.add_node(family_id_nei)
                         self.__add_link(gene_info[FAMILY],family_id_nei,organism, gene_info[START] - end_family_nei)
                         family_id_nei  = gene_info[FAMILY]
@@ -490,7 +528,278 @@ class PPanGGOLiN:
 
         self.pan_size = nx.number_of_nodes(self.neighbors_graph)
 
-    def __write_nem_input_files(self, nem_dir_path, organisms):
+    def untangle_neighbors_graph(self, K = 3):
+        
+        self.untangled_neighbors_graph = self.neighbors_graph.copy()
+        
+        separation_tree = defaultdict(set)
+
+        def absolute_orientation(a_list):
+                orientation1=tuple(a_list)
+                orientation2=tuple(reversed(a_list))
+                if (hash(orientation1)>hash(orientation2)):
+                    return(orientation1)
+                else:
+                    return(orientation2)
+
+        def update_seed_path(seed_path):
+            new_seed_paths = set()
+            for i, element in enumerate(seed_path):
+                if element in separation_tree:
+                    print(element)
+                    for child in separation_tree[element]:
+                        new_seed_path = list(seed_path)
+                        new_seed_path[i]=child
+                        new_seed_paths.add(tuple(new_seed_path))
+            return(new_seed_paths)
+
+        def extends_seeds(all_path_k):
+            all_path_k_p_1 = set()
+            all_path_k = deque(all_path_k)
+            while all_path_k:
+                p = all_path_k.pop()
+                try:
+                    for nei in self.untangled_neighbors_graph.neighbors(p[0]):
+                        path = (nei,)+p
+                        absolute_orientation(path)# give an absolute orientation
+                        all_path_k_p_1.add(absolute_orientation(path))
+                except nx.exception.NetworkXError as e:
+                    all_path_k.extendleft(update_seed_path(p))
+                    continue
+            return(all_path_k_p_1)
+
+        def merge_overlapping_extremities(data): #inspired from http://stackoverflow.com/a/9114443/7500030s
+            sets = (set(e) for e in data if e)
+            try:
+                results = [next(sets)]
+                for e_set in sets:
+                    to_update = []
+                    for i,res in enumerate(results):
+                        if not e_set.isdisjoint(res):
+                            to_update.insert(0,i)
+                    if not to_update:
+                        results.append(e_set)
+                    else:
+                        last = results[to_update.pop(-1)]
+                        for i in to_update:
+                            last |= results[i]
+                            del results[i]
+                        last |= e_set
+                return results
+            except StopIteration:
+                return {}
+
+        # def filter_seed_paths(validated_seed_paths):
+        #     print("validated_seed_paths: "+str(len(validated_seed_paths)))
+        #     filtered_validated_seed_paths = set()
+        #     for validated_seed_path in validated_seed_paths:
+        #         for fam in validated_seed_path:
+        #             if fam in self.untangled_neighbors_graph:
+        #                 filtered_validated_seed_paths.add(validated_seed_path)
+
+        #     print("filtered_validated_seed_paths: "+str(len(filtered_validated_seed_paths)))
+        #     return(filtered_validated_seed_paths)
+
+        def align_on_graph(path):
+            extremities_seed_path = defaultdict(lambda: defaultdict(set))
+
+            
+            path_complete=defaultdict(lambda : False)
+
+            #print(path)
+            #pdb.set_trace()
+            for org in [o for o in self.untangled_neighbors_graph.nodes[path[0]] if o not in RESERVED_WORDS]:
+                for gene in self.untangled_neighbors_graph.nodes[path[0]][org]:
+                    logging.getLogger().debug("here"+gene)
+                    (pos,contig)   = (self.index[gene][POSITION_INDEX],self.index[gene][CONTIG_INDEX])
+                    orientation    = None
+                    path_exist     = True
+                    tmp_path       = list()                                
+                    tmp_path.append(self.index.inv[(org,contig,pos)])
+                    circular = sys.maxsize if contig not in self.circular_contig_size else len(self.annotations[org][contig])
+                    for i, fam in enumerate(path[1:]):
+                        try:
+                            if orientation is None:
+                                if fam == self.annotations[org][contig][self.index.inv[(org,contig,(pos+(i+1))%circular)]][FAMILY]:
+                                    orientation = 1
+                                elif fam == self.annotations[org][contig][self.index.inv[(org,contig,(pos-(i+1))%circular)]][FAMILY]:
+                                    orientation = -1
+                                else:
+                                    path_exist = False
+                                    break
+                            gene_i = self.index.inv[(org,contig,(pos+((i+1)*orientation))%circular)]
+                            
+                            #logging.getLogger().debug("fam="+fam+"  gene_i="+gene_i+"    self.annotations[org][contig][gene_i][FAMILY]="+self.annotations[org][contig][gene_i][FAMILY])
+                            if fam == self.annotations[org][contig][gene_i][FAMILY]:
+                                tmp_path.append(gene_i)
+                            else:
+                                path_exist = False
+                                break
+                        except KeyError:
+                            break
+                    if path_exist:
+                        if len(tmp_path) == len(path):
+                            path_complete[frozenset([path[0],path[len(path)-1]])] = True
+                            extremities_seed_path[frozenset([path[0],path[len(path)-1]])][org].add(absolute_orientation(tuple(tmp_path)))
+                        else:
+                            path_complete[frozenset([path[0],path[len(path)-1]])] = path_complete[frozenset([path[0],path[len(path)-1]])]
+                            extremities_seed_path[frozenset([path[0],path[len(path)-1]])][org].add(tuple(tmp_path))
+                        logging.getLogger().debug(tmp_path)
+            for org in [o for o in self.untangled_neighbors_graph.nodes[path[len(path)-1]] if o not in RESERVED_WORDS]:
+                # if org == "org1" and path == ('fam1', 'fam2_5', 'fam2_5_bis', 'fam3',):
+                #     pdb.set_trace()
+                for gene in self.untangled_neighbors_graph.nodes[path[len(path)-1]][org]:
+                    logging.getLogger().debug("here"+gene)
+                    (pos,contig)   = (self.index[gene][POSITION_INDEX],self.index[gene][CONTIG_INDEX])
+                    orientation    = None
+                    path_exist     = True
+                    tmp_path       = list()
+                    tmp_path.append(self.index.inv[(org,contig,pos)])
+                    circular = sys.maxsize if contig not in self.circular_contig_size else len(self.annotations[org][contig])
+                    for i, fam in enumerate(reversed(path[:len(path)-1])):
+                        try:
+                            if orientation is None:
+                                if fam == self.annotations[org][contig][self.index.inv[(org,contig,(pos+(i+1))%circular)]][FAMILY]:
+                                    orientation = 1
+                                elif fam == self.annotations[org][contig][self.index.inv[(org,contig,(pos-(i+1))%circular)]][FAMILY]:
+                                    orientation = -1
+                                else:
+                                    path_exist = False
+                                    break
+                            gene_i = self.index.inv[(org,contig,(pos+((i+1)*orientation))%circular)]
+                            logging.getLogger().debug("fam="+fam+"  gene_i="+gene_i+"    self.annotations[org][contig][gene_i][FAMILY]="+self.annotations[org][contig][gene_i][FAMILY])
+                            if fam == self.annotations[org][contig][gene_i][FAMILY]:
+                                tmp_path.append(gene_i)
+                            else:
+                                path_exist = False
+                                break
+                        except KeyError:
+                            break
+                    if path_exist:
+                        if len(tmp_path) == len(path):
+                            path_complete[frozenset([path[0],path[len(path)-1]])] = True
+                            extremities_seed_path[frozenset([path[0],path[len(path)-1]])][org].add(absolute_orientation(tuple(tmp_path)))
+                        else:
+                            path_complete[frozenset([path[0],path[len(path)-1]])] = path_complete[frozenset([path[0],path[len(path)-1]])]
+                            extremities_seed_path[frozenset([path[0],path[len(path)-1]])][org].add(tuple(tmp_path))
+                        
+                        logging.getLogger().debug(tmp_path)
+            #print(path_complete)
+            for ext,complete in path_complete.items():
+                if not complete:
+                    del extremities_seed_path[ext]
+            return(extremities_seed_path)
+
+        validated_seed_paths = set()
+        
+        for k in range(1,K+1):
+            logging.getLogger().debug("k="+str(k))
+            if k == 1:
+                LILO_seed_paths = deque([(p,) for p in self.untangled_neighbors_graph.nodes()])
+            else:
+                logging.getLogger().debug(validated_seed_paths)
+                LILO_seed_paths = deque(extends_seeds(validated_seed_paths))
+                validated_seed_paths = set()
+            #pdb.set_trace()
+            with tqdm(total=len(LILO_seed_paths)) as pbar:
+                while LILO_seed_paths:
+                    seed_path = LILO_seed_paths.popleft()
+                    pbar.update(1)
+                    
+                    neighbors=set()
+                    all_extremities_seed_path = defaultdict(lambda: defaultdict(set))
+                    extremity_groups=None
+
+                    new_seed_paths = update_seed_path(seed_path)
+                    if len(new_seed_paths)>0:
+                        LILO_seed_paths.extendleft(new_seed_paths)
+                        continue
+                    #print(separation_tree)
+                    tested_extremities=set()
+                    neighbors = set()
+                    set_seed_path = set(seed_path)
+                    if len(set(set_seed_path) & set(['fam2_5_9_bis$k2_1', 'fam5_9_ter', 'fam2_5_9$k2_1']))==3:
+                        pdb.set_trace()
+                    try :
+                        #if nx.degree(self.untangled_neighbors_graph,seed_path[0])>2 and nx.degree(self.untangled_neighbors_graph,seed_path[k-1])>2:
+                        for nei_left in self.untangled_neighbors_graph.neighbors(seed_path[0]):
+                            if nei_left in set_seed_path and nei_left != seed_path[0] and nei_left != seed_path[k-1]:
+                                continue
+                            for nei_right in self.untangled_neighbors_graph.neighbors(seed_path[k-1]):
+                                if nei_right in set_seed_path and nei_left != seed_path[0] and nei_left != seed_path[k-1]:
+                                    continue
+                                extremities = frozenset([nei_right,nei_left])
+                                if len(extremities)>1 and extremities not in tested_extremities:
+                                    flanked_seed_path = (nei_left,)+seed_path+(nei_right,)
+                                    logging.getLogger().debug(flanked_seed_path)
+                                    res = align_on_graph(flanked_seed_path)
+                                    all_extremities_seed_path.update(res)
+                                    # pdb.set_trace()
+                                    if len(res)>0:
+                                        # validated_neighbors.add(nei_left)
+                                        # validated_neighbors.add(nei_rigth)
+                                        validated_seed_paths.add(seed_path)# way to extends seeds in a optimized way
+                                        logging.getLogger().debug("validated: "+str(seed_path))
+                                    tested_extremities.add(extremities)
+                    except:
+                        logging.getLogger().debug(seed_path[0]+"not in graph")
+                        pass
+
+
+                    #not_validated_neighbors = neighbors - validated_seed_paths
+                    #logging.getLogger().debug(all_extremities_seed_path)
+                    extremity_groups = merge_overlapping_extremities(all_extremities_seed_path)
+                    #print(extremity_groups)
+                    #pdb.set_trace()
+                    if len(extremity_groups) > 1:
+                        #separation
+                        for nb, extremitiy_group in enumerate(extremity_groups):
+                            suffix = "$k"+str(k)+"_"+str(nb)
+                            new_seed_path = [None]*(k+2)
+                            for extremity,org_genes in all_extremities_seed_path.items():
+                                if extremity & extremitiy_group:
+                                    gene_info_prec = None
+                                    for org, gene_series in org_genes.items():
+                                        # if org == "org1":
+                                        #     pdb.set_trace()
+                                        for genes in gene_series:
+                                            gene_info_prec = self.annotations[org][self.index[genes[0]][CONTIG_INDEX]][genes[0]]
+                                            new_seed_path[0]= gene_info_prec[FAMILY]
+                                            for i, gene in enumerate(genes[1:]):
+                                                gene_info = self.annotations[org][self.index[gene][CONTIG_INDEX]][gene]
+                                                logging.getLogger().debug(gene_info[FAMILY])
+                                                new_family_name = gene_info[FAMILY]+suffix
+                                                new_seed_path[i+1]=new_family_name
+                                                if i < k:                                                    
+                                                    if gene_info[FAMILY] in self.untangled_neighbors_graph:
+                                                        #some things to do
+                                                        self.untangled_neighbors_graph.remove_node(gene_info[FAMILY])
+                                                    separation_tree[gene_info[FAMILY]].add(new_family_name)
+                                                    self.__add_gene(new_family_name,org,gene,gene_info[NAME],gene_info[END]-gene_info[START],gene_info[PRODUCT],"untangled_neighbors_graph")
+                                                    self.annotations[org][self.index[gene][CONTIG_INDEX]][gene][FAMILY]=new_family_name
+
+                                                    #self.untangled_neighbors_graph.nodes[new_family_name]["untangled"]=k
+                                                # circular cases
+                                                
+                                                length = (gene_info[START] - gene_info_prec[END]) if (gene_info_prec[START] < gene_info[START]) else (gene_info_prec[START] - gene_info[END])
+                                                self.__add_link(self.annotations[org][self.index[gene][CONTIG_INDEX]][gene][FAMILY], gene_info_prec[FAMILY], org, length,"untangled_neighbors_graph")
+                                                
+                                                gene_info_prec = gene_info
+
+                                            LILO_seed_paths.extend(tuple(new_seed_path[1:len(new_seed_path)-1]))
+                                            #pdb.set_trace()
+                                            # validated_seed_paths.add(tuple(new_seed_path[1:len(new_seed_path)-1]))
+                                            # validated_seed_paths.add(tuple(new_seed_path[0:len(new_seed_path)-2]))
+                                            # validated_seed_paths.add(tuple(new_seed_path[2:len(new_seed_path)]))
+                        
+                    else:
+                        pass#validated_seed_paths
+                                                #add new seed to LILO queue 
+                                                # think to non_valided_neibors
+                                                #refine validated_seed_paths
+                    all_extremities_seed_path = None
+
+    def __write_nem_input_files(self, nem_dir_path, organisms, init = "default", low_disp=0.1, filter_by_partition = None):
         if len(organisms)<=10:# below 10 organisms a statistical computation do not make any sence
             logging.getLogger().warning("The number of organisms is too low ("+str(len(organisms))+" organisms used) to partition the pangenome graph in persistent, shell and cloud genome. Add new organisms to obtain more robust metrics.")
 
@@ -513,6 +822,8 @@ class PPanGGOLiN:
 
             index_fam = OrderedDict()
             for node_name, node_organisms in self.neighbors_graph.nodes(data=True):
+                if filter_by_partition is not None and "partition" in node_organisms and node_organisms["partition"] != filter_by_partition:
+                    continue
                 logging.getLogger().debug(node_organisms)
                 logging.getLogger().debug(organisms)
                 
@@ -524,9 +835,10 @@ class PPanGGOLiN:
                 row_fam         = []
                 row_dist_score  = []
                 neighbor_number = 0
-
                 try:
                     for neighbor in set(nx.all_neighbors(self.neighbors_graph, node_name)):
+                        if filter_by_partition is not None and "partition" in self.neighbors_graph.node[neighbor] and self.neighbors_graph.node[neighbor]["partition"] == filter_by_partition:
+                            continue
                         coverage = 0
                         if self.neighbors_graph.is_directed():
                             cov_sens, cov_antisens = (0,0)
@@ -544,25 +856,56 @@ class PPanGGOLiN:
 
                         if coverage==0:
                             continue
-                        distance_score = coverage/len(organisms)
+                        distance_score = coverage#/len(organisms)
                         row_fam.append(str(index_fam[neighbor]))
                         row_dist_score.append(str(round(distance_score,4)))
                         neighbor_number += 1
                     if neighbor_number>0:
                         nei_file.write("\t".join([str(item) for sublist in [[index_fam[node_name]],[neighbor_number],row_fam,row_dist_score] for item in sublist])+"\n")
                     else:
-                        nei_file.write(str(len(index_fam))+"\t0\n")
+                        nei_file.write(str(index_fam[node_name])+"\t0\n")
                         logging.getLogger().debug("The family: "+node_name+" is an isolated family in the selected organisms")
                 except nx.exception.NetworkXError as nxe:
+                    print(nxe)
                     logging.getLogger().debug("The family: "+node_name+" is an isolated family")
-                    nei_file.write(str(len(index_fam))+"\t0\n")
-            m_file.write("1 0.33333 0.33333 ") # 1 to initialize parameter, 0.333 and 0.333 for to give one third of initial proportition to each class (last 0.33 is automaticaly determined by substraction)
-            m_file.write(" ".join(["1"]*len(organisms))+" ") # persistent binary vector
-            m_file.write(" ".join(["1"]*len(organisms))+" ") # shell binary vector (1 ou 0, whatever because dispersion will be of 0.5)
-            m_file.write(" ".join(["0"]*len(organisms))+" ") # cloud binary vector
-            m_file.write(" ".join(["0.1"]*len(organisms))+" ") # persistent dispersition vector (low)
-            m_file.write(" ".join(["0.5"]*len(organisms))+" ") # shell dispersition vector (high)
-            m_file.write(" ".join(["0.1"]*len(organisms))) # cloud dispersition vector (low)
+                    nei_file.write(str(index_fam[node_name])+"\t0\n")
+
+            if init is not None:
+                m_file.write("1 ")# 1 to initialize parameter,
+                if init == "default":
+                    m_file.write("0.33333 0.33333 ")# 0.333 and 0.333 for to give one third of initial proportition to each class (last 0.33 is automaticaly determined by substraction)
+                    m_file.write(" ".join(["1"]*len(organisms))+" ") # persistent binary vector
+                    m_file.write(" ".join(["0.5"]*len(organisms))+" ") # shell binary vector (1 ou 0, whatever because dispersion will be of 0.5)
+                    m_file.write(" ".join(["0"]*len(organisms))+" ") # cloud binary vector
+                    m_file.write(" ".join([str(low_disp)]*len(organisms))+" ") # persistent dispersition vector (low)
+                    m_file.write(" ".join(["0.5"]*len(organisms))+" ") # shell dispersition vector (high)
+                    m_file.write(" ".join([str(low_disp)]*len(organisms))) # cloud dispersition vector (low)
+                elif isinstance(init,dict):
+                    all_orgs_in_groups = set([org for orgs in init.values() for org in orgs])
+                    (a,b,c)=(0,0,0)
+                    for p in range(0,len(init)):
+                        a+=1
+                        m_file.write(str(round(float(1)/len(init),4))+" ")
+
+                    for org_groups in init.values():
+                        b+=1
+                        m_file.write(" ".join(["1" if org in org_groups else "0" if org in all_orgs_in_groups else "0.5" for org in organisms])+" ")
+                    m_file.write(" ".join(["0.5"]*len(organisms))+" ")
+                    for org_groups in init.values():
+                        c+=1
+                        m_file.write(" ".join([str(low_disp) if org in org_groups else str(low_disp) if org in all_orgs_in_groups else "0.5" for org in organisms])+" ")
+                    m_file.write(" ".join(["0.5"]*len(organisms)))
+
+                    print("a="+str(a)+"    b="+str(b)+"      c"+str(c))
+                elif isinstance(init,list):
+                    m_file.write("0.33333 0.33333 ")
+                    (positive,negative) = init
+                    m_file.write(" ".join(["1" if org in positive else "0" if org in negative else "0.5" for org in organisms])+" ")
+                    m_file.write(" ".join(["0" if org in positive else "1" if org in negative else "0.5" for org in organisms])+" ")
+                    m_file.write(" ".join(["0.5"]*len(organisms))+" ")
+                    m_file.write(" ".join([str(low_disp) if org in positive else str(low_disp) if org in negative else "0.5" for org in organisms])+" ")
+                    m_file.write(" ".join([str(low_disp) if org in positive else str(low_disp) if org in negative else "0.5" for org in organisms])+" ")
+                    m_file.write(" ".join(["0.5"]*len(organisms)))
 
             str_file.write("S\t"+str(len(index_fam))+"\t"+
                                  str(len(organisms))+"\n")
@@ -571,7 +914,7 @@ class PPanGGOLiN:
                         organisms       = None,
                         beta            = 0.5,
                         free_dispersion = False,
-                        chunck_size     = 200,
+                        chunck_size     = 500,
                         inplace         = True,
                         just_stats      = False,
                         nb_threads      = 1):
@@ -608,7 +951,7 @@ class PPanGGOLiN:
         # if self.neighbors_graph is None:
         #     raise Exception("The neighbors_graph is not built, please use the function neighborhood_computation before")
         if self.is_partitionned and inplace:
-            logging.getLogger().warning("The pangenome was already partionned, inplace=true parameter will erase previous nem file intermediate files")
+            logging.getLogger().warning("The pangenome was already partionned, inplace=true parameter will erase previous nem file intermediate files, partitions and subpartitions")
             self.delete_nem_intermediate_files()
 
         if inplace:
@@ -655,7 +998,7 @@ class PPanGGOLiN:
                 try:
                     partitions = result
                     #total_BIC += BIC
-                    for node,nem_class in partitions.items():
+                    for node,nem_class in partitions[FAMILIES_PARTITION].items():
                         cpt_partition[node][nem_class]+=1
                         sum_partionning = sum(cpt_partition[node].values())
                         if (sum_partionning > len(organisms)/chunck_size and max(cpt_partition[node].values()) >= sum_partionning*0.5) or (sum_partionning > len(organisms)):
@@ -761,14 +1104,14 @@ class PPanGGOLiN:
             self.__write_nem_input_files(nem_dir_path+"/",
                                          organisms)
             partitions = run_partitioning(nem_dir_path, len(organisms), beta, free_dispersion)
-            
+
         if inplace:
             self.BIC = BIC
             if self.is_partitionned:
                 for p in SHORT_TO_LONG.values():
                     self.partitions[p] = list()# erase older values
 
-            for node, nem_class in partitions.items():
+            for node, nem_class in partitions[FAMILIES_PARTITION].items():
                 nb_orgs=0
                 for key in list(self.neighbors_graph.node[node].keys()):
                     if key not in RESERVED_WORDS:
@@ -776,6 +1119,7 @@ class PPanGGOLiN:
                         nb_orgs+=1
 
                 self.neighbors_graph.node[node]["partition"]=SHORT_TO_LONG[nem_class]
+                
                 self.partitions[SHORT_TO_LONG[nem_class]].append(node)
 
                 if nb_orgs == self.nb_organisms:
@@ -787,7 +1131,12 @@ class PPanGGOLiN:
                 else:
                     logging.getLogger().error("nb_orgs can't be > to self.nb_organisms")
                     exit(1)
-
+                self.neighbors_graph.nodes[node]["viz"]={}
+                if nem_class != "U":
+                    self.neighbors_graph.nodes[node]["viz"]['color']=COLORS_RGB[self.neighbors_graph.node[node]["partition"]]
+                else:
+                    self.neighbors_graph.nodes[node]["viz"]['color']=COLORS_RGB[self.neighbors_graph.node[node]["partition_exact"]]
+                self.neighbors_graph.nodes[node]["viz"]['size']=nb_orgs
             if self.families_repeted_th > 0:
                 if len(self.families_repeted)>0:
                     logging.getLogger().info("Gene families that have been discarded because there are repeated:\t"+" ".join(self.families_repeted))
@@ -799,15 +1148,88 @@ class PPanGGOLiN:
             self.is_partitionned=True
         else:
             if just_stats:
-                for node_name, nem_class in partitions.items():
+                for node_name, nem_class in partitions[FAMILIES_PARTITION].items():
                     stats[SHORT_TO_LONG[nem_class]]+=1
                 return stats
             else:
                 return partitions
 
+    def partition_shell(self, nem_dir_path = tempfile.mkdtemp(),
+                        subpart_name    = "subpartition_shell",
+                        beta            = 0.5,
+                        free_dispersion = False,
+                        Q               = "auto",
+                        exclusity_th    = 0.1,
+                        init_using_qual = None):
+        """
 
-    
-    def export_to_GEXF(self, graph_output_path, compressed=False, metadata = None, all_node_attributes = True, all_edge_attributes = True):
+        """ 
+        if not self.is_partitionned:
+            logging.getLogger().warning("The pangenome must be already partionned to subpartition the shell genome")
+        else:
+            if Q == "auto":
+                if init_using_qual is None:
+                    stats = self.projection(nem_dir_path,self.organisms)
+                    Q = float(len(self.partitions["shell"]))/stats[1]
+                    Q = int(round(Q, 0))+1 # +1 to store unexclusive families
+                else:
+                    if isinstance(init_using_qual,dict):
+                        Q = len(init_using_qual)+1
+                    elif isinstance(init_using_qual,list):
+                        Q = 3
+                    else:
+                        print("else")
+            elif Q <= 1:
+                logging.getLogger().error('Q must be above 1 or equals to "auto"')
+                return()
+            self.__write_nem_input_files(nem_dir_path+"/",
+                                        self.organisms,
+                                        init=init_using_qual,
+                                        filter_by_partition="shell")
+            subpartitions = run_partitioning(nem_dir_path, self.nb_organisms, beta, free_dispersion, Q = Q, init="random" if init_using_qual is None else "param_file")
+            self.subpartitions_shell_parameters = {} 
+            self.organisms_subpartitions_shell = defaultdict(set)
+            proportion_exclusive = 0
+            labels = {}
+            for k, parameters in subpartitions[PARTITION_PARAMETERS].items():
+                #pdb.set_trace()
+                label = str(k)
+
+                if mean(parameters[EPSILON])<exclusity_th:
+                    label = label+"_exclusive:"+str(round(mean(parameters[EPSILON]),2))
+                    proportion_exclusive+=parameters[PROPORTION]
+                else:
+                    label = label+"_shared:"+str(round(mean(parameters[EPSILON]),2))
+                if isinstance(init_using_qual,dict):
+                    coverages = {}
+                    for group_name, set_org in init_using_qual.items():
+                        k_set = set([org for (org, boolean) in zip(self.organisms, parameters[MU]) if boolean])
+                        coverage=0
+                        if len(k_set)>0:
+                            coverage = float(len(k_set & set_org))/float(len(set_org))
+                            if coverage >= 0.5:
+                                coverages[group_name]=coverage
+                        print(group_name+"size:"+str(len(set_org))+"  "+label+"  size: "+str(len(k_set))+"      inter:"+str(len(k_set & set_org))+"    coverage:"+str(coverage)) 
+                    label = label+"_"+"|".join(sorted(coverages, key=coverages.get)) if len(coverages)>0 else label
+
+                self.subpartitions_shell_parameters[label]=([org for (org, boolean) in zip(self.organisms, parameters[MU]) if boolean],
+                                                       mean(parameters[EPSILON]),
+                                                       parameters[PROPORTION],)
+                for org in self.subpartitions_shell_parameters[label][0]:
+                    self.organisms_subpartitions_shell[org].add(label)
+                labels[k]=label
+                print(parameters[EPSILON])
+                print(parameters[PROPORTION])
+                
+            self.subpartition_shell = defaultdict(list)
+            nx.set_node_attributes(self.neighbors_graph,nx.get_node_attributes(self.neighbors_graph, "partition"),subpart_name)
+            for node, nem_class in subpartitions[FAMILIES_PARTITION].items():
+                nb_orgs = 0
+                self.neighbors_graph.node[node][subpart_name]=labels[nem_class]
+                self.subpartition_shell[labels[nem_class]].append(node)
+            return(Q)
+            
+    def export_to_GEXF(self, graph_output_path, compressed=False, metadata = None, all_node_attributes = True, all_edge_attributes = True, graph_type = "neighbors_graph"):
         """
             Export the Partionned Pangenome Graph Of Linked Neighbors to a GEXF file  
             :param graph_output_path: a str containing the path of the GEXF output file
@@ -819,11 +1241,17 @@ class PPanGGOLiN:
             :type bool: 
             :type bool: 
             :type dict: 
-        """ 
-        graph_to_save = self.neighbors_graph.copy()
-
+        """
+        graph_to_save=None
+        if "neighbors_graph":
+            graph_to_save = self.neighbors_graph.copy()
+        elif "untangled_neighbors_graph":
+            graph_to_save = self.untangled_neighbors_graph.copy()
+            
         for node in self.neighbors_graph.nodes():            
             for key in list(self.neighbors_graph.node[node].keys()):
+                if key == "viz":
+                    continue
                 if not all_node_attributes and key in self.organisms:
                     del graph_to_save.node[node][key]
                 else:
@@ -838,7 +1266,6 @@ class PPanGGOLiN:
                             graph_to_save.node[node]["length_min"] = min(l)
                             graph_to_save.node[node]["length_max"] = max(l)
                             del graph_to_save.node[node]["length"]
-
         for node_i, node_j, data in self.neighbors_graph.edges(data = True):
             l = list(data["length"])
             graph_to_save[node_i][node_j]["length_avg"] = float(mean(l))
@@ -864,10 +1291,12 @@ class PPanGGOLiN:
             for att in atts:
                 graph_to_save[node_i][node_j][att]="|".join(sorted(graph_to_save[node_i][node_j][att]))
 
+            graph_to_save[node_i][node_j]["viz"]={"thickness":graph_to_save[node_i][node_j]["weight"]}
+
         graph_output_path = graph_output_path+".gexf"
         if compressed:
             graph_output_path = gzip.open(graph_output_path+".gz","w")
-
+        #pdb.set_trace()
         nx.write_gexf(graph_to_save, graph_output_path)
 
     # def import_from_GEXF(self, path_graph_to_update):
@@ -908,7 +1337,7 @@ class PPanGGOLiN:
 
     def write_matrix(self, path, header=True, csv = True, Rtab = True):
         """
-            Exported the pangenome as a csv_matrix similar to the csv et Rtab matrix exported by Roary (https://sanger-pathogens.github.io/Roary/)
+            Export the pangenome as a csv_matrix similar to the csv et Rtab matrix exported by Roary (https://sanger-pathogens.github.io/Roary/)
             :param nem_dir_path: a str containing the path of the out files (csv+Rtab)
             :param header: a bool specifying if the header must be added to the file or not
             :type str: 
@@ -942,9 +1371,9 @@ class PPanGGOLiN:
                                                '"'+data["partition"]+'"',#2
                                                '"'+"|".join(data["product"])+'"',#3
                                                str(nb_org),#4
-                                               str(data["nb_gene"]),#5
-                                               str(round(data["nb_gene"]/nb_org,2)),#6
-                                               '""',#7
+                                               str(data["nb_genes"]),#5
+                                               str(round(data["nb_genes"]/nb_org,2)),#6
+                                               '""',#data["subpartition_shell"],#7
                                                '""',#8
                                                '""',#9
                                                '""',#10
@@ -1207,7 +1636,7 @@ class PPanGGOLiN:
     def projection(self, out_dir, organisms_to_project):
         """
             generate files about the projection of the partition of the graph on the organisms
-            return statistics about the number of genes in each organism to project for each partition in the file out_dir/nb_gene.csv
+            return statistics about the number of genes in each organism to project for each partition in the file out_dir/nb_genes.csv
             :param outdir: a str containing the path of the output directory (name of files will be the name of organisms)
             :param organisms_to_project: a list of str containing the name of the organism
             :type str:
@@ -1216,18 +1645,18 @@ class PPanGGOLiN:
             :rtype: dict 
         """ 
         if self.is_partitionned:
-            with open(out_dir+"/nb_gene.csv","w") as nb_gene_file:
-                nb_gene_file.write("org\tpersistent\tshell\tcloud\tcore_exact\taccessory\tpangenome\n")
+            with open(out_dir+"/nb_genes.csv","w") as nb_genes_file:
+                nb_genes_file.write("org\tpersistent\tshell\tcloud\tcore_exact\taccessory\tpangenome\n")
                 for organism in organisms_to_project:
-                    nb_genes_by_partition = defaultdict(int)
+                    nb_geness_by_partition = defaultdict(int)
                     with open(out_dir+"/"+organism+".csv","w") as out_file:
                         out_file.write("gene\tcontig\tcoord_start\tcoord_end\tstrand\tori\tfamily\tnb_copy_in_org\tpartition\tpersistent\tshell\tcloud\n")
                         for contig, contig_annot in self.annotations[organism].items():
                             for gene, gene_info in contig_annot.items():
                                 if gene_info[FAMILY] not in self.families_repeted:
-                                    nb_genes_by_partition[self.neighbors_graph.node[gene_info[FAMILY]]["partition"]]+=1
-                                    nb_genes_by_partition[self.neighbors_graph.node[gene_info[FAMILY]]["partition_exact"]]+=1
-                                    nb_genes_by_partition["pangenome"]+=1
+                                    nb_geness_by_partition[self.neighbors_graph.node[gene_info[FAMILY]]["partition"]]+=1
+                                    nb_geness_by_partition[self.neighbors_graph.node[gene_info[FAMILY]]["partition_exact"]]+=1
+                                    nb_geness_by_partition["pangenome"]+=1
                                     nei_partitions = [self.neighbors_graph.node[nei]["partition"] for nei in nx.all_neighbors(self.neighbors_graph,gene_info[FAMILY])]
                                     out_file.write("\t".join([gene,
                                                               contig,
@@ -1241,20 +1670,32 @@ class PPanGGOLiN:
                                                               str(nei_partitions.count("persistent")),
                                                               str(nei_partitions.count("shell")),
                                                               str(nei_partitions.count("cloud"))])+"\n")
-                    nb_gene_file.write("\t".join([organism,
-                                                  str(nb_genes_by_partition["persistent"]),
-                                                  str(nb_genes_by_partition["shell"]),
-                                                  str(nb_genes_by_partition["cloud"]),
-                                                  str(nb_genes_by_partition["core_exact"]),
-                                                  str(nb_genes_by_partition["accessory"]),
-                                                  str(nb_genes_by_partition["pangenome"])])+"\n")
+                    self.partitions_by_organism[organism]=nb_geness_by_partition
+                    nb_geness_file.write("\t".join([organism,
+                                                  str(nb_geness_by_partition["persistent"]),
+                                                  str(nb_geness_by_partition["shell"]),
+                                                  str(nb_geness_by_partition["cloud"]),
+                                                  str(nb_geness_by_partition["core_exact"]),
+                                                  str(nb_geness_by_partition["accessory"]),
+                                                  str(nb_geness_by_partition["pangenome"])])+"\n")
         else:
             logging.getLogger().warning("The pangenome must be partionned before using this method (projection)")
+        persistent_stats = []
+        shell_stats = []
+        cloud_stats = []
+            
+        for org, part in self.partitions_by_organism.items():
+            persistent_stats.append(part["persistent"])
+            shell_stats.append(part["shell"])
+            cloud_stats.append(part["cloud"])
+            
+        return((mean(persistent_stats),mean(shell_stats),mean(cloud_stats),))
+    
 ################ END OF CLASS PPanGGOLiN ################
 
 ################ FUNCTION run_partitioning ################
 """ """
-def run_partitioning(nem_dir_path, nb_org, beta, free_dispersion):
+def run_partitioning(nem_dir_path, nb_org, beta, free_dispersion, Q = 3, init="param_file_default"):
     
     logging.getLogger().debug("Running NEM...")
     # weighted_degree = sum(list(self.neighbors_graph.degree(weight="weight")).values())/nx.number_of_edges(self.neighbors_graph)
@@ -1262,15 +1703,15 @@ def run_partitioning(nem_dir_path, nb_org, beta, free_dispersion):
     # logging.getLogger().debug("org/weighted_degree: "+str(self.nb_organisms/weighted_degree))    
     #weighted_degree = sum(self.neighbors_graph.degree(weight="weight").values())/nx.number_of_edges(self.neighbors_graph)
 
-    Q              = 3 # number of partitions
     ALGO           = b"ncem" #fuzzy classification by mean field approximation
-    ITERMAX        = 10000 # number of iteration max 
+    ITERMAX        = 100 # number of iteration max 
     MODEL          = b"bern" # multivariate Bernoulli mixture model
     PROPORTION     = b"pk" #equal proportion :  "p_"     varying proportion : "pk"
     VARIANCE_MODEL = b"skd" if free_dispersion else b"sk_"#one variance per partition and organism : "sdk"      one variance per partition, same in all organisms : "sd_"   one variance per organism, same in all partion : "s_d"    same variance in organisms and partitions : "s__" 
     #NEIGHBOUR_SPEC = "f"# "f" specify to use all neighbors, orther argument is "4" to specify to use only the 4 neighbors with the higher weight (4 because for historic reason due to the 4 pixel neighbors of each pixel)
     CONVERGENCE    = b"clas"
     CONVERGENCE_TH = 0.00000001
+    (INIT_SORT, INIT_RANDOM, INIT_PARAM_FILE, INIT_FILE, INIT_LABEL, INIT_NB) = range(0,6)
 
     # HEURISTIC      = "heu_d"# "psgrad" = pseudo-likelihood gradient ascent, "heu_d" = heuristic using drop of fuzzy within cluster inertia, "heu_l" = heuristic using drop of mixture likelihood
     # STEP_HEURISTIC = 0.5 # step of beta increase
@@ -1281,7 +1722,7 @@ def run_partitioning(nem_dir_path, nb_org, beta, free_dispersion):
     
     # BETA           = ["-B",HEURISTIC,"-H",str(STEP_HEURISTIC),str(BETA_MAX),str(DDROP),str(DLOSS),str(LLOSS)] if beta == float('Inf') else ["-b "+str(beta)]
 
-    WEIGHTED_BETA = beta*nb_org
+    #WEIGHTED_BETA = beta#*nb_org
     # command = " ".join([NEM_LOCATION, 
     #                     nem_dir_path+"/nem_file",
     #                     str(Q),
@@ -1310,7 +1751,7 @@ def run_partitioning(nem_dir_path, nb_org, beta, free_dispersion):
     nem(Fname          = nem_dir_path.encode('ascii')+b"/nem_file",
         nk             = Q,
         algo           = ALGO,
-        beta           = WEIGHTED_BETA,
+        beta           = beta,
         convergence    = CONVERGENCE,
         convergence_th = CONVERGENCE_TH,
         format         = b"fuzzy",
@@ -1318,7 +1759,8 @@ def run_partitioning(nem_dir_path, nb_org, beta, free_dispersion):
         dolog          = True,
         model_family   = MODEL,
         proportion     = PROPORTION,
-        dispersion     = VARIANCE_MODEL)
+        dispersion     = VARIANCE_MODEL,
+        init_mode      = INIT_PARAM_FILE if init.startswith("param_file") else INIT_RANDOM)
     # arguments_nem = [str.encode(s) for s in ["nem", 
     #                  nem_dir_path+"/nem_file",
     #                  str(Q),
@@ -1388,18 +1830,18 @@ def run_partitioning(nem_dir_path, nb_org, beta, free_dispersion):
             index_fam.append(line.split("\t")[1].strip())
     
     partitions_list = ["U"] * len(index_fam)
+    all_parameters = {}
     try:
         with open(nem_dir_path+"/nem_file.uf","r") as partitions_nem_file, open(nem_dir_path+"/nem_file.mf","r") as parameter_nem_file:
-            sum_mu_k = []
-            sum_epsilon_k = []
-            proportion = []
-
             parameter = parameter_nem_file.readlines()
             M = float(parameter[2].split()[3]) # M is markov ps-like
             BIC = -2 * M - (Q * nb_org * 2 + Q - 1) * math.log(len(index_fam))
-            logging.getLogger().debug("The Bayesian Criterion Index of the partionning is "+str(BIC))
+            
+            sum_mu_k = []
+            sum_epsilon_k = []
 
-            for k, line in enumerate(parameter[-3:]):
+            logging.getLogger().debug("The Bayesian Criterion Index of the partionning is "+str(BIC))
+            for k, line in enumerate(parameter[-Q:]):
                 logging.getLogger().debug(line)
                 vector = line.split() 
                 mu_k = [bool(float(mu_kj)) for mu_kj in vector[0:nb_org]]
@@ -1415,40 +1857,41 @@ def run_partitioning(nem_dir_path, nb_org, beta, free_dispersion):
                 logging.getLogger().debug(sum(mu_k))
                 sum_epsilon_k.append(sum(epsilon_k))
                 logging.getLogger().debug(sum(epsilon_k))
+                all_parameters[k]=(mu_k,epsilon_k,proportion)
 
+            if init=="param_file_default":
+                
+                #persistent is defined by a sum of mu near of nb_organism and a low sum of epsilon
+                max_mu_k     = max(sum_mu_k)
+                persistent_k = sum_mu_k.index(max_mu_k)
 
-            
-            #persistent is defined by a sum of mu near of nb_organism and a low sum of epsilon
-            max_mu_k     = max(sum_mu_k)
-            persistent_k = sum_mu_k.index(max_mu_k)
+                #shell is defined by an higher sum of epsilon_k
+                max_epsilon_k = max(sum_epsilon_k)
+                shell_k       = sum_epsilon_k.index(max_epsilon_k)
 
-            #shell is defined by an higher sum of epsilon_k
-            max_epsilon_k = max(sum_epsilon_k)
-            shell_k       = sum_epsilon_k.index(max_epsilon_k)
+                # the other one should be cloud (basicaly with low sum_mu_k and low epsilon_k)
+                cloud_k = set([0,1,2]) - set([persistent_k, shell_k])
+                cloud_k = list(cloud_k)[0]
 
-            # the other one should be cloud (basicaly with low sum_mu_k and low epsilon_k)
-            cloud_k = set([0,1,2]) - set([persistent_k, shell_k])
-            cloud_k = list(cloud_k)[0]
+                # but if the difference between epsilon_k of shell and cloud is tiny, we check using the sum of mu_k which basicaly must be lower in cloud
+                # if (sum_epsilon_k[shell_k]-sum_epsilon_k[cloud_k])<0.05 and sum_mu_k[shell_k]<sum_mu_k[cloud_k]:
+                #     # otherwise we permutate
+                #     (shell_k, cloud_k) = (cloud_k, shell_k)
 
-            # but if the difference between epsilon_k of shell and cloud is tiny, we check using the sum of mu_k which basicaly must be lower in cloud
-            # if (sum_epsilon_k[shell_k]-sum_epsilon_k[cloud_k])<0.05 and sum_mu_k[shell_k]<sum_mu_k[cloud_k]:
-            #     # otherwise we permutate
-            #     (shell_k, cloud_k) = (cloud_k, shell_k)
+                logging.getLogger().debug(sum_mu_k)
+                logging.getLogger().debug(sum_epsilon_k)
 
-            logging.getLogger().debug(sum_mu_k)
-            logging.getLogger().debug(sum_epsilon_k)
+                logging.getLogger().debug(persistent_k)
+                logging.getLogger().debug(shell_k)
+                logging.getLogger().debug(cloud_k)
 
-            logging.getLogger().debug(persistent_k)
-            logging.getLogger().debug(shell_k)
-            logging.getLogger().debug(cloud_k)
+                partition               = {}
+                partition[persistent_k] = "P"#PERSISTENT
+                partition[shell_k]      = "S"#SHELL
+                partition[cloud_k]      = "C"#CLOUD
 
-            partition               = {}
-            partition[persistent_k] = "P"#PERSISTENT
-            partition[shell_k]      = "S"#SHELL
-            partition[cloud_k]      = "C"#CLOUD
-
-            if partition[0] != "P" or partition[1] != "S" or partition[2] != "C":
-                raise ValueError("vector mu_k and epsilon_k value in the mf file are not relevant with the initialisation value in the m file")
+                if partition[0] != "P" or partition[1] != "S" or partition[2] != "C":
+                    raise ValueError("vector mu_k and epsilon_k value in the mf file are not consistent with the initialisation value in the .m file")
 
             for i, line in enumerate(partitions_nem_file):
                 elements = [float(el) for el in line.split()]
@@ -1456,20 +1899,21 @@ def run_partitioning(nem_dir_path, nb_org, beta, free_dispersion):
                 positions_max_prob = [pos for pos, prob in enumerate(elements) if prob == max_prob]
                 logging.getLogger().debug(positions_max_prob)
                 logging.getLogger().debug(i)
-
-                if (len(positions_max_prob)>1):
-                    partitions_list[i]="S"#SHELL in case of doubt (equiprobable partition), gene families is attributed to shell
+                
+                if init=="param_file_default":
+                    if (len(positions_max_prob)>1):
+                        partitions_list[i]="S"#SHELL in case of doubt (equiprobable partition), gene families is attributed to shell
+                    else:
+                        partitions_list[i]=partition[positions_max_prob.pop()]
                 else:
-                    partitions_list[i]=partition[positions_max_prob.pop()]
+                    partitions_list[i]=positions_max_prob.pop()
 
-            logging.getLogger().debug(partition)
             #logging.getLogger().debug(index.keys())
     except IOError:
         logging.getLogger().warning("Statistical partitioning do not works (the number of organisms used is probably too low), see logs here to obtain more details "+nem_dir_path+"/nem_file.log")
     except ValueError:
         ## return the default partitions_list which correspond to undefined
         pass
-    return(dict(zip(index_fam, partitions_list)))
-
+    return((dict(zip(index_fam, partitions_list)),all_parameters))
 
 ################ END OF FILE ################

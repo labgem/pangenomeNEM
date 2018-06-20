@@ -53,11 +53,9 @@ color_chart = c(pangenome="black", "accessory"="#EB37ED", "core_exact" ="#FF2828
 binary_matrix         <- read.table('"""+OUTPUTDIR+MATRIX_FILES_PREFIX+""".Rtab', header=TRUE, sep='\\t', check.names = FALSE)
 data_header           <- c("Gene","Non-unique Gene name","Annotation","No. isolates","No. sequences","Avg sequences per isolate","Accessory Fragment","Genome Fragment","Order within Fragment","Accessory Order with Fragment","QC","Min group size nuc","Max group size nuc","Avg group size nuc") 
 family_data           <- binary_matrix[,colnames(binary_matrix) %in% data_header]
-family_data           <- binary_matrix[,colnames(binary_matrix)[1:14]]
 binary_matrix         <- binary_matrix[,!(colnames(binary_matrix) %in% data_header)]
-binary_matrix         <- binary_matrix[,colnames(binary_matrix)[15:ncol(binary_matrix)]]
+binary_matrix[binary_matrix>1] <- 1
 occurences            <- rowSums(binary_matrix)
-classification_vector <- family_data$partition
 classification_vector <- family_data[,2]
 
 c = data.frame(nb_org = occurences, partition = classification_vector)
@@ -74,7 +72,7 @@ ggsave('"""+OUTPUTDIR+FIGURE_DIR+USHAPE_PLOT_PREFIX+""".pdf', device = "pdf", he
 
 ########################### END U SHAPED PLOT #################################
 
-########################### START RESENCE/ABSENCE MATRIX #################################
+########################### START PRESENCE/ABSENCE MATRIX #################################
 
 nb_org                  <- ncol(binary_matrix)
 
@@ -108,6 +106,7 @@ ggsave('"""+OUTPUTDIR+FIGURE_DIR+MATRIX_PLOT_PREFIX+""".pdf', device = "pdf", pl
 
 library("ggrepel")
 library("data.table")
+library("minpack.lm")
 
 if (file.exists('"""+OUTPUTDIR+EVOLUTION_DIR+EVOLUTION_STATS_FILE_PREFIX+""".txt')){
     data <- read.table('"""+OUTPUTDIR+EVOLUTION_DIR+EVOLUTION_STATS_FILE_PREFIX+""".txt', header = TRUE)
@@ -123,7 +122,7 @@ if (file.exists('"""+OUTPUTDIR+EVOLUTION_DIR+EVOLUTION_STATS_FILE_PREFIX+""".txt
     colnames(median_by_nb_org) <- c("nb_org_comb","partition","med")
 
     for (part in as.character(final_state$partition)){
-        regression  <- nls(med~kapa*(nb_org_comb^gama),median_by_nb_org[which(median_by_nb_org$partition == part),],start=list(kapa=1000,gama=0))
+        regression  <- nlsLM(med~kapa*(nb_org_comb^gama),median_by_nb_org[which(median_by_nb_org$partition == part),],start=list(kapa=1000,gama=0))
         coefficient <- coef(regression)
         final_state[final_state$partition == part,"formula" ] <- paste0("n == ", format(coefficient["kapa"],decimal.mark = ",",digits =2),"~N^{",format(coefficient["gama"],digits =2),"}")
     }
@@ -132,7 +131,7 @@ if (file.exists('"""+OUTPUTDIR+EVOLUTION_DIR+EVOLUTION_STATS_FILE_PREFIX+""".txt
             ggtitle(bquote(list("Rarefaction curve. Heap's law parameters based on Tettelin et al. 2008 approach", n == kappa~N^gamma)))+
             geom_smooth(data        = median_by_nb_org[median_by_nb_org$partition %in% c("pangenome","shell","cloud","accessory", "persistent", "core_exact") ,],# 
                         mapping     = aes_string(x="nb_org_comb",y="med",colour = "partition"),
-                        method      = "nls",
+                        method      = "nlsLM",
                         formula     = y~kapa*(x^gama),method.args =list(start=c(kapa=1000,gama=0)),
                         linetype    ="twodash",
                         size        = 1.5,
@@ -166,30 +165,30 @@ if (file.exists('"""+OUTPUTDIR+EVOLUTION_DIR+EVOLUTION_STATS_FILE_PREFIX+""".txt
 for (org_csv in list.files(path = '"""+OUTPUTDIR+PROJECTION_DIR+"""', pattern = "*.csv$", full.names = T)){
     org_name <- tools::file_path_sans_ext(basename(org_csv))
     data <- read.table(org_csv, header = T)
-    if(org_name=="nb_gene"){
+    if(org_name=="nb_genes"){
         data.melted = melt(data,id.var="org")
-        colnames(data.melted) <- c("org","partition","nb_genes")
+        colnames(data.melted) <- c("org","partition","nb_geness")
         is_outlier <- function(x) {
             return(x < quantile(x, 0.25) - 1.5 * IQR(x) | x > quantile(x, 0.75) + 1.5 * IQR(x))
         }
         data.melted_persistent = data.melted[data.melted$partition =="persistent",]
-        data.melted_persistent <- data.melted_persistent[is_outlier(data.melted_persistent$nb_genes),]
+        data.melted_persistent <- data.melted_persistent[is_outlier(data.melted_persistent$nb_geness),]
         data.melted_shell = data.melted[data.melted$partition =="shell",]
-        data.melted_shell <- data.melted_shell[is_outlier(data.melted_shell$nb_genes),]
+        data.melted_shell <- data.melted_shell[is_outlier(data.melted_shell$nb_geness),]
         data.melted_cloud = data.melted[data.melted$partition =="cloud",]
-        data.melted_cloud <- data.melted_cloud[is_outlier(data.melted_cloud$nb_genes),]
+        data.melted_cloud <- data.melted_cloud[is_outlier(data.melted_cloud$nb_geness),]
         data.melted_core_exact = data.melted[data.melted$partition =="core_exact",]
-        data.melted_core_exact <- data.melted_core_exact[is_outlier(data.melted_core_exact$nb_genes),]
+        data.melted_core_exact <- data.melted_core_exact[is_outlier(data.melted_core_exact$nb_geness),]
         data.melted_accessory = data.melted[data.melted$partition =="accessory",]
-        data.melted_accessory <- data.melted_accessory[is_outlier(data.melted_accessory$nb_genes),]
+        data.melted_accessory <- data.melted_accessory[is_outlier(data.melted_accessory$nb_geness),]
         data.melted_pangenome = data.melted[data.melted$partition =="cloud",]
-        data.melted_pangenome <- data.melted_pangenome[is_outlier(data.melted_pangenome$nb_genes),]
+        data.melted_pangenome <- data.melted_pangenome[is_outlier(data.melted_pangenome$nb_geness),]
 
         plot = ggplot(data.melted)+
                ggtitle(paste0("number of genes resulting of the projection of the partionning on each organism (nb organism=", nrow(data),")"))+
-               geom_boxplot(aes(x = partition,y = nb_genes, fill = partition))+
+               geom_boxplot(aes(x = partition,y = nb_geness, fill = partition))+
                geom_text_repel(data = rbind(data.melted_persistent,data.melted_shell,data.melted_cloud, data.melted_core_exact, data.melted_accessory, data.melted_pangenome),
-                               aes(x=partition, y=nb_genes, label = org))+
+                               aes(x=partition, y=nb_geness, label = org))+
                scale_fill_manual(name = "partitioning", values = color_chart)
     }
     else{
@@ -280,6 +279,27 @@ def resample(index):
                           str(stats["core_exact"]+stats["accessory"])])+"\n")
     evol.flush()
 
+def replication(index):
+    subset = random.sample(pan.organisms, 2)
+    old_res = None
+    before_pangenome = None
+    before_shell = None
+    for i in range(pan.nb_organisms):
+        res = pan.partition(subset,just_stats=False,inplace=False)
+        if old_res is not None:
+            pangenome    = set(res["accessory"]+res["core_exact"])
+            new_families = pangenome - before_pangenome
+            new_shell    = set(res["shell"]) - before_shell
+    subset.add(random.sample(pan.organisms-subset,STEP))
+    evol.write("\t".join([str(len(shuffled_comb[index])),
+                          str(stats["persistent"]) if stats["undefined"] == 0 else "NA",
+                          str(stats["shell"]) if stats["undefined"] == 0 else "NA",
+                          str(stats["cloud"]) if stats["undefined"] == 0 else "NA",
+                          str(stats["core_exact"]),
+                          str(stats["accessory"]),
+                          str(stats["core_exact"]+stats["accessory"])])+"\n")
+    evol.flush()
+
     if options.delete_nem_intermediate_files:
         shutil.rmtree(OUTPUTDIR+EVOLUTION_DIR+"/nborg"+str(len(shuffled_comb[index]))+"_"+str(index))
 
@@ -296,7 +316,7 @@ def __main__():
 
     """
     parser = argparse.ArgumentParser(prog = "ppanggolin",
-                                     description='Build a partitioned pangenome graph from annotated genomes and gene families. Reserved words are : "id", "label", "name", "weight", "partition", "partition_exact", "length", "length_min", "length_max", "length_avg", "length_med", "product", "nb_gene", "community".', 
+                                     description='Build a partitioned pangenome graph from annotated genomes and gene families. Reserved words are : "id", "label", "name", "weight", "partition", "partition_exact", "length", "length_min", "length_max", "length_avg", "length_med", "product", "nb_genes", "community".', 
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('-?', '--version', action='version', version=pkg_resources.get_distribution("ppanggolin").version)
     parser.add_argument('-o', '--organisms', type=argparse.FileType('r'), nargs=1, metavar=('ORGANISMS_FILE'), help="""
@@ -331,6 +351,8 @@ def __main__():
     if this argument is not set, the program will raise KeyError exception if a gene id found in a gff file is absent of the gene families file.""")
     #    parser.add_argument("-u", "--update", default = None, type=argparse.FileType('r'), nargs=1, help="""
     # Pangenome Graph to be updated (in gexf format)""")
+    parser.add_argument("-u", "--untangle", type=int, default = 0, nargs=1, help="""
+    (in test) max size of the untangled paths to be untangled""")
     parser.add_argument("-b", "--beta_smoothing", default = [float("0.5")], type=float, nargs=1, metavar=('BETA_VALUE'), help = """
     This option determines the strength of the smoothing (:math:beta) of the partitions based on the graph topology (using a Markov Random Field). 
     b must be a positive float, b = 0.0 means to discard spatial smoothing and 1.00 means strong smoothing (can be more but it is not advised).
@@ -345,8 +367,6 @@ def __main__():
     Compress (using gzip) the files containing the partionned pangenome graph""")
     parser.add_argument("-c", "--cpu", default=[1],  type=int, nargs=1, metavar=('NB_CPU'), help="""
     Number of cpu to use (several cpu will be used only if the option -e is set or/and if the -ck option is below the number of organisms provided)""")
-    #parser.add_argument("-ss", "--subpartition_shell", default = 0, type=int, nargs=1, help = """
-    #Subpartition the shell genome in n subpartition, n can be ajusted automatically if n = -1, 0 desactivate shell genome subpartitioning""")
     parser.add_argument("-v", "--verbose", default=False, action="store_true", help="""
     Show all messages including debugging ones""")
     # parser.add_argument("-as", "--already_sorted", default=False, action="store_true", help="""
@@ -355,11 +375,11 @@ def __main__():
     #Free the memory elements which are no longer used""")
     parser.add_argument("-p", "--plots", default=False, action="store_true", help="""
     Generate Rscript able to draw plots and run it. (required R in the path and the packages ggplot2, ggrepel, data.table and reshape2 to be installed)""")
-    parser.add_argument("-di", "--directed", default=False, action="store_true", help="""
-    generate directed graph
-    """)
+    # parser.add_argument("-di", "--directed", default=False, action="store_true", help="""
+    # generate directed graph
+    # """)
     parser.add_argument("-e", "--evolution", default=False, action="store_true", help="""
-    Relaunch the script using less and less organism in order to obtain a curve of the evolution of the pangenome metrics
+    Repartition the pangenome using multiple subsamples of a croissant number of organisms in order to obtain a curve of the evolution of the pangenome metrics
     """)
     parser.add_argument("-ep", "--evolution_resampling_param", nargs=5, default=[0.1,10,30,1,float("Inf")], metavar=('RESAMPLING_RATIO','MINIMUM_RESAMPLING','MAXIMUM_RESAMPLING','STEP','LIMIT'), help="""
     1st argument is the resampling ratio (FLOAT)
@@ -383,6 +403,8 @@ def __main__():
     METADATA_FILE is a tab-delimitated file. The first line contain the names of the attributes and the following lines contain associated information for each organism (in the same order as in the ORGANISM_FILE).
     Metadata can't contain reserved word or exact organism name.
     """)
+    parser.add_argument("-ss", "--subpartition_shell", default = 0, type=int, nargs=1, help = """
+    (in test) Subpartition the shell genome in k subpartition, k can be detected automatically using k = -1, if k = 0 the partionning will used the first column of metadate to subpartition the shell""")
     global options
     options = parser.parse_args()
 
@@ -393,6 +415,7 @@ def __main__():
     logging.basicConfig(stream=sys.stdout, level = level, format = '\n%(asctime)s %(filename)s:l%(lineno)d %(levelname)s\t%(message)s', datefmt='%H:%M:%S')
 
     logging.getLogger().info("Command: "+" ".join([arg for arg in sys.argv]))
+    logging.getLogger().info("PPanGGOLiN version: "+pkg_resources.get_distribution("ppanggolin").version)
     logging.getLogger().info("Python version: "+sys.version)
     logging.getLogger().info("Networkx version: "+nx.__version__)
     global OUTPUTDIR
@@ -432,10 +455,10 @@ def __main__():
                      options.gene_families[0],
                      options.remove_high_copy_number_families[0],
                      options.infer_singletons,
-                     options.directed)
+                     #options.directed)
+                     False)
 
-    if options.metadata[0]:
-        metadata = OrderedDict(zip(list(pan.organisms),metadata))
+    
 
     # # if options.update is not None:
     # #     pan.import_from_GEXF(options.update[0])
@@ -462,6 +485,22 @@ def __main__():
                   nb_threads      = options.cpu[0])
     end_partitioning = time()
     #-------------
+    if options.metadata[0]:
+        metadata = OrderedDict(zip(list(pan.organisms),metadata))
+
+    if options.subpartition_shell:
+        if options.subpartition_shell[0] <0:
+            Q = pan.partition_shell(Q = "auto")
+            logging.getLogger().info(str(Q)+" subpartitions has been used to subpartition the shell genome...")
+        elif options.subpartition_shell[0]==0:
+            init=defaultdict(set)
+            for orgs, metad in metadata.items():
+                init[metad].add(orgs)
+            pan.partition_shell(init_using_qual=init)
+        else:
+            pan.partition_shell(options.subpartition_shell[0])
+
+    
 
     #-------------
     # start_identify_communities = time.time()
@@ -540,6 +579,10 @@ def __main__():
         file_stats.write(str(pan))
     #-------------
 
+    if options.untangle>0:
+        pan.untangle_neighbors_graph(options.untangle[0])
+        pan.export_to_GEXF(OUTPUTDIR+GRAPH_FILE_PREFIX+(".gz" if options.compress_graph else ""), options.compress_graph, metadata,"untangled_neighbors_graph" )
+
     plot_Rscript(script_outfile = OUTPUTDIR+"/"+SCRIPT_R_FIGURE)
 
     if options.evolution:
@@ -583,6 +626,26 @@ def __main__():
         end_evolution = time()
         logging.disable(logging.NOTSET)#restaure info and warning messages 
 
+    # if options.new_genes_evolution:
+    #     logging.getLogger().info("New genes evolution...")
+    #     start_evolution = time()
+    #     if not options.verbose:
+    #         logging.disable(logging.INFO)# disable INFO message to not disturb the progess bar
+    #         logging.disable(logging.WARNING)# disable WARNING message to not disturb the progess bar
+        
+        
+    #         with ProcessPoolExecutor(options.cpu[0]) as executor:
+    #             futures = [executor.submit(resample,i) for i in range(len(shuffled_comb))]
+
+    #         for f in tqdm(as_completed(futures), total = len(shuffled_comb), unit = 'pangenome resampled'):
+    #             ex = f.exception()
+    #             if ex:
+    #                 executor.shutdown(wait=False)
+    #                 raise ex
+    #     evol.close()
+
+    #     end_evolution = time()
+    #     logging.disable(logging.NOTSET)#restaure info and warning messages 
     #-------------
 
     logging.getLogger().info("\n"+
