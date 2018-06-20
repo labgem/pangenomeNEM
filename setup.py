@@ -22,7 +22,7 @@ if __name__ == "__main__":
 
     setup(
         name = name,
-        version = read("VERSION"),
+        version = read("VERSION").rstrip(),
         author = "Guillaume GAUTREAU",
         author_email = "ggautrea@genoscope.cns.fr",
         description = "Depict microbial diversity via a partitioned pangenome graph",
@@ -40,14 +40,13 @@ if __name__ == "__main__":
             "Operating System :: POSIX :: Linux",
             "Programming Language :: Python",
             "Programming Language :: Python :: Implementation :: CPython",
-            "Topic :: Scientific/Engineering :: Bio-Informatics"
+            "Topic :: Scientific/Engineering :: Bio-Informatics",
        ],
         entry_points={
             'console_scripts': [
             name+' = '+name+'.command_line:__main__'
           ]},
-        extras_require= {'all' : ['futures', 'collections', 'ordered-set', 'networkx >= 2.0', 'tqdm', 'python-highcharts'],
-                        ':python_version == "2.7"': ['futures']},
+        install_requires= ['cython', 'ordered-set', 'bidict', 'networkx >= 2.0', 'tqdm', 'python-highcharts','futures;python_version=="2.7"'],
         ext_modules = cythonize([Extension(name = "nem",sources =[NEM_dir_path+'nem.pyx',
                                                                   NEM_dir_path+'nem_exe.c',
                                                                   NEM_dir_path+'nem_alg.c',
