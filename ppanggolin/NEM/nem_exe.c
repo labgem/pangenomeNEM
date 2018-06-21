@@ -247,12 +247,14 @@ int nem(const char* Fname,
         const int dolog,
         const char* model_family,
         const char* proportion,
-        const char* dispersion)
+        const char* dispersion,
+        const int init_mode)
 /*\
     NEM function.
 \*/
 /* ------------------------------------------------------------------- */
 {
+    const char*             func = "nem" ;
     StatusET                err ;
     static  DataT           Data = {0} ;
     static  NemParaT        NemPara = {0} ;
@@ -308,23 +310,23 @@ int nem(const char* Fname,
 
       /* !!! Allocate model parameters */ /*V1.06-a*/
     StatModel.Para.Prop_K    = GenAlloc( nk, sizeof(float), 
-                       1, "nem", "Prop_K" ) ;
+                       1, func, "Prop_K" ) ;
     StatModel.Para.Disp_KD   = GenAlloc( nk * Data.NbVars, sizeof(float), 
-                         1, "nem", "Disp_KD" ) ;
+                         1, func, "Disp_KD" ) ;
     StatModel.Para.Center_KD = GenAlloc( nk * Data.NbVars, sizeof(float), 
-                       1, "nem", "Center_KD" ) ;
+                       1, func, "Center_KD" ) ;
     StatModel.Para.NbObs_K   = GenAlloc( nk, sizeof(float), 
-                       1, "nem", "NbObs_K" ) ;
+                       1, func, "NbObs_K" ) ;
     StatModel.Para.NbObs_KD  = GenAlloc( nk * Data.NbVars, sizeof(float), 
-                       1, "nem", "NbObs_KD" ) ;
+                       1, func, "NbObs_KD" ) ;
     StatModel.Para.Iner_KD   = GenAlloc( nk * Data.NbVars, sizeof(float), 
-                       1, "nem", "NbObs_KD" ) ;
+                       1, func, "NbObs_KD" ) ;
     StatModel.Desc.DispSam_D = GenAlloc( Data.NbVars, sizeof(float), 
-                        1, "nem", "DispSam_D" );
+                        1, func, "DispSam_D" );
     StatModel.Desc.MiniSam_D = GenAlloc( Data.NbVars, sizeof(float), 
-                        1, "nem", "MiniSam_D" );
+                        1, func, "MiniSam_D" );
     StatModel.Desc.MaxiSam_D = GenAlloc( Data.NbVars, sizeof(float), 
-                        1, "nem", "MaxiSam_D" );
+                        1, func, "MaxiSam_D" );
     /* Set default value of optional parameters */
     StatModel.Spec.ClassFamily = DEFAULT_FAMILY ;
     StatModel.Spec.ClassDisper = DEFAULT_DISPER ;
@@ -347,7 +349,7 @@ int nem(const char* Fname,
     NemPara.DoLog         = FALSE ;                 /*V1.03-a previously TRUE*/
     NemPara.NbIters       = DEFAULT_NBITERS ;
     NemPara.NbEIters      = DEFAULT_NBEITERS ;
-    NemPara.NbRandomInits = DEFAULT_NBRANDINITS*Data.NbVars ;  /*V1.06-h*/
+    NemPara.NbRandomInits = DEFAULT_NBRANDINITS ;  /*V1.06-h*/
     NemPara.Seed          = time( NULL ) ;          /*V1.04-e*/
     NemPara.Format        = DEFAULT_FORMAT ;
     NemPara.InitMode      = DEFAULT_INIT ;
@@ -361,7 +363,7 @@ int nem(const char* Fname,
     strncpy( NemPara.OutBaseName, Fname, LEN_FILENAME ) ;
     strncpy( NemPara.NeighName, Fname, LEN_FILENAME ) ;
     strncpy( NemPara.ParamName, Fname, LEN_FILENAME ) ;
-    strncat( NemPara.NeighName, ".m", LEN_FILENAME ) ;
+    strncat( NemPara.ParamName, ".m", LEN_FILENAME ) ;
     strncat( NemPara.NeighName, ".nei", LEN_FILENAME ) ;
     strncpy( NemPara.RefName, "", LEN_FILENAME ) ;
 
@@ -430,8 +432,7 @@ int nem(const char* Fname,
     //-----
     NemPara.NeighSpec = NEIGH_FILE;
     //-----
-    NemPara.InitMode = INIT_PARAM_FILE;
-
+    NemPara.InitMode = init_mode;
 
     strncpy( NemPara.OutName, NemPara.OutBaseName, LEN_FILENAME ) ;
     strncat( NemPara.OutName, 
@@ -497,17 +498,58 @@ int nem(const char* Fname,
 
     /* Allocate and eventually read initial classification matrix */
     Data.LabelV = NULL ; /*V1.05-d*/
-    fprintf( out_stderr, "Reading parameter file ...\n" ) ;
+
+    switch( NemPara.InitMode )
+    {
+    case INIT_FILE:
+        fprintf( out_stderr, "Reading initial partition ...\n" ) ;
+        if ( ( err = ReadMatrixFile( NemPara.StartName,     /*V1.04-a*/
+				                     Data.NbPts,
+                                     StatModel.Spec.K, 
+                                     ClassifM ) ) != STS_OK )
+            return err ;
+        break ;
+
+    case INIT_PARAM_FILE:
+        fprintf( out_stderr, "Reading parameter file ...\n" ) ;
         if ( ( err = ReadParamFile( NemPara.ParamName,
                                     StatModel.Spec.ClassFamily,
                                     StatModel.Spec.K,
-                                     Data.NbVars,
+                                    Data.NbVars,
                                     & NemPara.ParamFileMode,
                                     & StatModel.Para ) ) != STS_OK ) return err ;
-    if ( ( (ClassifM) = 
-           GenAlloc( Data.NbPts * StatModel.Spec.K, sizeof( float ),
-             0, "nem", "(ClassifM)" ) ) == NULL )
-      return STS_E_MEMORY ;
+    case INIT_SORT:    /* allocate partition (will be initialized later) */
+    case INIT_RANDOM:  /* allocate partition (will be initialized later) */
+        /* Allocate classification matrix */
+        if ( ( (ClassifM) = 
+	       GenAlloc( Data.NbPts * StatModel.Spec.K, sizeof( float ),
+			 0, func, "(ClassifM)" ) ) == NULL )
+	  return STS_E_MEMORY ;
+        break ;
+
+    case INIT_LABEL:
+      fprintf( out_stderr, "Reading known labels file ...\n" ) ;
+      if ( ( err = ReadLabelFile( NemPara.LabelName, Data.NbPts, 
+				                  & klabelfile,
+                                  & Data.LabelV,
+                                  ClassifM ) ) != STS_OK )
+        return err ;
+
+      if ( klabelfile != StatModel.Spec.K ) {
+	fprintf( out_stderr, 
+		 "Error : label file %d classes, command line %d classes\n",
+		 klabelfile, StatModel.Spec.K ) ;
+	return STS_E_FILE ;
+      }
+      break;
+
+    default: /* error */
+        fprintf( out_stderr, "Unknown initialization mode (%d)\n", 
+                 NemPara.InitMode );
+        return STS_E_FUNCARG ;
+    }
+
+
     /* Eventually read reference class file */  /*V1.04-f*/
     if ( ( err = MakeErrinfo( NemPara.RefName, Data.NbPts, 
                   StatModel.Spec.K, NemPara.TieRule, 
@@ -1118,7 +1160,6 @@ static int  MakeErrinfo
     ErrcurP->Errorrate     = -1.0 ;
     return STS_OK ;
   }
-
 }  /* end of MakeErrinfo() */
 
 

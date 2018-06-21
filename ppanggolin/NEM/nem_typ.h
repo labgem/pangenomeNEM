@@ -91,7 +91,7 @@
 #define DEFAULT_NEIGHSPEC    NEIGH_FOUR
 #define DEFAULT_NBITERS      100
 #define DEFAULT_NBEITERS     1
-#define DEFAULT_NBRANDINITS  5                  /*V1.06-h*/
+#define DEFAULT_NBRANDINITS  50                 /*V1.06-h*/
 #define DEFAULT_ORDER        ORDER_DIRECT       /*V1.04-f*/
 #define DEFAULT_UPDATE       UPDATE_SEQ         /*V1.06-d*/
 #define DEFAULT_TIE          TIE_RANDOM         /*V1.06-e*/
