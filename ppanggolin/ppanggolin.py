@@ -20,6 +20,7 @@ import contextlib
 from nem import *
 from .utils import *
 import pdb
+from fa2 import ForceAtlas2
 
 (TYPE, FAMILY, START, END, STRAND, NAME, PRODUCT) = range(0, 7)#data index in annotation
 (ORGANISM_INDEX,CONTIG_INDEX,POSITION_INDEX) = range(0, 3)#index
@@ -544,13 +545,17 @@ class PPanGGOLiN:
 
         def update_seed_path(seed_path):
             new_seed_paths = set()
-            for i, element in enumerate(seed_path):
-                if element in separation_tree:
-                    print(element)
-                    for child in separation_tree[element]:
-                        new_seed_path = list(seed_path)
-                        new_seed_path[i]=child
-                        new_seed_paths.add(tuple(new_seed_path))
+            try:
+                for i, element in enumerate(seed_path):
+                    
+                        if element in separation_tree:
+                            print(element)
+                            for child in separation_tree[element]:
+                                new_seed_path = list(seed_path)
+                                new_seed_path[i]=child
+                                new_seed_paths.add(tuple(new_seed_path))
+            except TypeError as e:
+                pdb.set_trace()
             return(new_seed_paths)
 
         def extends_seeds(all_path_k):
@@ -558,14 +563,17 @@ class PPanGGOLiN:
             all_path_k = deque(all_path_k)
             while all_path_k:
                 p = all_path_k.pop()
-                try:
-                    for nei in self.untangled_neighbors_graph.neighbors(p[0]):
-                        path = (nei,)+p
-                        absolute_orientation(path)# give an absolute orientation
-                        all_path_k_p_1.add(absolute_orientation(path))
-                except nx.exception.NetworkXError as e:
-                    all_path_k.extendleft(update_seed_path(p))
-                    continue
+                if p is not None:
+                    try:
+                        for nei in self.untangled_neighbors_graph.neighbors(p[0]):
+                            path = (nei,)+p
+                            
+                            #absolute_orientation(path)# give an absolute orientation
+                            all_path_k_p_1.add(absolute_orientation(path))
+                    except nx.exception.NetworkXError as e:
+                        print(path)
+                        all_path_k.extendleft(update_seed_path(p))
+                        continue
             return(all_path_k_p_1)
 
         def merge_overlapping_extremities(data): #inspired from http://stackoverflow.com/a/9114443/7500030s
@@ -701,25 +709,31 @@ class PPanGGOLiN:
                 LILO_seed_paths = deque(extends_seeds(validated_seed_paths))
                 validated_seed_paths = set()
             #pdb.set_trace()
+            inc= 0
             with tqdm(total=len(LILO_seed_paths)) as pbar:
                 while LILO_seed_paths:
+                    inc+=1
+                    
+
                     seed_path = LILO_seed_paths.popleft()
                     pbar.update(1)
                     
                     neighbors=set()
                     all_extremities_seed_path = defaultdict(lambda: defaultdict(set))
                     extremity_groups=None
-
-                    new_seed_paths = update_seed_path(seed_path)
-                    if len(new_seed_paths)>0:
-                        LILO_seed_paths.extendleft(new_seed_paths)
-                        continue
+                    #print(seed_path)
+                    if seed_path is not None:
+                        new_seed_paths = update_seed_path(seed_path)
+                        if len(new_seed_paths)>0:
+                            LILO_seed_paths.extendleft(new_seed_paths)
+                            continue
+                    else:
+                            continue
                     #print(separation_tree)
                     tested_extremities=set()
                     neighbors = set()
                     set_seed_path = set(seed_path)
-                    if len(set(set_seed_path) & set(['fam2_5_9_bis$k2_1', 'fam5_9_ter', 'fam2_5_9$k2_1']))==3:
-                        pdb.set_trace()
+                    
                     try :
                         #if nx.degree(self.untangled_neighbors_graph,seed_path[0])>2 and nx.degree(self.untangled_neighbors_graph,seed_path[k-1])>2:
                         for nei_left in self.untangled_neighbors_graph.neighbors(seed_path[0]):
@@ -751,6 +765,8 @@ class PPanGGOLiN:
                     extremity_groups = merge_overlapping_extremities(all_extremities_seed_path)
                     #print(extremity_groups)
                     #pdb.set_trace()
+                    # if inc>10000:
+                    #     pdb.set_trace()
                     if len(extremity_groups) > 1:
                         #separation
                         for nb, extremitiy_group in enumerate(extremity_groups):
@@ -775,10 +791,11 @@ class PPanGGOLiN:
                                                         #some things to do                                                        
                                                         self.untangled_neighbors_graph.remove_node(gene_info[FAMILY])
                                                     separation_tree[gene_info[FAMILY]].add(new_family_name)
-                                                    if self.is_partitionned:
-                                                        self.untangled_neighbors_graph.nodes["partition"]="undefined"
+                                                    
                                                     self.__add_gene(new_family_name,org,gene,gene_info[NAME],gene_info[END]-gene_info[START],gene_info[PRODUCT],"untangled_neighbors_graph")
                                                     self.annotations[org][self.index[gene][CONTIG_INDEX]][gene][FAMILY]=new_family_name
+                                                    if self.is_partitionned:
+                                                        self.untangled_neighbors_graph.nodes[new_family_name]["partition"]="undefined"
 
                                                     #self.untangled_neighbors_graph.nodes[new_family_name]["untangled"]=k
                                                 # circular cases
@@ -790,9 +807,9 @@ class PPanGGOLiN:
 
                                             LILO_seed_paths.extend(tuple(new_seed_path[1:len(new_seed_path)-1]))
                                             #pdb.set_trace()
-                                            # validated_seed_paths.add(tuple(new_seed_path[1:len(new_seed_path)-1]))
-                                            # validated_seed_paths.add(tuple(new_seed_path[0:len(new_seed_path)-2]))
-                                            # validated_seed_paths.add(tuple(new_seed_path[2:len(new_seed_path)]))
+                                            validated_seed_paths.add(tuple(new_seed_path[1:len(new_seed_path)-1]))
+                                            validated_seed_paths.add(tuple(new_seed_path[0:len(new_seed_path)-2]))
+                                            validated_seed_paths.add(tuple(new_seed_path[2:len(new_seed_path)]))
                         
                     else:
                         pass#validated_seed_paths
@@ -1231,6 +1248,44 @@ class PPanGGOLiN:
                 self.subpartition_shell[labels[nem_class]].append(node)
             return(Q)
             
+    def compute_layout(self,
+                       graph_type = "neighbors_graph",
+                       iterations = 1000,
+                       outboundAttractionDistribution=True,  
+                       linLogMode=False,  
+                       adjustSizes=False,  
+                       edgeWeightInfluence=1.0,
+                       jitterTolerance=1.0, 
+                       barnesHutOptimize=True,
+                       barnesHutTheta=1.2,
+                       multiThreaded=False,
+                       scalingRatio=5000,
+                       strongGravityMode=True,
+                       gravity=1.0,
+                       verbose=False):
+        G=None
+        if graph_type == "untangled_neighbors_graph":
+            G = self.untangled_neighbors_graph
+        else:
+            G = self.neighbors_graph
+
+        forceatlas2 = ForceAtlas2(
+                          outboundAttractionDistribution=outboundAttractionDistribution,
+                          linLogMode=linLogMode,
+                          adjustSizes=adjustSizes, 
+                          edgeWeightInfluence=edgeWeightInfluence,
+                          jitterTolerance=jitterTolerance,
+                          barnesHutOptimize=barnesHutOptimize,
+                          barnesHutTheta=barnesHutTheta,
+                          multiThreaded=multiThreaded,
+                          scalingRatio=scalingRatio,
+                          strongGravityMode=strongGravityMode,
+                          gravity=gravity,
+                          verbose=verbose)
+
+        positions = forceatlas2.forceatlas2_networkx_layout(G, pos=None, iterations=iterations)
+        pdb.set_trace()
+
     def export_to_GEXF(self, graph_output_path, compressed=False, metadata = None, all_node_attributes = True, all_edge_attributes = True, graph_type = "neighbors_graph"):
         """
             Export the Partionned Pangenome Graph Of Linked Neighbors to a GEXF file  
@@ -1650,15 +1705,15 @@ class PPanGGOLiN:
             with open(out_dir+"/nb_genes.csv","w") as nb_genes_file:
                 nb_genes_file.write("org\tpersistent\tshell\tcloud\tcore_exact\taccessory\tpangenome\n")
                 for organism in organisms_to_project:
-                    nb_geness_by_partition = defaultdict(int)
+                    nb_genes_by_partition = defaultdict(int)
                     with open(out_dir+"/"+organism+".csv","w") as out_file:
                         out_file.write("gene\tcontig\tcoord_start\tcoord_end\tstrand\tori\tfamily\tnb_copy_in_org\tpartition\tpersistent\tshell\tcloud\n")
                         for contig, contig_annot in self.annotations[organism].items():
                             for gene, gene_info in contig_annot.items():
                                 if gene_info[FAMILY] not in self.families_repeted:
-                                    nb_geness_by_partition[self.neighbors_graph.node[gene_info[FAMILY]]["partition"]]+=1
-                                    nb_geness_by_partition[self.neighbors_graph.node[gene_info[FAMILY]]["partition_exact"]]+=1
-                                    nb_geness_by_partition["pangenome"]+=1
+                                    nb_genes_by_partition[self.neighbors_graph.node[gene_info[FAMILY]]["partition"]]+=1
+                                    nb_genes_by_partition[self.neighbors_graph.node[gene_info[FAMILY]]["partition_exact"]]+=1
+                                    nb_genes_by_partition["pangenome"]+=1
                                     nei_partitions = [self.neighbors_graph.node[nei]["partition"] for nei in nx.all_neighbors(self.neighbors_graph,gene_info[FAMILY])]
                                     out_file.write("\t".join([gene,
                                                               contig,
@@ -1672,14 +1727,14 @@ class PPanGGOLiN:
                                                               str(nei_partitions.count("persistent")),
                                                               str(nei_partitions.count("shell")),
                                                               str(nei_partitions.count("cloud"))])+"\n")
-                    self.partitions_by_organism[organism]=nb_geness_by_partition
-                    nb_geness_file.write("\t".join([organism,
-                                                  str(nb_geness_by_partition["persistent"]),
-                                                  str(nb_geness_by_partition["shell"]),
-                                                  str(nb_geness_by_partition["cloud"]),
-                                                  str(nb_geness_by_partition["core_exact"]),
-                                                  str(nb_geness_by_partition["accessory"]),
-                                                  str(nb_geness_by_partition["pangenome"])])+"\n")
+                    self.partitions_by_organism[organism]=nb_genes_by_partition
+                    nb_genes_file.write("\t".join([organism,
+                                                  str(nb_genes_by_partition["persistent"]),
+                                                  str(nb_genes_by_partition["shell"]),
+                                                  str(nb_genes_by_partition["cloud"]),
+                                                  str(nb_genes_by_partition["core_exact"]),
+                                                  str(nb_genes_by_partition["accessory"]),
+                                                  str(nb_genes_by_partition["pangenome"])])+"\n")
         else:
             logging.getLogger().warning("The pangenome must be partionned before using this method (projection)")
         persistent_stats = []
