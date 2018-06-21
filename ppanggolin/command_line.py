@@ -405,7 +405,7 @@ def __main__():
     """)
     parser.add_argument("-ss", "--subpartition_shell", default = 0, type=int, nargs=1, help = """
     (in test) Subpartition the shell genome in k subpartition, k can be detected automatically using k = -1, if k = 0 the partionning will used the first column of metadate to subpartition the shell""")
-    parser.add_argument("-l", "--compute_layout", default = True, action="store_true", nargs=1, help = """
+    parser.add_argument("-l", "--compute_layout", default = False, action="store_true", help = """
     (in test) precalculated the ForceAtlas2 layout""")
 
     global options
