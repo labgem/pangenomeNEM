@@ -405,6 +405,9 @@ def __main__():
     """)
     parser.add_argument("-ss", "--subpartition_shell", default = 0, type=int, nargs=1, help = """
     (in test) Subpartition the shell genome in k subpartition, k can be detected automatically using k = -1, if k = 0 the partionning will used the first column of metadate to subpartition the shell""")
+    parser.add_argument("-l", "--compute_layout", default = True, action="store_true", nargs=1, help = """
+    (in test) precalculated the ForceAtlas2 layout""")
+
     global options
     options = parser.parse_args()
 
@@ -538,9 +541,13 @@ def __main__():
     #-------------
     start_writing_output_file = time()
 
-    
+    if options.compute_layout:
+        pan.compute_layout(multiThreaded=options.cpu[0])
+
     #pan.tile_plot(OUTPUTDIR+FIGURE_DIR)
     logging.getLogger().info("Writing GEXF file")
+
+
     pan.export_to_GEXF(OUTPUTDIR+GRAPH_FILE_PREFIX+(".gz" if options.compress_graph else ""), options.compress_graph, metadata)
     logging.getLogger().info("Writing GEXF light file")
     pan.export_to_GEXF(OUTPUTDIR+GRAPH_FILE_PREFIX+"_light"+(".gz" if options.compress_graph else ""), options.compress_graph, metadata, False,False)
