@@ -1122,15 +1122,14 @@ class PPanGGOLiN:
         else:
             self.__write_nem_input_files(nem_dir_path+"/",
                                          organisms)
-            partitions = run_partitioning(nem_dir_path, len(organisms), beta, free_dispersion)
-
+            partitions = run_partitioning(nem_dir_path, len(organisms), beta, free_dispersion)[FAMILIES_PARTITION]
+            
         if inplace:
             self.BIC = BIC
             if self.is_partitionned:
                 for p in SHORT_TO_LONG.values():
                     self.partitions[p] = list()# erase older values
-
-            for node, nem_class in partitions[FAMILIES_PARTITION].items():
+            for node, nem_class in partitions.items():
                 nb_orgs=0
                 for key in list(self.neighbors_graph.node[node].keys()):
                     if key not in RESERVED_WORDS:
@@ -1249,8 +1248,8 @@ class PPanGGOLiN:
             return(Q)
             
     def compute_layout(self,
+                       iterations = 500,
                        graph_type = "neighbors_graph",
-                       iterations = 1000,
                        outboundAttractionDistribution=True,  
                        linLogMode=False,  
                        adjustSizes=False,  
@@ -1259,7 +1258,7 @@ class PPanGGOLiN:
                        barnesHutOptimize=True,
                        barnesHutTheta=1.2,
                        multiThreaded=False,
-                       scalingRatio=5000,
+                       scalingRatio=50000,
                        strongGravityMode=True,
                        gravity=1.0,
                        verbose=False):
@@ -1283,8 +1282,14 @@ class PPanGGOLiN:
                           gravity=gravity,
                           verbose=verbose)
 
-        positions = forceatlas2.forceatlas2_networkx_layout(G, pos=None, iterations=iterations)
-        pdb.set_trace()
+        for node, pos_x_y in forceatlas2.forceatlas2_networkx_layout(G, pos=None, iterations=iterations).items():
+            z=(0,)
+            if self.is_partitionned:
+                if self.neighbors_graph.nodes[node]["partition"]=="persistent":
+                    z=(2,)
+                elif self.neighbors_graph.nodes[node]["partition"]=="shell":
+                    z=(1,)
+            self.neighbors_graph.nodes[node]["viz"]['position']=dict(zip(["x","y","z"],pos_x_y+z))
 
     def export_to_GEXF(self, graph_output_path, compressed=False, metadata = None, all_node_attributes = True, all_edge_attributes = True, graph_type = "neighbors_graph"):
         """
