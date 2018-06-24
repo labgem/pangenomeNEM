@@ -21,6 +21,7 @@ from .utils import *
 
 ### PATH AND FILE NAME
 OUTPUTDIR                   = None 
+TMP_DIR                     = None
 NEM_DIR                     = "/NEM_results/"
 FIGURE_DIR                  = "/figures/"
 PROJECTION_DIR              = "/projections/"
@@ -261,7 +262,7 @@ EVOLUTION = None
 
 def resample(index):
     global shuffled_comb
-    stats = pan.partition(nem_dir_path    = OUTPUTDIR+EVOLUTION_DIR+"/nborg"+str(len(shuffled_comb[index]))+"_"+str(index),
+    stats = pan.partition(nem_dir_path    = TMP_DIR+EVOLUTION_DIR+"/nborg"+str(len(shuffled_comb[index]))+"_"+str(index),
                           organisms       = shuffled_comb[index],
                           beta            = options.beta_smoothing[0],
                           free_dispersion = options.free_dispersion,
@@ -269,7 +270,6 @@ def resample(index):
                           inplace         = False,
                           just_stats      = True,
                           nb_threads      = 1)
-
     evol.write("\t".join([str(len(shuffled_comb[index])),
                           str(stats["persistent"]) if stats["undefined"] == 0 else "NA",
                           str(stats["shell"]) if stats["undefined"] == 0 else "NA",
@@ -279,29 +279,29 @@ def resample(index):
                           str(stats["core_exact"]+stats["accessory"])])+"\n")
     evol.flush()
 
-def replication(index):
-    subset = random.sample(pan.organisms, 2)
-    old_res = None
-    before_pangenome = None
-    before_shell = None
-    for i in range(pan.nb_organisms):
-        res = pan.partition(subset,just_stats=False,inplace=False)
-        if old_res is not None:
-            pangenome    = set(res["accessory"]+res["core_exact"])
-            new_families = pangenome - before_pangenome
-            new_shell    = set(res["shell"]) - before_shell
-    subset.add(random.sample(pan.organisms-subset,STEP))
-    evol.write("\t".join([str(len(shuffled_comb[index])),
-                          str(stats["persistent"]) if stats["undefined"] == 0 else "NA",
-                          str(stats["shell"]) if stats["undefined"] == 0 else "NA",
-                          str(stats["cloud"]) if stats["undefined"] == 0 else "NA",
-                          str(stats["core_exact"]),
-                          str(stats["accessory"]),
-                          str(stats["core_exact"]+stats["accessory"])])+"\n")
-    evol.flush()
+# def replication(index):
+#     subset = random.sample(pan.organisms, 2)
+#     old_res = None
+#     before_pangenome = None
+#     before_shell = None
+#     for i in range(pan.nb_organisms):
+#         res = pan.partition(subset,just_stats=False,inplace=False)
+#         if old_res is not None:
+#             pangenome    = set(res["accessory"]+res["core_exact"])
+#             new_families = pangenome - before_pangenome
+#             new_shell    = set(res["shell"]) - before_shell
+#     subset.add(random.sample(pan.organisms-subset,STEP))
+#     evol.write("\t".join([str(len(shuffled_comb[index])),
+#                           str(stats["persistent"]) if stats["undefined"] == 0 else "NA",
+#                           str(stats["shell"]) if stats["undefined"] == 0 else "NA",
+#                           str(stats["cloud"]) if stats["undefined"] == 0 else "NA",
+#                           str(stats["core_exact"]),
+#                           str(stats["accessory"]),
+#                           str(stats["core_exact"]+stats["accessory"])])+"\n")
+#     evol.flush()
 
     if options.delete_nem_intermediate_files:
-        shutil.rmtree(OUTPUTDIR+EVOLUTION_DIR+"/nborg"+str(len(shuffled_comb[index]))+"_"+str(index))
+        shutil.rmtree(TMP_DIR+EVOLUTION_DIR+"/nborg"+str(len(shuffled_comb[index]))+"_"+str(index))
 
 #### END - NEED TO BE AT THE HIGHEST LEVEL OF THE MODULE TO ALLOW MULTIPROCESSING
 
@@ -341,6 +341,8 @@ def __main__():
     """,  required=True)
     parser.add_argument('-od', '--output_directory', type=str, nargs=1, default=["PPanGGOLiN_outputdir_"+strftime("%Y-%m-%d_%H:%M:%S", gmtime())], metavar=('OUTPUT_DIR'), help="""
     The output directory""")
+    parser.add_argument('-td', '--temporary_directory', type=str, nargs=1, default=["/tmp/PPanGGOLiN_outputdir_"+strftime("%Y-%m-%d_%H:%M:%S", gmtime())], metavar=('TMP_DIR'), help="""
+    Temporary directory to store nem intermediate files""")
     parser.add_argument('-f', '--force', action="store_true", help="""
     Force overwriting existing output directory""")
     parser.add_argument('-r', '--remove_high_copy_number_families', type=int, nargs=1, default=[0], metavar=('REPETITION_THRESHOLD'), help="""
@@ -415,16 +417,18 @@ def __main__():
     if options.verbose:
         level = logging.DEBUG
 
-    logging.basicConfig(stream=sys.stdout, level = level, format = '\n%(asctime)s %(filename)s:l%(lineno)d %(levelname)s\t%(message)s', datefmt='%H:%M:%S')
+    logging.basicConfig(stream=sys.stdout, level = level, format = '\n%(asctime)s %(filename)s:l%(lineno)d %(levelname)s\t%(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
     logging.getLogger().info("Command: "+" ".join([arg for arg in sys.argv]))
     logging.getLogger().info("PPanGGOLiN version: "+pkg_resources.get_distribution("ppanggolin").version)
     logging.getLogger().info("Python version: "+sys.version)
     logging.getLogger().info("Networkx version: "+nx.__version__)
     global OUTPUTDIR
+    global TMP_DIR
     OUTPUTDIR       = options.output_directory[0]
+    TMP_DIR         = options.temporary_directory[0]
 
-    list_dir        = [NEM_DIR,FIGURE_DIR,PARTITION_DIR]
+    list_dir        = ["",FIGURE_DIR,PARTITION_DIR]
     if options.projection:
         list_dir.append(PROJECTION_DIR)
     if options.evolution:
@@ -478,7 +482,7 @@ def __main__():
     logging.getLogger().info("Partitioning...")
 
     start_partitioning = time()
-    pan.partition(nem_dir_path    = OUTPUTDIR+NEM_DIR,
+    pan.partition(nem_dir_path    = TMP_DIR+NEM_DIR,
                   organisms       = None,
                   beta            = options.beta_smoothing[0],
                   free_dispersion = options.free_dispersion,
@@ -619,10 +623,8 @@ def __main__():
                               str(len(pan.partitions["accessory"])),
                               str(len(pan.partitions["accessory"])+len(pan.partitions["core_exact"]))])+"\n")
         evol.flush()
-
         with ProcessPoolExecutor(options.cpu[0]) as executor:
             futures = [executor.submit(resample,i) for i in range(len(shuffled_comb))]
-
             for f in tqdm(as_completed(futures), total = len(shuffled_comb), unit = 'pangenome resampled'):
                 ex = f.exception()
                 if ex:

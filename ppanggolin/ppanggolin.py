@@ -1166,7 +1166,7 @@ class PPanGGOLiN:
             self.is_partitionned=True
         else:
             if just_stats:
-                for node_name, nem_class in partitions[FAMILIES_PARTITION].items():
+                for node_name, nem_class in partitions.items():
                     stats[SHORT_TO_LONG[nem_class]]+=1
                 return stats
             else:
