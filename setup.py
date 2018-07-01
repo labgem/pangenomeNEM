@@ -9,7 +9,12 @@ import subprocess
 from distutils.command.install import install
 from distutils.command.build import build
 from distutils.command.clean import clean
-from Cython.Build import cythonize
+try:
+    from Cython.Build import cythonize
+except ImportError as e:
+    print(e)
+    print('please install Cython ("pip install cython") before installing ppanggolin')
+    exit(1)
 
 name = find_packages().pop()
 NEM_dir_path = name+"/NEM/"
