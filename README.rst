@@ -110,7 +110,7 @@ All the gene IDs found in the gff files must be associated with a gene family ev
 
 Reserved word
 ---------------------------
-To prevent any bug, the following words are fobidden to be any of the identifiers : "id", "label", "name", "weight", "partition", "partition_exact", "length", "length_min", "length_max", "length_avg", "length_med", "product", "nb_gene", "community". Moreover, "|" and "," are also fobidden to be contained in any of the identifiers.
+To prevent any bug, the following words are fobidden to be any of the identifiers: "id", "label", "name", "weight", "partition", "partition_exact", "length", "length_min", "length_max", "length_avg", "length_med", "product", 'nb_genes','subpartition_shell',"viz". Moreover, "|" and "," are also fobidden to be contained in any of the identifiers.
 
 Output
 ---------------------------
@@ -168,19 +168,6 @@ For example, this command:
 	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -r 10
 
 will remove gene families having more than 10 repeated genes in at least one of the organism. Empirically, using a r-value of 10 will discard only few gene families (a dozen) .
-
-Undirected or Directed graph (-di option)
-------------------------------------------------------
-
-The pangenome graph can be directed or undirected. Directed graph provided more information but as genome can have multiple inversion around the origin of replication, it is sometime simpler to merge the directed edge into a undirected one.
-
-For example, this command :
-
-.. code:: bash
-
-	ppanggolin --organisms ORGANISMS_FILE --gene_families FAMILIES_FILE -o OUTPUT_DIR -di
-
-Will generate a directed pangenome graph. Note that the partitioning method will not be impacted by this flag because in every case the partitioning approach considers the graph as undirected.
 
 Partionning parameter
 ---------------------------
