@@ -1,3 +1,6 @@
+WARNING: This repo is not maintained. This repository:  `PPanGGOLiN <https://github.com/labgem/PPanGGOLiN>`_ should be used instead.
+
+
 PPanGGOLiN : Depicting microbial species diversity via a Partitioned PanGenome Graph Of Linked Neighbors
 =========================================================================================
 
